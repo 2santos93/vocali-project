@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+.nuxt/
+.output/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+cypress/videos/
+cypress/screenshots/
