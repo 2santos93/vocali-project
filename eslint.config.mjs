@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
@@ -20,8 +21,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ['*.mjs', '*.cjs'],
+    files: ['**/*.mjs', '**/*.cjs'],
     ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: globals.node,
+    },
   },
   {
     files: ['apps/api/src/domain/**/*.ts'],
