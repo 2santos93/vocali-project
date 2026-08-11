@@ -15,7 +15,7 @@ interface CursorPayload {
   readonly id: string;
 }
 
-type RepositoryMethod = 'save' | 'findById' | 'findByExternalJobId' | 'listByUser';
+type RepositoryMethod = 'save' | 'findById' | 'listByUser';
 
 /**
  * Mirrors the ordering and cursor semantics of the DynamoDB adapter: newest
@@ -71,20 +71,6 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
 
     const found = this.recordsByUser.get(userId)?.get(transcriptionId);
     return Promise.resolve(found ? TranscriptionEntity.fromPrimitives(found) : null);
-  }
-
-  findByExternalJobId(externalJobId: string): Promise<Transcription | null> {
-    const failure = this.consumeFailure('findByExternalJobId');
-    if (failure) return Promise.reject(failure);
-
-    for (const userRecords of this.recordsByUser.values()) {
-      for (const record of userRecords.values()) {
-        if (record.externalJobId === externalJobId) {
-          return Promise.resolve(TranscriptionEntity.fromPrimitives(record));
-        }
-      }
-    }
-    return Promise.resolve(null);
   }
 
   listByUser(input: {

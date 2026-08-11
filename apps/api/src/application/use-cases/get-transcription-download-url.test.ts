@@ -2,6 +2,9 @@ import { GetTranscriptionDownloadUrl } from './get-transcription-download-url.js
 import { buildTranscription } from '../../../test/builders/transcription.builder.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
+import { FixedClock } from '../../../test/doubles/fixed-clock.js';
+
+const NOW = new Date('2026-08-10T12:00:00.000Z');
 
 function buildUseCase(): {
   useCase: GetTranscriptionDownloadUrl;
@@ -10,7 +13,7 @@ function buildUseCase(): {
 } {
   const repository = new InMemoryTranscriptionRepository();
   const storage = new InMemoryFileStorage();
-  const useCase = new GetTranscriptionDownloadUrl(repository, storage);
+  const useCase = new GetTranscriptionDownloadUrl(repository, storage, new FixedClock(NOW));
   return { useCase, repository, storage };
 }
 
@@ -43,11 +46,17 @@ describe('GetTranscriptionDownloadUrl', () => {
     if (!result.success) return;
     expect(result.value.url).toBe('https://storage.test/download/transcripts/user-1/01A.txt');
     expect(result.value.format).toBe('txt');
-    expect(new Date(result.value.expiresAt).getTime()).toBeGreaterThan(Date.now());
+    // Both values are hardcoded rather than derived from the source constant:
+    // shortening or lengthening the link's lifetime must break this test, not
+    // be silently tracked by it. The two must also agree — a link the client
+    // believes lasts fifteen minutes while the signature expires sooner is a
+    // download that fails after the user has already clicked it.
+    expect(result.value.expiresAt).toBe('2026-08-10T12:15:00.000Z');
 
     expect(storage.calls.presignedDownloads).toHaveLength(1);
     expect(storage.calls.presignedDownloads[0]?.objectKey).toBe('transcripts/user-1/01A.txt');
     expect(storage.calls.presignedDownloads[0]?.downloadFileName).toBe('01A.txt');
+    expect(storage.calls.presignedDownloads[0]?.expiresInSeconds).toBe(900);
   });
 
   it('builds the json variant key when the json format is requested', async () => {

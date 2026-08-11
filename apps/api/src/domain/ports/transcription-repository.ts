@@ -10,7 +10,6 @@ export interface TranscriptionPage {
 export interface TranscriptionRepository {
   save(transcription: Transcription): Promise<void>;
   findById(userId: string, transcriptionId: string): Promise<Transcription | null>;
-  findByExternalJobId(externalJobId: string): Promise<Transcription | null>;
   listByUser(input: {
     userId: string;
     limit: number;

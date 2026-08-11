@@ -3,6 +3,7 @@ import {
   TranscriptionNotFoundError,
   TranscriptionNotReadyError,
 } from '../../domain/errors/domain-error.js';
+import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import { err, ok, type Result } from '../../domain/shared/result.js';
@@ -23,6 +24,7 @@ export class GetTranscriptionDownloadUrl {
   constructor(
     private readonly repository: TranscriptionRepository,
     private readonly storage: FileStorage,
+    private readonly clock: Clock,
   ) {}
 
   async execute(
@@ -51,7 +53,9 @@ export class GetTranscriptionDownloadUrl {
     return ok({
       url,
       format: input.format,
-      expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1_000).toISOString(),
+      expiresAt: new Date(
+        this.clock.now().getTime() + DOWNLOAD_URL_TTL_SECONDS * 1_000,
+      ).toISOString(),
     });
   }
 }

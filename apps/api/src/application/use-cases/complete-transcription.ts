@@ -24,8 +24,10 @@ type CompleteTranscriptionError = TranscriptionNotFoundError | InvalidStatusTran
  *
  * The record is looked up by primary key `(userId, transcriptionId)` — both
  * carried in the callback URL — rather than by `externalJobId`. A strongly
- * consistent primary-key read sidesteps the eventual consistency of the
- * `externalJobId` secondary index, and it also recovers the case where the
+ * consistent primary-key read is why no secondary index on `externalJobId`
+ * exists at all: such an index would be eventually consistent, so a fast
+ * webhook could miss a record that was already written. It also recovers the
+ * case where the
  * provider accepted a job but the save that would have recorded its id
  * failed: that record is still `PENDING_UPLOAD` with no `externalJobId`, so
  * a lookup by job id alone would never find it.

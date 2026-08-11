@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_TRANSCRIPTION_LANGUAGE, SUPPORTED_TRANSCRIPTION_LANGUAGES } from './constants.js';
 
 export const RealtimeSessionResponseSchema = z.object({
   token: z.string().min(1),
@@ -14,7 +15,7 @@ export const RealtimeSessionResponseSchema = z.object({
 export const SaveRealtimeTranscriptionRequestSchema = z.object({
   text: z.string().min(1).max(500_000),
   durationSeconds: z.number().nonnegative(),
-  language: z.string().min(2).max(10),
+  language: z.enum(SUPPORTED_TRANSCRIPTION_LANGUAGES).default(DEFAULT_TRANSCRIPTION_LANGUAGE),
 });
 
 export type RealtimeSessionResponse = z.infer<typeof RealtimeSessionResponseSchema>;
