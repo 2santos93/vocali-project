@@ -30,7 +30,7 @@ const validInput = {
   fileName: 'visit.mp3',
   contentType: 'audio/mpeg',
   sizeBytes: 2_048,
-  language: 'es',
+  language: 'es' as const,
 };
 
 describe('CreateAudioUploadIntent', () => {
@@ -71,6 +71,20 @@ describe('CreateAudioUploadIntent', () => {
     // Hardcoded, not re-imported from UPLOAD_URL_TTL_SECONDS: a change to
     // that constant must be caught here, not silently absorbed.
     expect(storage.calls.presignedUploads[0]?.expiresInSeconds).toBe(900);
+  });
+
+  it('persists the requested language rather than defaulting it', async () => {
+    const { useCase, repository } = buildUseCase();
+
+    // Catalan, not the 'es' the rest of this file uses: a clinician selecting
+    // a regional language must not have it silently rewritten to Spanish on
+    // the way to the provider. Asserting 'es' here could not tell a threaded
+    // value from a hardcoded one.
+    const result = await useCase.execute({ ...validInput, language: 'ca' });
+
+    expect(result.success).toBe(true);
+    const stored = await repository.findById('user-1', '01ID001');
+    expect(stored?.toPrimitives().language).toBe('ca');
   });
 
   it('rejects an unsupported format without persisting anything or contacting storage', async () => {
@@ -123,6 +137,24 @@ describe('CreateAudioUploadIntent', () => {
     if (page.success) {
       expect(page.value.items).toHaveLength(0);
     }
+  });
+
+  it('rejects a traversal file name before it can be interpolated into an object key', async () => {
+    const { useCase, repository, storage } = buildUseCase();
+
+    const result = await useCase.execute({
+      ...validInput,
+      fileName: '../../user-2/01B/evil.mp3',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
+    }
+    // Nothing was signed and nothing was stored, so no object key was ever
+    // built from the name.
+    expect(storage.calls.presignedUploads).toHaveLength(0);
+    expect(await repository.findById('user-1', '01ID001')).toBeNull();
   });
 
   it('propagates a storage failure without persisting anything', async () => {

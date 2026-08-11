@@ -1,4 +1,4 @@
-import type { TranscriptionStatus } from '@vocali/contracts';
+import type { TranscriptionStatus } from '@vocali/contracts/constants';
 
 /**
  * COMPLETED is terminal: no self-loop and no outgoing transitions, so a
@@ -8,7 +8,7 @@ import type { TranscriptionStatus } from '@vocali/contracts';
  * failure before a late transcript arrives, and losing real transcribed data
  * would be worse than preserving model purity.
  */
-export const ALLOWED_STATUS_TRANSITIONS: Readonly<
+const ALLOWED_STATUS_TRANSITIONS: Readonly<
   Record<TranscriptionStatus, readonly TranscriptionStatus[]>
 > = {
   PENDING_UPLOAD: ['PROCESSING', 'FAILED'],

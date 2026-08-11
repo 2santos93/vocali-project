@@ -1,4 +1,8 @@
-import type { TranscriptionSource, TranscriptionStatus } from '@vocali/contracts';
+import type {
+  TranscriptionLanguage,
+  TranscriptionSource,
+  TranscriptionStatus,
+} from '@vocali/contracts/constants';
 import { InvalidStatusTransitionError } from '../errors/domain-error.js';
 import { err, ok, type Result } from '../shared/result.js';
 import type { AudioFile } from '../value-objects/audio-file.js';
@@ -12,7 +16,7 @@ export interface TranscriptionPrimitives {
   readonly fileName: string;
   readonly source: TranscriptionSource;
   readonly status: TranscriptionStatus;
-  readonly language: string;
+  readonly language: TranscriptionLanguage;
   readonly sizeBytes: number | null;
   readonly durationSeconds: number | null;
   readonly audioObjectKey: string | null;
@@ -29,14 +33,14 @@ interface FileUploadInput {
   readonly userId: string;
   readonly audioFile: AudioFile;
   readonly audioObjectKey: string;
-  readonly language: string;
+  readonly language: TranscriptionLanguage;
   readonly createdAt: Date;
 }
 
 interface RealtimeSessionInput {
   readonly id: string;
   readonly userId: string;
-  readonly language: string;
+  readonly language: TranscriptionLanguage;
   readonly durationSeconds: number;
   readonly transcriptObjectKey: string;
   readonly text: string;
@@ -81,7 +85,7 @@ export class Transcription {
     return new Transcription({
       id: input.id,
       userId: input.userId,
-      fileName: `microphone-${timestamp}`,
+      fileName: buildRealtimeFileName(input.createdAt),
       source: 'MICROPHONE',
       status: 'COMPLETED',
       language: input.language,
@@ -149,4 +153,21 @@ export class Transcription {
 
 function buildPreview(text: string): string {
   return text.slice(0, TEXT_PREVIEW_LENGTH);
+}
+
+/**
+ * A microphone session has no uploaded file, but the history list still shows
+ * a name per row, so one is derived from the moment of recording. Formatted
+ * rather than using the raw ISO string: that contains colons, which are
+ * invalid in filenames on Windows, and it is what the user sees in a clinical
+ * history list. `microphone-YYYYMMDD-HHmmss` sorts in recording order as
+ * plain text, and the single hyphen separates date from time unambiguously.
+ */
+function buildRealtimeFileName(at: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+
+  const date = `${String(at.getUTCFullYear())}${pad(at.getUTCMonth() + 1)}${pad(at.getUTCDate())}`;
+  const time = `${pad(at.getUTCHours())}${pad(at.getUTCMinutes())}${pad(at.getUTCSeconds())}`;
+
+  return `microphone-${date}-${time}`;
 }

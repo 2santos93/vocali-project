@@ -23,7 +23,7 @@ describe('InMemoryTranscriptionRepository', () => {
     expect(page.nextCursor).toBeNull();
   });
 
-  it('paginates with a cursor and never leaks another user data', async () => {
+  it("paginates with a cursor and never leaks another user's data", async () => {
     const repository = new InMemoryTranscriptionRepository();
     for (const id of ['01A', '01B', '01C']) {
       await repository.save(buildTranscription({ id, userId: 'user-1' }));
@@ -43,7 +43,7 @@ describe('InMemoryTranscriptionRepository', () => {
     expect(second.nextCursor).toBeNull();
   });
 
-  it('does not find another user transcription by id', async () => {
+  it("does not find another user's transcription by id", async () => {
     const repository = new InMemoryTranscriptionRepository();
     await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
 

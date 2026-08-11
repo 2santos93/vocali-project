@@ -1,8 +1,10 @@
+import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import type { CreateUploadIntentResponse } from '@vocali/contracts';
 import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts';
 import { Transcription } from '../../domain/entities/transcription.js';
 import type {
   AudioFileTooLargeError,
+  InvalidAudioFileNameError,
   InvalidAudioFileSizeError,
   UnsupportedAudioFormatError,
 } from '../../domain/errors/domain-error.js';
@@ -22,11 +24,14 @@ interface CreateAudioUploadIntentInput {
   readonly fileName: string;
   readonly contentType: string;
   readonly sizeBytes: number;
-  readonly language: string;
+  readonly language: TranscriptionLanguage;
 }
 
 type CreateAudioUploadIntentError =
-  UnsupportedAudioFormatError | InvalidAudioFileSizeError | AudioFileTooLargeError;
+  | UnsupportedAudioFormatError
+  | InvalidAudioFileSizeError
+  | AudioFileTooLargeError
+  | InvalidAudioFileNameError;
 
 /**
  * Issues a presigned upload for a new file-based transcription and persists

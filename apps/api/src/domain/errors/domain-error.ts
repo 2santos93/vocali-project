@@ -1,4 +1,4 @@
-import type { DomainErrorCode } from '@vocali/contracts';
+import type { DomainErrorCode } from '@vocali/contracts/constants';
 
 export abstract class DomainError extends Error {
   abstract readonly code: DomainErrorCode;
@@ -32,6 +32,19 @@ export class AudioFileTooLargeError extends DomainError {
     super(
       `Audio file of ${String(sizeBytes)} bytes exceeds the ${String(maxSizeBytes)} byte limit`,
     );
+  }
+}
+
+/**
+ * Carries the reason rather than the rejected name: the name is client-supplied
+ * and may be long or full of control characters, neither of which belongs in a
+ * message that ends up in a log line or an HTTP response.
+ */
+export class InvalidAudioFileNameError extends DomainError {
+  readonly code = 'INVALID_AUDIO_FILE_NAME';
+
+  constructor(reason: string) {
+    super(`Audio file name is not valid: ${reason}`);
   }
 }
 

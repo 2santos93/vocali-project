@@ -23,14 +23,15 @@ type CompleteTranscriptionError = TranscriptionNotFoundError | InvalidStatusTran
  * Applies a provider completion webhook.
  *
  * The record is looked up by primary key `(userId, transcriptionId)` — both
- * carried in the callback URL — rather than by `externalJobId`. A strongly
- * consistent primary-key read is why no secondary index on `externalJobId`
- * exists at all: such an index would be eventually consistent, so a fast
- * webhook could miss a record that was already written. It also recovers the
- * case where the
- * provider accepted a job but the save that would have recorded its id
- * failed: that record is still `PENDING_UPLOAD` with no `externalJobId`, so
- * a lookup by job id alone would never find it.
+ * carried in the callback URL — rather than by `externalJobId`. That is why no
+ * secondary index on `externalJobId` exists: such an index would be eventually
+ * consistent, so a fast webhook could miss a record that had already been
+ * written.
+ *
+ * It also recovers the case where the provider accepted a job but the save
+ * that would have recorded its id failed. That record is still
+ * `PENDING_UPLOAD` with no `externalJobId`, so a lookup by job id alone would
+ * never find it.
  */
 export class CompleteTranscription {
   constructor(
@@ -49,9 +50,13 @@ export class CompleteTranscription {
 
     const primitives = transcription.toPrimitives();
 
-    // A job id already on record that does not match this callback does not
-    // belong to this transcription — reported as not found rather than a
-    // distinct error, so the response cannot be used to probe for records.
+    // Defence in depth, not the primary control: the handler verifies the
+    // provider's shared secret in constant time before this runs. This check
+    // only rejects a callback whose job id contradicts one already on record,
+    // and is necessarily void while `externalJobId` is null — which is every
+    // PENDING_UPLOAD record, the case the repair branch below exists to serve.
+    // Reported as not found rather than a distinct error, so the response
+    // cannot be used to probe for records.
     if (primitives.externalJobId !== null && primitives.externalJobId !== input.externalJobId) {
       return err(new TranscriptionNotFoundError(input.transcriptionId));
     }
@@ -71,7 +76,12 @@ export class CompleteTranscription {
       // change to the state machine.
       const recovered = transcription.markAsProcessing(input.externalJobId, this.clock.now());
       if (!recovered.success) {
-        return err(recovered.error);
+        // Unreachable: PENDING_UPLOAD always permits PROCESSING. An invariant
+        // violation, not a caller's problem, so it throws — see
+        // `StartFileTranscription` for the full reasoning.
+        throw new Error(
+          `Invariant violated: transcription ${input.transcriptionId} could not transition from PENDING_UPLOAD to PROCESSING (${recovered.error.message})`,
+        );
       }
     }
 
@@ -105,8 +115,13 @@ export class CompleteTranscription {
       at: this.clock.now(),
     });
     if (!transition.success) {
-      // Unreachable in practice: the transition was already validated above.
-      return err(transition.error);
+      // Unreachable: `canTransition` was checked immediately above. Throws for
+      // the same reason as the recovery branch. The error union keeps
+      // `InvalidStatusTransitionError` because that one *is* reachable, from
+      // the explicit check above, which a corrupted stored status can trigger.
+      throw new Error(
+        `Invariant violated: transcription ${input.transcriptionId} could not transition from ${currentStatus} to COMPLETED (${transition.error.message})`,
+      );
     }
 
     await this.repository.save(transcription);

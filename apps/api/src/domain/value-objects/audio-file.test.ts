@@ -1,4 +1,4 @@
-import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts';
+import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts/constants';
 import { AudioFile } from './audio-file.js';
 
 describe('AudioFile', () => {
@@ -74,6 +74,95 @@ describe('AudioFile', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe('INVALID_AUDIO_FILE_SIZE');
+    }
+  });
+
+  it('accepts a Spanish file name with spaces and accents', () => {
+    const result = AudioFile.create({ ...validInput, fileName: 'informe radiología.mp3' });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.fileName).toBe('informe radiología.mp3');
+    }
+  });
+
+  it('rejects an empty file name', () => {
+    const result = AudioFile.create({ ...validInput, fileName: '' });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
+    }
+  });
+
+  it('rejects a file name longer than 255 characters', () => {
+    const result = AudioFile.create({ ...validInput, fileName: `${'a'.repeat(252)}.mp3` });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
+    }
+  });
+
+  it('accepts a file name of exactly 255 characters', () => {
+    const result = AudioFile.create({ ...validInput, fileName: `${'a'.repeat(251)}.mp3` });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a file name containing a control character', () => {
+    // A CRLF here would end up in a Content-Disposition response header.
+    const result = AudioFile.create({ ...validInput, fileName: 'visit\r\n.mp3' });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
+    }
+  });
+
+  it('rejects a file name containing a forward slash', () => {
+    const result = AudioFile.create({ ...validInput, fileName: 'sub/visit.mp3' });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
+    }
+  });
+
+  it('rejects a file name containing a backslash', () => {
+    const result = AudioFile.create({ ...validInput, fileName: 'sub\\visit.mp3' });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
+    }
+  });
+
+  it('rejects a traversal sequence in the file name', () => {
+    // `buildAudioObjectKey` interpolates the name straight into the S3 key.
+    // S3 keys are opaque and do not resolve `..`, so this does not escape the
+    // user's prefix today — but the guarantee this class states is that no
+    // AudioFile can carry a name the platform does not accept.
+    const result = AudioFile.create({
+      ...validInput,
+      fileName: '../../user-2/01B/evil.mp3',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
+    }
+  });
+
+  it('rejects a ".." sequence carrying no path separator of its own', () => {
+    // The traversal case above is also caught by the separator rule, so it
+    // cannot show that the `..` rule does anything. This name can only be
+    // rejected by that rule, which is what makes it the one that pins it.
+    const result = AudioFile.create({ ...validInput, fileName: 'visit..mp3' });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_NAME');
     }
   });
 

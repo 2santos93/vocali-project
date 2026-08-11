@@ -1,21 +1,7 @@
-import { TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
 import { ListUserTranscriptions } from './list-user-transcriptions.js';
+import { PUBLIC_TRANSCRIPTION_FIELDS } from '../../../test/public-transcription-fields.js';
 import { buildTranscription } from '../../../test/builders/transcription.builder.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
-
-const PUBLIC_TRANSCRIPTION_FIELDS = [
-  'id',
-  'fileName',
-  'source',
-  'status',
-  'language',
-  'durationSeconds',
-  'sizeBytes',
-  'textPreview',
-  'errorMessage',
-  'createdAt',
-  'updatedAt',
-].sort();
 
 function buildUseCase(): {
   useCase: ListUserTranscriptions;
@@ -26,18 +12,28 @@ function buildUseCase(): {
   return { useCase, repository };
 }
 
+/**
+ * `idOffset` exists so two users can be seeded with distinguishable ids. Every
+ * other field the DTO exposes is identical across builder calls, and `userId`
+ * is deliberately stripped by the mapper, so without distinct ids nothing in a
+ * returned page could tell one user's records from another's — and a test
+ * claiming to prove isolation would be asserting a property both users share.
+ */
 async function seed(
   repository: InMemoryTranscriptionRepository,
   userId: string,
   count: number,
+  idOffset = 0,
 ): Promise<void> {
   for (let i = 1; i <= count; i += 1) {
-    await repository.save(buildTranscription({ id: String(i).padStart(3, '0'), userId }));
+    await repository.save(
+      buildTranscription({ id: String(idOffset + i).padStart(3, '0'), userId }),
+    );
   }
 }
 
 describe('ListUserTranscriptions', () => {
-  it('returns at most TRANSCRIPTION_PAGE_SIZE items even when more exist, with a non-null nextCursor', async () => {
+  it('returns ten items even when more exist, with a non-null nextCursor', async () => {
     const { useCase, repository } = buildUseCase();
     await seed(repository, 'user-1', 25);
 
@@ -45,7 +41,10 @@ describe('ListUserTranscriptions', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.value.items).toHaveLength(TRANSCRIPTION_PAGE_SIZE);
+    // Hardcoded, not re-imported from TRANSCRIPTION_PAGE_SIZE: ten per page is
+    // a stated product requirement, so changing the constant must fail here
+    // rather than have the assertion quietly follow it.
+    expect(result.value.items).toHaveLength(10);
     expect(result.value.nextCursor).not.toBeNull();
   });
 
@@ -61,17 +60,19 @@ describe('ListUserTranscriptions', () => {
     expect(result.value.nextCursor).toBeNull();
   });
 
-  it('never returns another user records', async () => {
+  it("never returns another user's records", async () => {
     const { useCase, repository } = buildUseCase();
     await seed(repository, 'user-1', 2);
-    await seed(repository, 'user-2', 2);
+    await seed(repository, 'user-2', 2, 100);
 
     const result = await useCase.execute({ userId: 'user-1', cursor: null });
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.value.items).toHaveLength(2);
-    expect(result.value.items.every((item) => item.id.startsWith('00'))).toBe(true);
+    // Asserting the exact ids, newest first: a count alone would catch two
+    // pages being merged but not one user's page being served in place of
+    // another's, which is the failure this test is named for.
+    expect(result.value.items.map((item) => item.id)).toEqual(['002', '001']);
   });
 
   it('maps only the public fields, omitting userId and every internal object key', async () => {

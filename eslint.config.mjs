@@ -44,6 +44,21 @@ export default tseslint.config(
               message: 'The domain layer must stay free of third-party dependencies.',
             },
           ],
+          // `paths` rather than `patterns`: this must match the package root
+          // exactly and still allow the `/constants` subpath, which a glob
+          // group would also catch.
+          //
+          // Banning 'zod' alone was not enough. The contracts barrel re-exports
+          // every schema module, each of which imports Zod, so importing the
+          // package root pulled Zod into the domain's runtime graph without the
+          // specifier ever appearing in a domain file.
+          paths: [
+            {
+              name: '@vocali/contracts',
+              message:
+                'The domain layer must import @vocali/contracts/constants, which carries no Zod.',
+            },
+          ],
         },
       ],
     },

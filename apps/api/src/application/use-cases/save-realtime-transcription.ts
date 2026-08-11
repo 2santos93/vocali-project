@@ -1,15 +1,18 @@
+import type { TranscriptionLanguage } from '@vocali/contracts/constants';
+import type { Transcription as TranscriptionDto } from '@vocali/contracts';
 import { Transcription } from '../../domain/entities/transcription.js';
 import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { IdGenerator } from '../../domain/ports/id-generator.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import { buildTranscriptObjectKey } from './object-keys.js';
+import { toPublicTranscription } from './public-transcription.js';
 
 interface SaveRealtimeTranscriptionInput {
   readonly userId: string;
   readonly text: string;
   readonly durationSeconds: number;
-  readonly language: string;
+  readonly language: TranscriptionLanguage;
 }
 
 /**
@@ -28,14 +31,25 @@ export class SaveRealtimeTranscription {
     private readonly clock: Clock,
   ) {}
 
-  async execute(input: SaveRealtimeTranscriptionInput): Promise<Transcription> {
+  async execute(input: SaveRealtimeTranscriptionInput): Promise<TranscriptionDto> {
     const id = this.idGenerator.next();
     const transcriptObjectKey = buildTranscriptObjectKey(input.userId, id, 'txt');
+    const jsonObjectKey = buildTranscriptObjectKey(input.userId, id, 'json');
 
+    // Both transcript formats are written, exactly as the provider-callback
+    // path does in `CompleteTranscription`. The download use case derives the
+    // object key from the requested format alone, so a record that only ever
+    // stored `.txt` would still hand the user a signed URL for a `.json`
+    // object that was never written.
     await this.storage.putText({
       objectKey: transcriptObjectKey,
       body: input.text,
       contentType: 'text/plain',
+    });
+    await this.storage.putText({
+      objectKey: jsonObjectKey,
+      body: JSON.stringify({ text: input.text, durationSeconds: input.durationSeconds }),
+      contentType: 'application/json',
     });
 
     const transcription = Transcription.createFromRealtimeSession({
@@ -50,6 +64,10 @@ export class SaveRealtimeTranscription {
 
     await this.repository.save(transcription);
 
-    return transcription;
+    // The public DTO, not the entity: `toPrimitives()` carries `userId` and
+    // three internal object keys, and the obvious handler — returning whatever
+    // this resolves to — would publish all four from the microphone endpoint
+    // while the history endpoint stayed carefully clean.
+    return toPublicTranscription(transcription.toPrimitives());
   }
 }

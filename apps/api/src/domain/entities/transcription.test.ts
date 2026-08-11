@@ -48,6 +48,11 @@ describe('Transcription', () => {
     expect(transcription.status).toBe('COMPLETED');
     expect(transcription.toPrimitives().source).toBe('MICROPHONE');
     expect(transcription.toPrimitives().textPreview).toBe('the patient reports mild pain');
+    // A microphone session has no uploaded file, so the name shown in the
+    // history is derived from the recording time. Asserted exactly: the raw
+    // ISO string would put colons in a value the user sees and downloads by,
+    // and colons are not valid in a filename on Windows.
+    expect(transcription.toPrimitives().fileName).toBe('microphone-20260810-100000');
   });
 
   it('moves to processing and records the external job id', () => {

@@ -1,13 +1,10 @@
-import type {
-  ListTranscriptionsResponse,
-  Transcription as TranscriptionDto,
-} from '@vocali/contracts';
+import type { ListTranscriptionsResponse } from '@vocali/contracts';
 import { TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
-import type { TranscriptionPrimitives } from '../../domain/entities/transcription.js';
 import type { InvalidCursorError } from '../../domain/errors/domain-error.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import type { Result } from '../../domain/shared/result.js';
 import { ok } from '../../domain/shared/result.js';
+import { toPublicTranscription } from './public-transcription.js';
 
 interface ListUserTranscriptionsInput {
   readonly userId: string;
@@ -34,26 +31,4 @@ export class ListUserTranscriptions {
       nextCursor: page.value.nextCursor,
     });
   }
-}
-
-/**
- * Maps each field by name rather than spreading `TranscriptionPrimitives`.
- * `userId`, `audioObjectKey`, `transcriptObjectKey` and `externalJobId` are
- * internal storage identifiers that must never reach the client; a spread
- * would leak them the moment a new internal field is added to the entity.
- */
-function toPublicTranscription(primitives: TranscriptionPrimitives): TranscriptionDto {
-  return {
-    id: primitives.id,
-    fileName: primitives.fileName,
-    source: primitives.source,
-    status: primitives.status,
-    language: primitives.language,
-    durationSeconds: primitives.durationSeconds,
-    sizeBytes: primitives.sizeBytes,
-    textPreview: primitives.textPreview,
-    errorMessage: primitives.errorMessage,
-    createdAt: primitives.createdAt,
-    updatedAt: primitives.updatedAt,
-  };
 }

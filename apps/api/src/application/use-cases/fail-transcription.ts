@@ -1,5 +1,4 @@
 import { TranscriptionNotFoundError } from '../../domain/errors/domain-error.js';
-import type { InvalidStatusTransitionError } from '../../domain/errors/domain-error.js';
 import type { Clock } from '../../domain/ports/clock.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import { err, ok, type Result } from '../../domain/shared/result.js';
@@ -12,15 +11,14 @@ interface FailTranscriptionInput {
   readonly reason: string;
 }
 
-type FailTranscriptionError = TranscriptionNotFoundError | InvalidStatusTransitionError;
+type FailTranscriptionError = TranscriptionNotFoundError;
 
 /**
  * Applies a provider failure webhook.
  *
  * Looked up by primary key for the same reason as `CompleteTranscription`:
- * the callback URL carries `(userId, transcriptionId)`, and a strongly
- * consistent primary-key read is both faster and immune to the job-id
- * secondary index's eventual consistency.
+ * the callback URL carries `(userId, transcriptionId)`, so no secondary
+ * index is involved and the read is strongly consistent.
  */
 export class FailTranscription {
   constructor(
@@ -51,8 +49,15 @@ export class FailTranscription {
 
     const transition = transcription.markAsFailed(input.reason, this.clock.now());
     if (!transition.success) {
-      // Unreachable in practice: the transition was already validated above.
-      return err(transition.error);
+      // Unreachable: `canTransition` was checked immediately above and nothing
+      // mutates this transcription in between. Since no reachable path
+      // produces it, it is not part of this use case's error union — a failure
+      // here is an invariant violation, not an outcome a caller must handle,
+      // so it throws rather than returning err. Same reasoning, and the same
+      // shape, as `StartFileTranscription`.
+      throw new Error(
+        `Invariant violated: transcription ${primitives.id} could not transition from ${primitives.status} to FAILED (${transition.error.message})`,
+      );
     }
 
     await this.repository.save(transcription);

@@ -18,7 +18,7 @@ const SafeFileNameSchema = z
   .max(255)
   .regex(/^[^\p{C}/\\]+$/u, { message: 'File name must not contain control characters' })
   .refine((value) => !value.includes('..'), {
-    message: 'File name must not contain path separators',
+    message: 'File name must not contain a ".." sequence',
   });
 
 export const CreateUploadIntentRequestSchema = z.object({

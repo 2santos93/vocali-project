@@ -1,3 +1,13 @@
+import path from 'node:path';
+
+// Jest resolves a relative `coverageThreshold` key against `process.cwd()`,
+// not `rootDir`. Keyed relatively, the thresholds silently stop applying the
+// moment Jest is invoked from anywhere but this directory — it prints
+// "Coverage data for ./src/domain/ was not found" and still exits 0, which is
+// exactly what a CI job running Jest from the repository root would do.
+const DOMAIN_DIR = path.join(import.meta.dirname, 'src/domain/');
+const APPLICATION_DIR = path.join(import.meta.dirname, 'src/application/');
+
 export default {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
@@ -8,7 +18,7 @@ export default {
   },
   collectCoverageFrom: ['src/**/*.ts', '!src/**/index.ts', '!src/**/ports/**'],
   coverageThreshold: {
-    './src/domain/': { statements: 90, branches: 85, functions: 90, lines: 90 },
-    './src/application/': { statements: 90, branches: 85, functions: 90, lines: 90 },
+    [DOMAIN_DIR]: { statements: 90, branches: 85, functions: 90, lines: 90 },
+    [APPLICATION_DIR]: { statements: 90, branches: 85, functions: 90, lines: 90 },
   },
 };

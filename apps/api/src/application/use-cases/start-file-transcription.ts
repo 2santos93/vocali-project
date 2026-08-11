@@ -58,9 +58,9 @@ export function parseAudioObjectKey(
  * Appends the transcription's identity to the callback URL as query
  * parameters, so the webhook can be resolved by primary key even if the
  * `externalJobId` was never persisted (for example, a provider job that
- * submitted successfully but whose `PROCESSING` save then failed). A
- * strongly consistent `(userId, transcriptionId)` lookup also sidesteps the
- * eventual consistency of the `externalJobId` secondary index.
+ * submitted successfully but whose `PROCESSING` save then failed). Carrying
+ * the identity here is what lets the webhook read by primary key, and so what
+ * removes the need for any secondary index on `externalJobId`.
  */
 export function buildProviderCallbackUrl(
   baseUrl: string,

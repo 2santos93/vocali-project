@@ -1,4 +1,4 @@
-import type { TranscriptionStatus } from '@vocali/contracts';
+import type { TranscriptionStatus } from '@vocali/contracts/constants';
 import { canTransition } from './transcription-status.js';
 
 describe('canTransition', () => {

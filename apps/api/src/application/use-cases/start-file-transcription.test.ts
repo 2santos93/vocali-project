@@ -89,7 +89,10 @@ describe('parseAudioObjectKey', () => {
 describe('StartFileTranscription', () => {
   it('submits the job with a readable audio url and records the job id', async () => {
     const { useCase, repository, storage, provider } = buildUseCase();
-    await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
+    // Built with Catalan rather than the builder's default 'es': the job must
+    // be submitted in the language the record carries, and an assertion on the
+    // default cannot tell a threaded value from a hardcoded one.
+    await repository.save(buildTranscription({ id: '01A', userId: 'user-1', language: 'ca' }));
 
     const result = await useCase.execute({ audioObjectKey: 'audio/user-1/01A/visit.mp3' });
 
@@ -98,7 +101,7 @@ describe('StartFileTranscription', () => {
     expect(provider.submissions[0]?.audioUrl).toBe(
       'https://storage.test/read/audio/user-1/01A/visit.mp3',
     );
-    expect(provider.submissions[0]?.language).toBe('es');
+    expect(provider.submissions[0]?.language).toBe('ca');
     expect(provider.submissions[0]?.callbackUrl).toBe(
       'https://api.test/webhooks/transcription-provider?transcriptionId=01A&userId=user-1',
     );
