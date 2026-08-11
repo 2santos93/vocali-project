@@ -9,9 +9,20 @@
     "test:coverage": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --coverage"
   },
   "dependencies": {
-    "@vocali/contracts": "workspace:*"
+    "@aws-sdk/client-dynamodb": "^3.1107.0",
+    "@aws-sdk/client-s3": "^3.1107.0",
+    "@aws-sdk/client-ssm": "^3.1107.0",
+    "@aws-sdk/lib-dynamodb": "^3.1107.0",
+    "@aws-sdk/s3-presigned-post": "^3.1107.0",
+    "@aws-sdk/s3-request-presigner": "^3.1107.0",
+    "@vocali/contracts": "workspace:*",
+    "pino": "^10.3.1",
+    "ulid": "^3.0.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0"
+    "@types/node": "^24.0.0",
+    "aws-sdk-client-mock": "^4.1.0",
+    "undici": "^7.18.2"
   }
 }

@@ -73,6 +73,25 @@ export class TranscriptionNotReadyError extends DomainError {
 }
 
 /**
+ * Raised when the transcription provider could not be made to do its job:
+ * it rejected the request, it stayed unreachable across every retry, or it
+ * answered with something the adapter cannot read.
+ *
+ * The reason is written for a person and deliberately carries no HTTP status,
+ * no response body and no request detail. A provider's status code describes a
+ * conversation the client was never part of, and repeating it invites a
+ * frontend to branch on a third party's numbering. One code, one remedy: the
+ * transcription did not start, so try again.
+ */
+export class TranscriptionProviderError extends DomainError {
+  readonly code = 'TRANSCRIPTION_PROVIDER_FAILED';
+
+  constructor(reason: string) {
+    super(`The transcription provider could not complete the request: ${reason}`);
+  }
+}
+
+/**
  * Raised when a pagination cursor cannot be decoded, or was not issued for
  * the user requesting the page. A malformed or foreign cursor is
  * attacker-controlled input arriving over HTTP, so it is an expected

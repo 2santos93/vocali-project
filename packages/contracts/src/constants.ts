@@ -57,6 +57,7 @@ export const DOMAIN_ERROR_CODES = [
   'INVALID_STATUS_TRANSITION',
   'TRANSCRIPTION_NOT_READY',
   'INVALID_CURSOR',
+  'TRANSCRIPTION_PROVIDER_FAILED',
 ] as const;
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];
