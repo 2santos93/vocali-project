@@ -1,5 +1,7 @@
+import type { DomainErrorCode } from '@vocali/contracts';
+
 export abstract class DomainError extends Error {
-  abstract readonly code: string;
+  abstract readonly code: DomainErrorCode;
 
   protected constructor(message: string) {
     super(message);
@@ -12,6 +14,14 @@ export class UnsupportedAudioFormatError extends DomainError {
 
   constructor(contentType: string) {
     super(`Audio format "${contentType}" is not supported`);
+  }
+}
+
+export class InvalidAudioFileSizeError extends DomainError {
+  readonly code = 'INVALID_AUDIO_FILE_SIZE';
+
+  constructor(sizeBytes: number) {
+    super(`Audio file size ${String(sizeBytes)} is not a valid positive whole number of bytes`);
   }
 }
 
@@ -46,5 +56,19 @@ export class TranscriptionNotReadyError extends DomainError {
 
   constructor(status: string) {
     super(`Transcription is "${status}" and has no transcript to download yet`);
+  }
+}
+
+/**
+ * Raised when a pagination cursor cannot be decoded, or was not issued for
+ * the user requesting the page. A malformed or foreign cursor is
+ * attacker-controlled input arriving over HTTP, so it is an expected
+ * failure the caller must handle, not an exceptional condition.
+ */
+export class InvalidCursorError extends DomainError {
+  readonly code = 'INVALID_CURSOR';
+
+  constructor(reason: string) {
+    super(`Invalid pagination cursor: ${reason}`);
   }
 }

@@ -134,6 +134,10 @@ export class Transcription {
       transcriptObjectKey: input.transcriptObjectKey,
       durationSeconds: input.durationSeconds,
       textPreview: buildPreview(input.text),
+      // A late success following a recorded FAILED status (see
+      // `transcription-status.ts`) must not leave the earlier failure text
+      // attached to what is now a completed transcription.
+      errorMessage: null,
     });
   }
 

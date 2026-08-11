@@ -45,5 +45,49 @@ describe('AudioFile', () => {
     const result = AudioFile.create({ ...validInput, sizeBytes: 0 });
 
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_SIZE');
+    }
+  });
+
+  it('rejects a negative size', () => {
+    const result = AudioFile.create({ ...validInput, sizeBytes: -1 });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_SIZE');
+    }
+  });
+
+  it('rejects a NaN size', () => {
+    const result = AudioFile.create({ ...validInput, sizeBytes: Number.NaN });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_SIZE');
+    }
+  });
+
+  it('rejects a non-integer size', () => {
+    const result = AudioFile.create({ ...validInput, sizeBytes: 1.5 });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('INVALID_AUDIO_FILE_SIZE');
+    }
+  });
+
+  it('cannot be produced from a structurally similar object (nominal typing)', () => {
+    function attemptToSmuggleAnUnvalidatedRow(row: {
+      fileName: string;
+      contentType: string;
+      sizeBytes: number;
+    }): AudioFile {
+      // @ts-expect-error AudioFile is nominal: a plain object with matching
+      // public fields is not assignable without going through `create`.
+      return row;
+    }
+
+    expect(attemptToSmuggleAnUnvalidatedRow).toBeInstanceOf(Function);
   });
 });

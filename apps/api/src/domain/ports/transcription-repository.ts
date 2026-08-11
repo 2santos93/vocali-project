@@ -1,4 +1,6 @@
 import type { Transcription, TranscriptionPrimitives } from '../entities/transcription.js';
+import type { InvalidCursorError } from '../errors/domain-error.js';
+import type { Result } from '../shared/result.js';
 
 export interface TranscriptionPage {
   readonly items: readonly TranscriptionPrimitives[];
@@ -13,5 +15,5 @@ export interface TranscriptionRepository {
     userId: string;
     limit: number;
     cursor: string | null;
-  }): Promise<TranscriptionPage>;
+  }): Promise<Result<TranscriptionPage, InvalidCursorError>>;
 }

@@ -105,6 +105,26 @@ describe('Transcription', () => {
     expect(transcription.toPrimitives().errorMessage).toBe('provider rejected the audio');
   });
 
+  it('clears the error message when a late transcript completes it after a failure', () => {
+    const transcription = buildPendingTranscription();
+    transcription.markAsProcessing('job-77', LATER);
+    transcription.markAsFailed('provider timed out', LATER);
+
+    const result = transcription.markAsCompleted({
+      transcriptObjectKey: 'transcripts/user-1/01ABC.txt',
+      text: 'the patient reports mild pain',
+      durationSeconds: 45,
+      at: LATER,
+    });
+
+    expect(result.success).toBe(true);
+    expect(transcription.status).toBe('COMPLETED');
+    const primitives = transcription.toPrimitives();
+    expect(primitives.errorMessage).toBeNull();
+    expect(primitives.textPreview).toBe('the patient reports mild pain');
+    expect(primitives.durationSeconds).toBe(45);
+  });
+
   it('survives a round trip through primitives', () => {
     const original = buildPendingTranscription();
 

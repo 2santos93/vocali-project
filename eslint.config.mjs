@@ -67,11 +67,6 @@ export default tseslint.config(
   },
   {
     files: ['**/*.test.ts', 'apps/api/test/**/*.ts'],
-    rules: {
-      '@typescript-eslint/no-non-null-assertion': 'off',
-      // `ok()`/`err()` return `Success<T>`/`Failure<E>` directly, so narrowing
-      // on `result.success` in tests checks a literal `true`/`false` type.
-      '@typescript-eslint/no-unnecessary-condition': 'off',
-    },
+    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
 );
