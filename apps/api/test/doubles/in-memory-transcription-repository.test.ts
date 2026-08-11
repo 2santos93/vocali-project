@@ -157,4 +157,24 @@ describe('InMemoryTranscriptionRepository', () => {
     );
     expect(page).toEqual({ items: [], nextCursor: null });
   });
+
+  it('rejects only the targeted method, leaving an earlier call in the same flow unaffected', async () => {
+    const repository = new InMemoryTranscriptionRepository();
+    await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
+    repository.failOn('save', new Error('write throttled'));
+
+    // findById is not the targeted method, so it must still succeed even
+    // though a failure is scheduled for save.
+    const found = await repository.findById('user-1', '01A');
+    expect(found?.toPrimitives()).toMatchObject({ id: '01A', userId: 'user-1' });
+
+    await expect(
+      repository.save(buildTranscription({ id: '01A', userId: 'user-1' })),
+    ).rejects.toThrow('write throttled');
+
+    // The scheduled failure was consumed by the one save call above.
+    await expect(
+      repository.save(buildTranscription({ id: '01B', userId: 'user-1' })),
+    ).resolves.toBeUndefined();
+  });
 });

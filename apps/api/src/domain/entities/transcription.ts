@@ -101,14 +101,6 @@ export class Transcription {
     return new Transcription(primitives);
   }
 
-  get id(): string {
-    return this.state.id;
-  }
-
-  get userId(): string {
-    return this.state.userId;
-  }
-
   get status(): TranscriptionStatus {
     return this.state.status;
   }
@@ -119,10 +111,6 @@ export class Transcription {
 
   get audioObjectKey(): string | null {
     return this.state.audioObjectKey;
-  }
-
-  get transcriptObjectKey(): string | null {
-    return this.state.transcriptObjectKey;
   }
 
   markAsProcessing(externalJobId: string, at: Date): Result<void, InvalidStatusTransitionError> {

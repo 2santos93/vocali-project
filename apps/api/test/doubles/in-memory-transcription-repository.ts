@@ -15,6 +15,8 @@ interface CursorPayload {
   readonly id: string;
 }
 
+type RepositoryMethod = 'save' | 'findById' | 'findByExternalJobId' | 'listByUser';
+
 /**
  * Mirrors the ordering and cursor semantics of the DynamoDB adapter: newest
  * first by sort key, and a cursor that encodes the last returned key (like
@@ -39,8 +41,20 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
   /** Set to make the next call reject with this error; cleared after one use. */
   failNextWith?: Error | undefined;
 
+  private readonly failOnMethod = new Map<RepositoryMethod, Error>();
+
+  /**
+   * Schedules the next call to a specific method to reject with this error;
+   * cleared after one use. Unlike `failNextWith`, which fires on whichever
+   * method is called next, this targets one method so a test can make, say,
+   * only `save` fail after an earlier `findById` in the same flow succeeded.
+   */
+  failOn(method: RepositoryMethod, error: Error): void {
+    this.failOnMethod.set(method, error);
+  }
+
   save(transcription: Transcription): Promise<void> {
-    const failure = this.consumeFailure();
+    const failure = this.consumeFailure('save');
     if (failure) return Promise.reject(failure);
 
     const primitives = transcription.toPrimitives();
@@ -52,7 +66,7 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
   }
 
   findById(userId: string, transcriptionId: string): Promise<Transcription | null> {
-    const failure = this.consumeFailure();
+    const failure = this.consumeFailure('findById');
     if (failure) return Promise.reject(failure);
 
     const found = this.recordsByUser.get(userId)?.get(transcriptionId);
@@ -60,7 +74,7 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
   }
 
   findByExternalJobId(externalJobId: string): Promise<Transcription | null> {
-    const failure = this.consumeFailure();
+    const failure = this.consumeFailure('findByExternalJobId');
     if (failure) return Promise.reject(failure);
 
     for (const userRecords of this.recordsByUser.values()) {
@@ -78,7 +92,7 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
     limit: number;
     cursor: string | null;
   }): Promise<Result<TranscriptionPage, InvalidCursorError>> {
-    const failure = this.consumeFailure();
+    const failure = this.consumeFailure('listByUser');
     if (failure) return Promise.reject(failure);
 
     const ordered = [...(this.recordsByUser.get(input.userId)?.values() ?? [])].sort(
@@ -108,7 +122,13 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
     return Promise.resolve(ok({ items, nextCursor }));
   }
 
-  private consumeFailure(): Error | undefined {
+  private consumeFailure(method: RepositoryMethod): Error | undefined {
+    const scoped = this.failOnMethod.get(method);
+    if (scoped) {
+      this.failOnMethod.delete(method);
+      return scoped;
+    }
+
     const failure = this.failNextWith;
     this.failNextWith = undefined;
     return failure;
