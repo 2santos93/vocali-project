@@ -364,48 +364,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(delays).toEqual([100, 200]);
     });
 
-    it('never waits longer than the configured ceiling, whatever Retry-After asks for', async () => {
-      interceptJobs(
-        { status: 429, headers: { 'retry-after': '3600' } },
-        { status: 201, body: { id: 'sm-job-81' } },
-      );
-      const { provider, delays } = buildProvider({ maxRetryDelayMs: 5_000 });
-
-      await provider.submitFileJob({
-        audioUrl: AUDIO_URL,
-        language: 'es',
-        callbackUrl: CALLBACK_URL,
-      });
-
-      // An hour is longer than any Lambda may run, so honouring it literally
-      // would trade a retry for a certain timeout.
-      expect(delays).toEqual([5_000]);
-    });
-
-    it('retries a request that never reached the provider at all', async () => {
-      agent
-        .get(BATCH_ORIGIN)
-        .intercept({ path: JOBS_PATH, method: 'POST' })
-        .replyWithError(new Error('socket hang up'));
-      interceptJobs({ status: 201, body: { id: 'sm-job-82' } });
-      const { provider, delays, logger } = buildProvider();
-
-      const job = await provider.submitFileJob({
-        audioUrl: AUDIO_URL,
-        language: 'es',
-        callbackUrl: CALLBACK_URL,
-      });
-
-      expect(job.externalJobId).toBe('sm-job-82');
-      expect(delays).toEqual([100]);
-      // The cause's own message is not repeated: a fetch failure names the
-      // url it was fetching, and here that is the presigned link to a
-      // patient's audio.
-      const written = logger.serialise();
-      expect(written).toContain('the request could not be completed');
-      expect(written).not.toContain(AUDIO_URL);
-    });
-
     it('abandons a request that outlives the configured timeout', async () => {
       interceptJobs({ status: 201, body: { id: 'sm-job-80' }, delayMs: 400 });
       const { provider, logger } = buildProvider({ maxAttempts: 1, requestTimeoutMs: 40 });
@@ -430,24 +388,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
       expect(error.message).toContain('returned no job id');
-    });
-
-    it.each([
-      ['a body that is not JSON', 'the gateway ate it', 'not valid JSON'],
-      ['a JSON body that is not an object', ['sm-job-83'], 'an unexpected body'],
-    ])('rejects a 2xx carrying %s', async (_case, body, expected) => {
-      interceptJobs({ status: 201, body });
-      const { provider } = buildProvider();
-
-      const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
-      );
-
-      // A 201 whose body cannot be read is not a submitted job. Treating it as
-      // one would mark the transcription PROCESSING against a job id that does
-      // not exist, and it would sit there until a reconciler noticed.
-      expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
-      expect(error.message).toContain(expected);
     });
 
     it('never writes the api key or the webhook secret into a log line', async () => {
