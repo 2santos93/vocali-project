@@ -13,3 +13,8 @@ export const SUPPORTED_AUDIO_CONTENT_TYPES = [
   'audio/amr',
   'video/mp4',
 ] as const;
+
+/** The platform is Spanish-first; every code here is one the provider accepts. */
+export const DEFAULT_TRANSCRIPTION_LANGUAGE = 'es';
+
+export const SUPPORTED_TRANSCRIPTION_LANGUAGES = ['es', 'en', 'ca', 'eu', 'gl'] as const;

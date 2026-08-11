@@ -11,6 +11,7 @@ import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 import { SilentLogger } from '../../../test/doubles/silent-logger.js';
 
 const CALLBACK_BASE_URL = 'https://api.test/webhooks/transcription-provider';
+const NOW = new Date('2026-08-10T10:05:00.000Z');
 
 function buildUseCase(): {
   useCase: StartFileTranscription;
@@ -25,7 +26,7 @@ function buildUseCase(): {
     repository,
     storage,
     provider,
-    new FixedClock(new Date('2026-08-10T10:05:00.000Z')),
+    new FixedClock(NOW),
     new SilentLogger(),
     { callbackBaseUrl: CALLBACK_BASE_URL },
   );
@@ -60,6 +61,29 @@ describe('parseAudioObjectKey', () => {
   it('returns null for a key missing the transcription id segment', () => {
     expect(parseAudioObjectKey('audio/user-1')).toBeNull();
   });
+
+  it('returns null for a key with fewer than four segments even with a prefix and ids', () => {
+    expect(parseAudioObjectKey('audio/user-1/01A')).toBeNull();
+  });
+
+  it('returns null for a key with an empty user id segment', () => {
+    expect(parseAudioObjectKey('audio//01A/visit.mp3')).toBeNull();
+  });
+
+  it('returns null for a key of entirely empty segments', () => {
+    expect(parseAudioObjectKey('audio///')).toBeNull();
+  });
+
+  it('parses a key with extra trailing segments structurally, leaving rejection to the caller', () => {
+    // The parser is deliberately permissive here: it has at least four
+    // non-empty segments, so it parses. `StartFileTranscription.execute`
+    // is what actually rejects this, by comparing the full key against the
+    // record's own `audioObjectKey`.
+    expect(parseAudioObjectKey('audio/user-1/01A/sub/dir/visit.mp3')).toEqual({
+      userId: 'user-1',
+      transcriptionId: '01A',
+    });
+  });
 });
 
 describe('StartFileTranscription', () => {
@@ -80,10 +104,36 @@ describe('StartFileTranscription', () => {
     );
     expect(storage.calls.presignedReads).toHaveLength(1);
     expect(storage.calls.presignedReads[0]?.objectKey).toBe('audio/user-1/01A/visit.mp3');
+    // Hardcoded, not re-imported from the source constant: if
+    // AUDIO_READ_URL_TTL_SECONDS were ever changed without updating this
+    // assertion, this must fail rather than silently track the change.
+    expect(storage.calls.presignedReads[0]?.expiresInSeconds).toBe(3_600);
 
     const stored = await repository.findById('user-1', '01A');
     expect(stored?.status).toBe('PROCESSING');
     expect(stored?.externalJobId).toBe('job-1');
+    expect(stored?.toPrimitives().updatedAt).toBe(NOW.toISOString());
+  });
+
+  it('rejects an object key whose user and transcription ids match a record but whose file name does not', async () => {
+    const { useCase, repository, storage, provider } = buildUseCase();
+    await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
+
+    // Same prefix and ids as the real record (created for visit.mp3), but a
+    // different file name: this must not resolve to that record.
+    const result = await useCase.execute({
+      audioObjectKey: 'audio/user-1/01A/a-different-file.mp3',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe('TRANSCRIPTION_NOT_FOUND');
+    }
+    expect(storage.calls.presignedReads).toHaveLength(0);
+    expect(provider.submissions).toHaveLength(0);
+
+    const stored = await repository.findById('user-1', '01A');
+    expect(stored?.status).toBe('PENDING_UPLOAD');
   });
 
   it('fails when the object key does not match a known transcription, without contacting storage or the provider', async () => {

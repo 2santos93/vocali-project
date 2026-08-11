@@ -1,5 +1,4 @@
 import { TranscriptionNotFoundError } from '../../domain/errors/domain-error.js';
-import type { InvalidStatusTransitionError } from '../../domain/errors/domain-error.js';
 import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { Logger } from '../../domain/ports/logger.js';
@@ -20,15 +19,34 @@ interface StartFileTranscriptionConfig {
   readonly callbackBaseUrl: string;
 }
 
-type StartFileTranscriptionError = TranscriptionNotFoundError | InvalidStatusTransitionError;
+type StartFileTranscriptionError = TranscriptionNotFoundError;
 
-/** Object keys follow `audio/{userId}/{transcriptionId}/{fileName}`. */
+/**
+ * Object keys follow `audio/{userId}/{transcriptionId}/{fileName}`. Requires
+ * at least four non-empty segments; anything shorter, or with an empty
+ * segment, is rejected as unparseable rather than silently coerced.
+ *
+ * This is a structural check only — it does not verify that `userId` or
+ * `transcriptionId` correspond to a real record, and it tolerates extra
+ * segments after the file name. That verification is the caller's job: see
+ * the exact-match check against the record's own `audioObjectKey` in
+ * `StartFileTranscription.execute`.
+ *
+ * S3 event notifications percent-and-plus-encode object keys (a space
+ * becomes `+`, accented characters are percent-escaped), so whatever calls
+ * this with a raw S3 event key must `decodeURIComponent` it first — an
+ * un-decoded key silently fails to match the stored `audioObjectKey` and the
+ * file is never transcribed.
+ */
 export function parseAudioObjectKey(
   objectKey: string,
 ): { userId: string; transcriptionId: string } | null {
   const segments = objectKey.split('/');
-  const [prefix, userId, transcriptionId] = segments;
+  if (segments.length < 4 || segments.some((segment) => segment.length === 0)) {
+    return null;
+  }
 
+  const [prefix, userId, transcriptionId] = segments;
   if (prefix !== 'audio' || userId === undefined || transcriptionId === undefined) {
     return null;
   }
@@ -89,6 +107,14 @@ export class StartFileTranscription {
 
     const primitives = transcription.toPrimitives();
 
+    // The key resolves a record by its `{userId}/{transcriptionId}` segments
+    // alone, so any object parked under that prefix — same ids, different file
+    // name — would otherwise be transcribed into this user's record. The key
+    // must match the one this transcription was created for, exactly.
+    if (primitives.audioObjectKey !== input.audioObjectKey) {
+      return err(new TranscriptionNotFoundError(input.audioObjectKey));
+    }
+
     if (!canTransition(primitives.status, 'PROCESSING')) {
       this.logger.info('Ignoring duplicate transcription start event', {
         transcriptionId: primitives.id,
@@ -114,10 +140,13 @@ export class StartFileTranscription {
     const transition = transcription.markAsProcessing(job.externalJobId, this.clock.now());
     if (!transition.success) {
       // Unreachable in practice: the transition was already validated above
-      // and nothing else mutates this transcription in between, but the
-      // entity still models the outcome as a Result, so this branch is
-      // honored rather than assumed away.
-      return err(transition.error);
+      // and nothing else mutates this transcription in between. Since no
+      // reachable path produces it, it is not part of this use case's error
+      // union — a failure here is an invariant violation, not an expected
+      // outcome a caller must handle, so it throws rather than returning err.
+      throw new Error(
+        `Invariant violated: transcription ${primitives.id} could not transition from ${primitives.status} to PROCESSING (${transition.error.message})`,
+      );
     }
 
     await this.repository.save(transcription);

@@ -5,10 +5,32 @@ describe('CreateUploadIntentRequestSchema', () => {
     fileName: 'consultation.mp3',
     contentType: 'audio/mpeg',
     sizeBytes: 1_024,
+    language: 'es',
   };
 
   it('accepts a well-formed upload request', () => {
     expect(CreateUploadIntentRequestSchema.parse(validRequest)).toEqual(validRequest);
+  });
+
+  it('defaults language to "es" when omitted', () => {
+    const withoutLanguage = {
+      fileName: validRequest.fileName,
+      contentType: validRequest.contentType,
+      sizeBytes: validRequest.sizeBytes,
+    };
+
+    const parsed = CreateUploadIntentRequestSchema.parse(withoutLanguage);
+
+    expect(parsed.language).toBe('es');
+  });
+
+  it('rejects an unsupported language code', () => {
+    const result = CreateUploadIntentRequestSchema.safeParse({
+      ...validRequest,
+      language: 'xx',
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it('rejects a file larger than the maximum allowed size', () => {

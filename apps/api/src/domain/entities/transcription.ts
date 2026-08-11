@@ -109,10 +109,6 @@ export class Transcription {
     return this.state.externalJobId;
   }
 
-  get audioObjectKey(): string | null {
-    return this.state.audioObjectKey;
-  }
-
   markAsProcessing(externalJobId: string, at: Date): Result<void, InvalidStatusTransitionError> {
     return this.transitionTo('PROCESSING', at, { externalJobId });
   }

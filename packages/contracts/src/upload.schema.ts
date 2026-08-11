@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { MAX_AUDIO_FILE_SIZE_BYTES, SUPPORTED_AUDIO_CONTENT_TYPES } from './constants.js';
+import {
+  DEFAULT_TRANSCRIPTION_LANGUAGE,
+  MAX_AUDIO_FILE_SIZE_BYTES,
+  SUPPORTED_AUDIO_CONTENT_TYPES,
+  SUPPORTED_TRANSCRIPTION_LANGUAGES,
+} from './constants.js';
 
 /**
  * Rejects path separators so a crafted name cannot escape its storage prefix,
@@ -20,6 +25,7 @@ export const CreateUploadIntentRequestSchema = z.object({
   fileName: SafeFileNameSchema,
   contentType: z.enum(SUPPORTED_AUDIO_CONTENT_TYPES),
   sizeBytes: z.number().int().positive().max(MAX_AUDIO_FILE_SIZE_BYTES),
+  language: z.enum(SUPPORTED_TRANSCRIPTION_LANGUAGES).default(DEFAULT_TRANSCRIPTION_LANGUAGE),
 });
 
 export const CreateUploadIntentResponseSchema = z.object({

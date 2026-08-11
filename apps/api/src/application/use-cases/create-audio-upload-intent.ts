@@ -12,6 +12,7 @@ import type { IdGenerator } from '../../domain/ports/id-generator.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import { err, ok, type Result } from '../../domain/shared/result.js';
 import { AudioFile } from '../../domain/value-objects/audio-file.js';
+import { buildAudioObjectKey } from './object-keys.js';
 
 /** How long the presigned POST stays valid before the client must retry. */
 const UPLOAD_URL_TTL_SECONDS = 900;
@@ -26,15 +27,6 @@ interface CreateAudioUploadIntentInput {
 
 type CreateAudioUploadIntentError =
   UnsupportedAudioFormatError | InvalidAudioFileSizeError | AudioFileTooLargeError;
-
-/** Object keys follow `audio/{userId}/{transcriptionId}/{fileName}`. */
-export function buildAudioObjectKey(
-  userId: string,
-  transcriptionId: string,
-  fileName: string,
-): string {
-  return `audio/${userId}/${transcriptionId}/${fileName}`;
-}
 
 /**
  * Issues a presigned upload for a new file-based transcription and persists
@@ -64,6 +56,19 @@ export class CreateAudioUploadIntent {
     const transcriptionId = this.idGenerator.next();
     const audioObjectKey = buildAudioObjectKey(input.userId, transcriptionId, input.fileName);
 
+    // Presign before saving: if presigning fails, nothing is persisted and
+    // the client just retries — no stranded row. If save then fails instead,
+    // the client never receives this response (a 5xx propagates from the
+    // exception), so the only residue is a signed URL nobody holds. Either
+    // order leaves some residue on the *other* failure; this one leaves
+    // nothing to clean up on the failure that is easier to hit in practice.
+    const upload = await this.storage.createPresignedUpload({
+      objectKey: audioObjectKey,
+      contentType: input.contentType,
+      maxSizeBytes: MAX_AUDIO_FILE_SIZE_BYTES,
+      expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
+    });
+
     const transcription = Transcription.createForFileUpload({
       id: transcriptionId,
       userId: input.userId,
@@ -74,13 +79,6 @@ export class CreateAudioUploadIntent {
     });
 
     await this.repository.save(transcription);
-
-    const upload = await this.storage.createPresignedUpload({
-      objectKey: audioObjectKey,
-      contentType: input.contentType,
-      maxSizeBytes: MAX_AUDIO_FILE_SIZE_BYTES,
-      expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
-    });
 
     return ok({
       transcriptionId,
