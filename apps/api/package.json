@@ -21,6 +21,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.162",
     "@types/node": "^24.0.0",
     "aws-sdk-client-mock": "^4.1.0",
     "undici": "^7.18.2"
