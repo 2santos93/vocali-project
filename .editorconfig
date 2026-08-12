@@ -7,3 +7,15 @@ indent_style = space
 indent_size = 2
 insert_final_newline = true
 trim_trailing_whitespace = true
+
+# The same column prettier.config.mjs wraps at, so an editor's ruler sits where
+# Prettier will actually break the line. If the two disagree, the ruler is a
+# lie and everybody learns to ignore it.
+[*.{ts,mts,cts,vue,js,mjs,cjs,json,css,yml,yaml}]
+max_line_length = 100
+
+# Prose is wrapped by whoever wrote it — Prettier is set to `proseWrap:
+# 'preserve'` — so a fixed column here would have editors reflowing paragraphs
+# Prettier deliberately leaves alone.
+[*.md]
+max_line_length = off

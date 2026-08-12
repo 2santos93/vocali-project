@@ -27,6 +27,12 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      # Terraform formats its own files. Prettier has no authority over HCL,
+      # so the two gates are separate and this one needs the real binary.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -34,6 +40,9 @@ jobs:
       # instead of behind a full test run.
       - name: Check formatting
         run: pnpm format:check
+
+      - name: Check Terraform formatting
+        run: pnpm format:check:tf
 
       - name: Lint
         run: pnpm lint
