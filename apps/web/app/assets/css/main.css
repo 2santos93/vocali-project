@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+/*
+ * One focus treatment for the whole interface, defined once.
+ *
+ * It is declared with `@utility` rather than as a plain class so it composes
+ * with variants — every interactive component writes
+ * `focus-visible:focus-ring` and nothing else. Repeating the outline colour
+ * and offset in eleven components is how a focus ring quietly goes missing
+ * from the twelfth.
+ */
+@utility focus-ring {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Respect a reader who has asked the operating system to stop animating.
+   * The upload progress bar and the recording indicator both move; for a
+   * user with vestibular sensitivity that is a reason to close the tab.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

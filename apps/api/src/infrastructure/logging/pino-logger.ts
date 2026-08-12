@@ -43,11 +43,19 @@ const REDACTED_PATHS = [
 export class PinoLogger implements Logger {
   constructor(private readonly logger: Pino) {}
 
+  // Context first, message second throughout: that is pino's merging-object
+  // signature, and passing them the other way round stringifies the object
+  // into the message and loses every field as a queryable attribute.
   info(message: string, context: Record<string, unknown> = {}): void {
-    // Context first, message second: that is pino's merging-object signature,
-    // and passing them the other way round stringifies the object into the
-    // message and loses every field as a queryable attribute.
     this.logger.info(context, message);
+  }
+
+  warn(message: string, context: Record<string, unknown> = {}): void {
+    this.logger.warn(context, message);
+  }
+
+  error(message: string, context: Record<string, unknown> = {}): void {
+    this.logger.error(context, message);
   }
 
   /**
@@ -74,8 +82,9 @@ export function createLogger(
       // pid and hostname are noise repeated on every record.
       base: null,
       timestamp: pino.stdTimeFunctions.isoTime,
-      // The level as a word rather than pino's numeric code: a filter on
-      // `level = "error"` is something an operator can write from memory.
+      // The level as a word rather than pino's numeric code, so that the
+      // `level = "error"` filter an operator writes from memory matches the
+      // lines the `Logger` port emits: `info`, `warn` and `error`.
       formatters: { level: (label): Record<string, unknown> => ({ level: label }) },
       redact: { paths: REDACTED_PATHS, censor: '[redacted]' },
     },

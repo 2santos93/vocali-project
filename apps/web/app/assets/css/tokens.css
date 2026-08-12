@@ -1,0 +1,79 @@
+/*
+ * The design tokens, and the only place any of them is defined.
+ *
+ * Tailwind v4 builds its utilities from these custom properties, so a colour
+ * that is not declared here cannot be written in a template: `bg-brand-600`
+ * exists because `--color-brand-600` does. That is the mechanism that keeps
+ * arbitrary values (`bg-[#2b76a8]`) out of the components — there is never a
+ * reason to reach for one.
+ *
+ * Names are semantic rather than literal. A badge asks for `success`, not for
+ * `green`, so the palette can be retuned without editing a single component.
+ */
+
+@theme {
+  /* Spacing. Tailwind v4 derives the whole scale from this one step, so
+     `p-2` is 0.5rem, `p-4` is 1rem, and no component invents a value. */
+  --spacing: 0.25rem;
+
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+
+  --radius-control: 0.5rem;
+  --radius-panel: 0.75rem;
+
+  /* Brand. A desaturated clinical blue: it has to sit behind clinical text
+     for a whole shift without competing with it. */
+  --color-brand-50: #eef6fb;
+  --color-brand-100: #d6e9f5;
+  --color-brand-200: #aed3ea;
+  --color-brand-300: #7fb7db;
+  --color-brand-400: #4f96c6;
+  --color-brand-500: #2b76a8;
+  --color-brand-600: #1f5d88;
+  --color-brand-700: #1a4a6c;
+  --color-brand-800: #163c57;
+  --color-brand-900: #12303f;
+
+  /* Surfaces and text. */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f7f9;
+  --color-line: #d8e0e6;
+  --color-ink: #17222b;
+  --color-ink-muted: #5a6b78;
+  --color-ink-inverse: #ffffff;
+
+  /*
+   * Semantic states. Each carries the same four roles so a component can pick
+   * a state and use the roles without knowing which state it got:
+   *   soft  — a tinted background
+   *   line  — the border that goes with it
+   *   ink   — text on the soft background, contrast checked against it
+   *   solid — a filled background, paired with --color-ink-inverse
+   */
+  --color-muted-soft: #eef2f5;
+  --color-muted-line: #d3dce2;
+  --color-muted-ink: #44545f;
+  --color-muted-solid: #5a6b78;
+
+  --color-info-soft: #e6f1fb;
+  --color-info-line: #b9d7f2;
+  --color-info-ink: #1b5183;
+  --color-info-solid: #2b76a8;
+
+  --color-success-soft: #e6f6ed;
+  --color-success-line: #b0e0c4;
+  --color-success-ink: #14603a;
+  --color-success-solid: #1f8a4d;
+
+  --color-warning-soft: #fdf3e2;
+  --color-warning-line: #f2d9a8;
+  --color-warning-ink: #7a4a0f;
+  --color-warning-solid: #b8761c;
+
+  --color-danger-soft: #fdeaea;
+  --color-danger-line: #f3bebe;
+  --color-danger-ink: #8b2020;
+  --color-danger-solid: #b52c2c;
+}

@@ -318,6 +318,23 @@ describe('DynamoTranscriptionRepository', () => {
       expect(ddbMock.commandCalls(QueryCommand)).toHaveLength(0);
     });
 
+    it('rejects a cursor that decodes to JSON which is not an object', async () => {
+      const result = await buildRepository(new FakeDynamoTable()).listByUser({
+        userId: 'user-1',
+        limit: 10,
+        cursor: Buffer.from('null').toString('base64url'),
+      });
+
+      // The case above dies inside JSON.parse and never reaches the shape
+      // guard. This one parses cleanly, so without the guard the adapter reads
+      // .userId off null: an attacker-controlled query parameter becomes an
+      // uncaught TypeError and a 500 rather than INVALID_CURSOR and a 400.
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.code).toBe('INVALID_CURSOR');
+      expect(ddbMock.commandCalls(QueryCommand)).toHaveLength(0);
+    });
+
     it('rejects a cursor minted for another user instead of resuming their page', async () => {
       const table = new FakeDynamoTable();
       seed(table, 'user-1', ['01A', '01B', '01C']);

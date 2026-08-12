@@ -1,0 +1,38 @@
+{
+  // Deliberately standalone: it does not extend `.nuxt/tsconfig.json`.
+  //
+  // Atoms, molecules and organisms are pure Vue with no Nuxt runtime, so they
+  // must compile without Nuxt's generated types. Typing them against those
+  // types would make an accidental `useFetch` or `navigateTo` compile happily
+  // and only fail later, under Jest, where no Nuxt runtime exists. Here it
+  // fails at `pnpm typecheck` instead, which is the earliest place it can.
+  //
+  // It also keeps the workspace typecheck independent of `nuxt prepare`: a
+  // fresh clone type-checks without a code-generation step having run first.
+  // Pages and server routes do need those types; they get their own project
+  // when they land.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // The base config turns declarations on for the packages that will be
+    // published into a bundle. Nothing consumes this package's types, and
+    // leaving it on makes TypeScript enforce that every inferred type could be
+    // *named* in a .d.ts — which pnpm's nested store makes impossible for
+    // `defineNuxtConfig`'s return type (TS2742) without a hand-written
+    // annotation that says nothing.
+    "declaration": false,
+    "jsx": "preserve",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["jest", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["./app/*"]
+    }
+  },
+  // Cypress is deliberately absent, and lives in `tsconfig.cypress.json`.
+  // Importing the `cypress` package installs Mocha and Chai globals, which
+  // then shadow Jest's: `expect(...).toBe` stops existing and every component
+  // test fails to compile against an assertion library it does not use.
+  "include": ["app/**/*.ts", "app/**/*.vue", "nuxt.config.ts"],
+  "exclude": ["node_modules", ".nuxt", ".output", "coverage", "cypress"]
+}

@@ -1,0 +1,14 @@
+{
+  // The end-to-end project, kept apart from the component project because the
+  // two assertion libraries cannot share a global scope: Cypress ships Mocha
+  // and Chai globals, Jest ships its own, and whichever loses leaves `expect`
+  // typed for a library the file is not using.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["cypress", "node"]
+  },
+  "include": ["cypress.config.ts", "cypress/**/*.ts"]
+}

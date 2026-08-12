@@ -1,0 +1,32 @@
+{
+  "name": "@vocali/web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "typecheck": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.cypress.json",
+    "test": "node ../../node_modules/jest/bin/jest.js",
+    "test:coverage": "node ../../node_modules/jest/bin/jest.js --coverage",
+    "e2e": "cypress run",
+    "e2e:open": "cypress open"
+  },
+  "dependencies": {
+    "@vocali/contracts": "workspace:*",
+    "nuxt": "^4.2.1",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/node": "^24.0.0",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/vue3-jest": "^29.2.6",
+    "babel-jest": "^29.7.0",
+    "cypress": "^15.0.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "tailwindcss": "^4.1.0",
+    "vue-tsc": "^3.1.0"
+  }
+}

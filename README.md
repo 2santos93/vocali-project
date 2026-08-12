@@ -12,12 +12,14 @@ The work is staged so that each layer is finished and tested before the next one
 | -------- | ------------------------------------------------------------ | ------------------------ |
 | Phase 1  | Shared contracts, domain model, all eight use cases          | **Complete** — 118 tests |
 | Phase 2A | AWS and provider adapters, Lambda handlers, composition root | Not started              |
-| Phase 2B | Terraform, CI/CD, deployment                                 | Not started              |
+| Phase 2B | Terraform, CI/CD, deployment                                 | In progress              |
 | Phase 3  | Nuxt front end                                               | Not started              |
 
 **What you can run today:** `pnpm install && pnpm typecheck && pnpm test`. The entire business layer is exercised against in-memory doubles, so there is nothing to configure and no AWS account involved.
 
-**What does not exist yet:** `apps/web`, `infra/`, `docs/adr/`, any Lambda handler, any AWS adapter. The Architecture, Deployment and Testing sections below describe the target design; where a section covers something not yet built, it says so.
+**What does not exist yet:** `apps/web`, any Lambda handler. The Architecture, Deployment and Testing sections below describe the target design; where a section covers something not yet built, it says so.
+
+`infra/` holds the Cognito user pool, the DynamoDB table, both buckets, one IAM role and log group per function, and the remote state bootstrap. Nothing has been deployed: it is validated offline, and the functions, the API and the front-end hosting arrive with the handlers they depend on.
 
 The reason for the split is that the ports are the hard part. Once the domain and the use cases are pinned by tests that run in about a second, the adapters behind those ports are mechanical and the design cannot quietly drift while they are written.
 
@@ -99,9 +101,11 @@ Three constraints shaped almost everything else.
 ```
 apps/api           Backend: domain, application (infrastructure and presentation are Phase 2A)
 packages/contracts Zod schemas shared by both sides
+infra              Terraform: bootstrap, modules, one directory per environment
+docs/adr           Decision records
 ```
 
-Planned for later phases: `apps/web` (Nuxt), `infra` (Terraform), `docs/adr` (decision records).
+Planned for a later phase: `apps/web` (Nuxt).
 
 The backend follows a hexagonal structure. `domain` depends only on the shared contracts package, and only on its Zod-free constants entry point. `application` depends on `domain` and on port interfaces. `infrastructure` and `presentation` will depend inwards and never the other way.
 
@@ -139,13 +143,15 @@ One standard is applied throughout: **a test that still passes when the behaviou
 
 ## Deployment
 
-Phase 2B, not yet written. The intent is that everything is defined in Terraform: the Cognito user pool, the DynamoDB table, both buckets with their CORS and lifecycle rules, the API and its authorizer, every function with its own least-privilege role, the CloudFront distribution, log retention and alarms.
+Everything is defined in Terraform, under `infra/`. What exists today is the Cognito user pool, the DynamoDB table, both buckets with their CORS and lifecycle rules, an execution role and a log group for each function, and the remote state bootstrap. Still to come, with the handlers they depend on: the functions themselves, the API and its authorizer, and the CloudFront distribution in front of the front end.
+
+Nothing has been deployed. Every module and environment passes `terraform fmt -check`, `terraform init -backend=false` and `terraform validate` offline; `plan` is the first command that needs an AWS account. `infra/README.md` covers how it is composed and what it decides.
 
 CI will run linting, formatting, type checking, unit tests with coverage, Cypress, and static analysis of the Terraform. Deployment authenticates to AWS through OIDC, so no long-lived AWS credentials are stored anywhere.
 
 ## Decisions
 
-The decisions worth arguing about, each with the alternative that was rejected and the consequence accepted. These will move into `docs/adr/` as that directory is created in Phase 2B.
+The decisions worth arguing about, each with the alternative that was rejected and the consequence accepted. The ones already recorded in full live in [`docs/adr/`](docs/adr).
 
 - **Terraform rather than the Serverless Framework.** Most of this platform is not Lambda — Cognito, CloudFront, buckets, IAM, alarms — and one tool describing all of it in a single dependency graph is easier to review than a serverless manifest with a large block of raw CloudFormation attached.
 - **Tokens in `httpOnly` cookies, set by the Nuxt server.** The browser never holds a Cognito token in JavaScript-readable storage, which removes the usual reward for a cross-site scripting bug.

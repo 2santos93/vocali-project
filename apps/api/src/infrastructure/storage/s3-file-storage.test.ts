@@ -155,23 +155,47 @@ describe('S3FileStorage', () => {
       expect(new URL(url).searchParams.get('X-Amz-Expires')).toBe('900');
     });
 
-    it('strips quotes and line breaks so a file name cannot inject a header', async () => {
+    // S3 echoes this value back as a response header verbatim, so anything
+    // that could close the quoted string or begin a new header line has to be
+    // gone, not escaped. Asserted on the name between the delimiting quotes
+    // rather than on the whole header, since an unsanitised name closes the
+    // quote early and would otherwise still produce a string that looks well
+    // formed.
+    it.each([
+      // A quote closes the filename; a CRLF begins a header of the client's choosing.
+      ['a quote and a line break', 're"po\r\nX-Injected: yes\nrt.txt', 'repoX-Injected: yesrt.txt'],
+      // A trailing backslash is a quoted-pair under RFC 9110, so `filename="a\"`
+      // escapes its own closing quote and the header runs on into whatever follows.
+      ['a trailing backslash', 'informe a\\', 'informe a'],
+      // A separator turns the name into a path the browser may follow out of
+      // the directory it was saving into.
+      ['a path separator', '../x.txt', '..x.txt'],
+    ])('strips %s so a file name cannot inject a header', async (_case, given, expected) => {
       const url = await buildStorage().createPresignedDownload({
         objectKey: 'transcripts/user-1/01A.txt',
-        downloadFileName: 're"po\r\nX-Injected: yes\nrt.txt',
+        downloadFileName: given,
         expiresInSeconds: 900,
       });
 
-      // S3 echoes this value back as a response header verbatim, so the quote
-      // that would close the filename and the CRLF that would begin a new
-      // header line both have to be gone, not escaped. Asserted on the name
-      // between the delimiting quotes rather than on the whole header, since
-      // an unsanitised name closes the quote early and would otherwise still
-      // produce a string that looks well formed.
       const fileName = /^attachment; filename="(.*)"$/s.exec(dispositionOf(url))?.[1];
 
-      expect(fileName).toBe('repoX-Injected: yesrt.txt');
-      expect(fileName).not.toMatch(/["\r\n]/);
+      expect(fileName).toBe(expected);
+      expect(fileName).not.toMatch(/["\r\n\\/]/);
+    });
+
+    it('truncates a name too long to belong in a header', async () => {
+      const url = await buildStorage().createPresignedDownload({
+        objectKey: 'transcripts/user-1/01A.txt',
+        downloadFileName: `${'a'.repeat(300)}.txt`,
+        expiresInSeconds: 900,
+      });
+
+      // Written out rather than derived from the constant the code uses: a
+      // bound asserted against its own definition agrees with itself whatever
+      // either becomes.
+      const fileName = /^attachment; filename="(.*)"$/s.exec(dispositionOf(url))?.[1];
+
+      expect(fileName).toBe('a'.repeat(200));
     });
 
     it('falls back to a fixed name when sanitisation leaves nothing', async () => {

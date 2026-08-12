@@ -1,3 +1,11 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# pnpm 10 refuses to run a dependency's install scripts unless it is named here.
+# Both of these ship a platform binary that the postinstall script fetches, and
+# without it the package is present but cannot execute: esbuild backs Vite, so
+# `nuxt dev` and `nuxt build` fail, and Cypress has no test runner to launch.
+onlyBuiltDependencies:
+  - cypress
+  - esbuild

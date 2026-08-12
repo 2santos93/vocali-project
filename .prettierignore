@@ -3,3 +3,4 @@ coverage/
 dist/
 .nuxt/
 .output/
+worktrees/

@@ -1,10 +1,23 @@
 import js from '@eslint/js';
+import configPrettier from 'eslint-config-prettier/flat';
 import globals from 'globals';
+import pluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
+import vueParser from 'vue-eslint-parser';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/.nuxt/**', '**/.output/**', '**/node_modules/**'],
+    // `**/worktrees/**` keeps other checkouts of this repository out of the
+    // lint surface. Without it, `eslint .` walks into every local worktree and
+    // reports another branch's files as failures of this one.
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.nuxt/**',
+      '**/.output/**',
+      '**/node_modules/**',
+      '**/worktrees/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
@@ -84,4 +97,79 @@ export default tseslint.config(
     files: ['**/*.test.ts', 'apps/api/test/**/*.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
+
+  // Until this block existed, .vue files matched no configuration at all and
+  // were skipped in silence — `eslint .` reported success on a front end it
+  // had never parsed.
+  ...pluginVue.configs['flat/recommended'],
+  {
+    files: ['**/*.vue'],
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        // vue-eslint-parser handles the SFC; the script block is handed to
+        // typescript-eslint. `extraFileExtensions` is what lets the project
+        // service accept a .vue path as a program file, which is the
+        // difference between type-aware rules running and being skipped.
+        parser: tseslint.parser,
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+        extraFileExtensions: ['.vue'],
+      },
+      globals: globals.browser,
+    },
+  },
+
+  // The front end runs in a browser. typescript-eslint's own overrides switch
+  // `no-undef` off for .ts files, but the front end's tests reach for File,
+  // DragEvent and document, which are undeclared under the Node globals the
+  // rest of the workspace assumes.
+  {
+    files: ['apps/web/**/*.ts'],
+    languageOptions: { globals: globals.browser },
+  },
+
+  // A component test imports a .vue file, and typescript-eslint's program
+  // cannot resolve one: only the Vue language service can compile a single
+  // file component into a type. Every value that comes back from `mount()` is
+  // therefore `error`-typed here, and the no-unsafe family reports each use of
+  // it — a wall of findings about a limitation of the linter rather than a
+  // defect in the test.
+  //
+  // Nothing is given up. `pnpm typecheck` runs vue-tsc over these same files
+  // with full knowledge of every SFC, and it runs in CI, so the types are
+  // still checked — by the tool that can see them.
+  {
+    files: ['apps/web/**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+    },
+  },
+
+  // The end-to-end project is a second TypeScript program (see
+  // apps/web/tsconfig.cypress.json), and the project service resolves a file
+  // to the nearest tsconfig.json — which excludes these. Naming the project
+  // explicitly is what keeps the type-aware rules running over them instead of
+  // failing to parse.
+  {
+    files: ['apps/web/cypress.config.ts', 'apps/web/cypress/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: ['apps/web/tsconfig.cypress.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+
+  // Last, so it wins. eslint-plugin-vue's recommended set carries layout rules
+  // — where attributes wrap, how a tag self-closes — that disagree with
+  // Prettier, and a repository with two formatters has neither. This switches
+  // off every rule Prettier already decides and leaves the correctness rules
+  // untouched.
+  configPrettier,
 );
