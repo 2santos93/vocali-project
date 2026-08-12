@@ -30,5 +30,5 @@ output "dead_letter_queue_name" {
 
 output "asynchronous_function_keys" {
   description = "The functions granted a failure destination, so the module that creates them configures one for exactly these and no others."
-  value       = keys(local.asynchronous_statements)
+  value       = local.asynchronous_functions
 }

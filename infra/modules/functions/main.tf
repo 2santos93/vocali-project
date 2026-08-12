@@ -189,9 +189,13 @@ locals {
   #
   # Kept out of `functions` above so that map stays free of resource
   # attributes: its keys drive several `for_each` arguments, and those have to
-  # be resolvable before anything is created.
+  # be resolvable before anything is created. The list is separate from the
+  # statement for the same reason — it is published as an output that another
+  # module's `for_each` consumes, and it must not carry a queue ARN with it.
+  asynchronous_functions = ["start-transcription-job"]
+
   asynchronous_statements = {
-    "start-transcription-job" = [{
+    for name in local.asynchronous_functions : name => [{
       Sid    = "RecordAsynchronousFailure"
       Effect = "Allow"
       # A failure destination is delivered under the function's own execution
