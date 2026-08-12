@@ -3,7 +3,10 @@ import type {
   TranscriptionPrimitives,
 } from '../../src/domain/entities/transcription.js';
 import { Transcription as TranscriptionEntity } from '../../src/domain/entities/transcription.js';
-import { InvalidCursorError } from '../../src/domain/errors/domain-error.js';
+import {
+  ConcurrentModificationError,
+  InvalidCursorError,
+} from '../../src/domain/errors/domain-error.js';
 import type {
   TranscriptionPage,
   TranscriptionRepository,
@@ -15,7 +18,7 @@ interface CursorPayload {
   readonly id: string;
 }
 
-type RepositoryMethod = 'save' | 'findById' | 'listByUser';
+type RepositoryMethod = 'save' | 'findById' | 'findByClientSession' | 'listByUser';
 
 /**
  * Mirrors the ordering and cursor semantics of the DynamoDB adapter: newest
@@ -38,6 +41,9 @@ type RepositoryMethod = 'save' | 'findById' | 'listByUser';
 export class InMemoryTranscriptionRepository implements TranscriptionRepository {
   private readonly recordsByUser = new Map<string, Map<string, TranscriptionPrimitives>>();
 
+  /** The `IDEM#<clientSessionId>` items, nested by user for the same reason. */
+  private readonly claimsByUser = new Map<string, Map<string, string>>();
+
   /** Set to make the next call reject with this error; cleared after one use. */
   failNextWith?: Error | undefined;
 
@@ -53,16 +59,44 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
     this.failOnMethod.set(method, error);
   }
 
-  save(transcription: Transcription): Promise<void> {
+  save(
+    transcription: Transcription,
+    options: { clientSessionId?: string | undefined } = {},
+  ): Promise<Result<void, ConcurrentModificationError>> {
     const failure = this.consumeFailure('save');
     if (failure) return Promise.reject(failure);
 
     const primitives = transcription.toPrimitives();
     const userRecords =
       this.recordsByUser.get(primitives.userId) ?? new Map<string, TranscriptionPrimitives>();
-    userRecords.set(primitives.id, primitives);
+    const stored = userRecords.get(primitives.id);
+
+    // The same condition the adapter sends to DynamoDB, evaluated here rather
+    // than by the table: insert what does not exist, otherwise replace only
+    // the revision this entity was read at. A double that accepted a stale
+    // write would let every use-case test pass while production rejected the
+    // very same call.
+    if (stored !== undefined && stored.version !== primitives.version) {
+      return Promise.resolve(err(new ConcurrentModificationError(primitives.id)));
+    }
+
+    const userClaims = this.claimsByUser.get(primitives.userId) ?? new Map<string, string>();
+    // `attribute_not_exists(SK)` on the claim item, checked before anything is
+    // stored so the two writes land together or not at all — the transaction
+    // the adapter sends has no partial outcome either.
+    if (options.clientSessionId !== undefined && userClaims.has(options.clientSessionId)) {
+      return Promise.resolve(err(new ConcurrentModificationError(primitives.id)));
+    }
+
+    userRecords.set(primitives.id, { ...primitives, version: primitives.version + 1 });
     this.recordsByUser.set(primitives.userId, userRecords);
-    return Promise.resolve();
+
+    if (options.clientSessionId !== undefined) {
+      userClaims.set(options.clientSessionId, primitives.id);
+      this.claimsByUser.set(primitives.userId, userClaims);
+    }
+
+    return Promise.resolve(ok(undefined));
   }
 
   findById(userId: string, transcriptionId: string): Promise<Transcription | null> {
@@ -70,6 +104,17 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
     if (failure) return Promise.reject(failure);
 
     const found = this.recordsByUser.get(userId)?.get(transcriptionId);
+    return Promise.resolve(found ? TranscriptionEntity.fromPrimitives(found) : null);
+  }
+
+  findByClientSession(userId: string, clientSessionId: string): Promise<Transcription | null> {
+    const failure = this.consumeFailure('findByClientSession');
+    if (failure) return Promise.reject(failure);
+
+    const claimedId = this.claimsByUser.get(userId)?.get(clientSessionId);
+    if (claimedId === undefined) return Promise.resolve(null);
+
+    const found = this.recordsByUser.get(userId)?.get(claimedId);
     return Promise.resolve(found ? TranscriptionEntity.fromPrimitives(found) : null);
   }
 

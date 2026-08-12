@@ -1,9 +1,12 @@
 import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts';
 import { CreateAudioUploadIntent } from './create-audio-upload-intent.js';
+import { buildTranscription } from '../../../test/builders/transcription.builder.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
 import { SequentialIdGenerator } from '../../../test/doubles/sequential-id-generator.js';
 import { FixedClock } from '../../../test/doubles/fixed-clock.js';
+
+const AUDIO_BUCKET = 'audio-bucket';
 
 const FIXED_NOW = new Date('2026-08-10T10:00:00.000Z');
 
@@ -15,7 +18,10 @@ function buildUseCase(): {
   const repository = new InMemoryTranscriptionRepository();
   // Same clock as the use case, so the double's computed `expiresAt` is
   // deterministic and can be asserted exactly, not just checked for shape.
-  const storage = new InMemoryFileStorage(new FixedClock(FIXED_NOW));
+  const storage = new InMemoryFileStorage({
+    bucketName: AUDIO_BUCKET,
+    clock: new FixedClock(FIXED_NOW),
+  });
   const useCase = new CreateAudioUploadIntent(
     repository,
     storage,
@@ -44,7 +50,7 @@ describe('CreateAudioUploadIntent', () => {
 
     expect(result.value.transcriptionId).toBe('01ID001');
     expect(result.value.upload.fields['key']).toBe('audio/user-1/01ID001/visit.mp3');
-    expect(result.value.upload.url).toBe('https://storage.test/bucket');
+    expect(result.value.upload.url).toBe(`https://storage.test/${AUDIO_BUCKET}`);
     // Hardcoded, not re-derived from UPLOAD_URL_TTL_SECONDS: pins the actual
     // response mapping rather than trivially re-confirming whatever the
     // implementation computed.
@@ -85,6 +91,17 @@ describe('CreateAudioUploadIntent', () => {
     expect(result.success).toBe(true);
     const stored = await repository.findById('user-1', '01ID001');
     expect(stored?.toPrimitives().language).toBe('ca');
+  });
+
+  it('treats a collision on a freshly generated id as an invariant violation, not a caller error', async () => {
+    const { useCase, repository } = buildUseCase();
+    // Occupy the id the generator is about to hand out, so the insert loses
+    // the conditional write. Nothing in production can do this — the id is
+    // minted moments before the write and nothing else holds it — which is
+    // why it throws rather than becoming an outcome every caller must handle.
+    await repository.save(buildTranscription({ id: '01ID001', userId: 'user-1' }));
+
+    await expect(useCase.execute(validInput)).rejects.toThrow('Invariant violated');
   });
 
   it('rejects an unsupported format without persisting anything or contacting storage', async () => {

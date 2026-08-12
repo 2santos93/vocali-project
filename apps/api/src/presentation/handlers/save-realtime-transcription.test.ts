@@ -11,6 +11,8 @@ import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storag
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 import { SequentialIdGenerator } from '../../../test/doubles/sequential-id-generator.js';
 
+const TRANSCRIPTS_BUCKET = 'transcripts-bucket';
+
 const NOW = new Date('2026-08-11T09:00:00.000Z');
 
 const VALID_BODY = {
@@ -26,7 +28,7 @@ function buildSubject(): {
 } {
   const clock = new FixedClock(NOW);
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage(clock);
+  const storage = new InMemoryFileStorage({ bucketName: TRANSCRIPTS_BUCKET, clock });
 
   return {
     handler: saveRealtimeTranscriptionHandler({
@@ -112,6 +114,23 @@ describe('saveRealtimeTranscriptionHandler', () => {
 
     expect(response.statusCode).toBe(401);
     expect(storage.calls.writes).toHaveLength(0);
+  });
+
+  it('answers a retried save with the same 201 body and stores one record', async () => {
+    const { handler, repository } = buildSubject();
+    const body = JSON.stringify({ ...VALID_BODY, clientSessionId: 'session-abc' });
+
+    const first = await handler(buildApiGatewayEvent({ body }));
+    const second = await handler(buildApiGatewayEvent({ body }));
+
+    // The retry the client sends when the first response never arrived. Any
+    // other answer — a 409, a second id — leaves the browser deciding which
+    // of two identical entries in the history is the real one.
+    expect(second.statusCode).toBe(201);
+    expect(parseResponseBody(second.body)).toEqual(parseResponseBody(first.body));
+
+    const page = await repository.listByUser({ userId: 'user-1', limit: 10, cursor: null });
+    expect(page.success && page.value.items).toHaveLength(1);
   });
 
   it('answers a generic 500 when storage fails', async () => {

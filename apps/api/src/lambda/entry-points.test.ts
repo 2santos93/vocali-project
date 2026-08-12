@@ -4,6 +4,7 @@ import { withoutCredentials } from '../../test/without-credentials.js';
 const ENVIRONMENT = {
   AWS_REGION: 'eu-west-1',
   AUDIO_BUCKET_NAME: 'vocali-audio-test',
+  TRANSCRIPTS_BUCKET_NAME: 'vocali-transcripts-test',
   TRANSCRIPTIONS_TABLE_NAME: 'vocali-transcriptions-test',
   SPEECHMATICS_API_KEY_PARAMETER: '/vocali/test/speechmatics/api-key',
   SPEECHMATICS_WEBHOOK_SECRET_PARAMETER: '/vocali/test/speechmatics/webhook-secret',

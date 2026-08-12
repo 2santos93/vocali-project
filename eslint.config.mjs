@@ -129,6 +129,52 @@ export default tseslint.config(
     languageOptions: { globals: globals.browser },
   },
 
+  // An AudioWorklet module. The browser fetches it by URL and evaluates it in
+  // `AudioWorkletGlobalScope`, so it is plain JavaScript in `public/` and
+  // belongs to no TypeScript project — without this block the project service
+  // fails to resolve it and `eslint .` reports a parsing error for the whole
+  // repository rather than skipping the file.
+  //
+  // `AudioWorkletProcessor` and `registerProcessor` come from that scope and
+  // from nowhere else, so they have to be declared here or `no-undef` reports
+  // the file's two most important lines.
+  {
+    files: ['apps/web/public/**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: {
+        ...globals.worker,
+        AudioWorkletProcessor: 'readonly',
+        registerProcessor: 'readonly',
+        currentFrame: 'readonly',
+        currentTime: 'readonly',
+        sampleRate: 'readonly',
+      },
+    },
+    rules: {
+      /*
+       * Spread inside `rules`, not alongside it.
+       *
+       * `disableTypeChecked` carries its entire effect in a `rules` object, so
+       * a sibling `rules` key after the spread above replaces it and switches
+       * every type-aware rule back on. They then run against a file that
+       * belongs to no program, and ESLint does not report a finding — it dies
+       * with "don't have parserOptions set to generate type information",
+       * taking the whole repository's lint run with it.
+       *
+       * The plain-JavaScript block near the top of this file uses the sibling
+       * shape safely only because it never overrides a rule of its own.
+       */
+      ...tseslint.configs.disableTypeChecked.rules,
+      // A return type annotation is not expressible in a file the browser
+      // evaluates as plain JavaScript, so the workspace rule asks for
+      // something this file cannot have. The types it would state are in the
+      // JSDoc instead.
+      '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
+
   // A component test imports a .vue file, and typescript-eslint's program
   // cannot resolve one: only the Vue language service can compile a single
   // file component into a type. Every value that comes back from `mount()` is
@@ -161,6 +207,79 @@ export default tseslint.config(
       parserOptions: {
         projectService: false,
         project: ['apps/web/tsconfig.cypress.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+
+  // The front end is three TypeScript programs, not one, and the project
+  // service resolves a file to the nearest tsconfig.json — which is the design
+  // system's, and which deliberately excludes everything below. Naming the
+  // project explicitly is what keeps the type-aware rules running over the
+  // shell instead of failing to parse it, exactly as the Cypress block does.
+  //
+  // Both projects extend a config `nuxt prepare` generates, which is why that
+  // command runs from `apps/web`'s `postinstall`: linting depends on `.nuxt`
+  // existing just as type checking does.
+  {
+    files: [
+      'apps/web/app/app.vue',
+      'apps/web/app/pages/**/*.vue',
+      'apps/web/app/layouts/**/*.vue',
+      'apps/web/app/middleware/**/*.ts',
+      'apps/web/app/composables/**/*.ts',
+      'apps/web/app/utils/**/*.ts',
+      'apps/web/app/plugins/**/*.ts',
+    ],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: ['apps/web/tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+        extraFileExtensions: ['.vue'],
+      },
+    },
+    rules: {
+      /*
+       * `no-undef` cannot see a Nuxt auto-import.
+       *
+       * It works from a static list of globals, and `definePageMeta`,
+       * `navigateTo`, `$fetch` and every composable are declared in files
+       * `nuxt prepare` generates. The rule therefore reports each of them as
+       * undefined — thirty false positives that would train a reader to skim
+       * the lint output. TypeScript does read those declarations, and
+       * `pnpm typecheck` reports a genuinely undefined identifier here, with
+       * the file and the line, which is the check that was actually wanted.
+       *
+       * It stays on for `app/components`, where there are no auto-imports to
+       * confuse it and where it is one of the things keeping the design system
+       * free of the Nuxt runtime.
+       */
+      'no-undef': 'off',
+
+      /*
+       * Off for the shell only.
+       *
+       * A page's file name is its route: `login.vue` is `/login`, and
+       * `historial.vue` is `/historial`. The rule exists to stop a component
+       * called `Button` from colliding with a future HTML element, which is a
+       * real hazard for a component and no hazard at all for a page that is
+       * never written as a tag. Renaming these to satisfy it would change
+       * every URL in the application.
+       */
+      'vue/multi-word-component-names': 'off',
+    },
+  },
+  {
+    files: ['apps/web/server/**/*.ts'],
+    languageOptions: {
+      // The server runs in Node, not in a browser: the block below that gives
+      // `apps/web/**/*.ts` the browser globals is wrong for these files, and
+      // this one comes after it.
+      globals: globals.node,
+      parserOptions: {
+        projectService: false,
+        project: ['apps/web/tsconfig.server.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },

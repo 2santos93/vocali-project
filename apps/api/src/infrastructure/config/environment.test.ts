@@ -3,6 +3,7 @@ import { InvalidEnvironmentError, loadConfig } from './environment.js';
 const COMPLETE_ENVIRONMENT = {
   AWS_REGION: 'eu-west-1',
   AUDIO_BUCKET_NAME: 'vocali-audio',
+  TRANSCRIPTS_BUCKET_NAME: 'vocali-transcripts',
   TRANSCRIPTIONS_TABLE_NAME: 'vocali-transcriptions',
   SPEECHMATICS_API_KEY_PARAMETER: '/vocali/speechmatics/api-key',
   SPEECHMATICS_WEBHOOK_SECRET_PARAMETER: '/vocali/speechmatics/webhook-secret',
@@ -27,6 +28,7 @@ describe('loadConfig', () => {
     expect(config).toEqual({
       region: 'eu-west-1',
       audioBucketName: 'vocali-audio',
+      transcriptsBucketName: 'vocali-transcripts',
       transcriptionsTableName: 'vocali-transcriptions',
       providerCallbackBaseUrl: 'https://api.vocali.test/webhooks/transcription-provider',
       logLevel: 'debug',
@@ -51,11 +53,15 @@ describe('loadConfig', () => {
     expect(config.speechmatics.maxAttempts).toBe(3);
   });
 
-  it('refuses to start when a required variable is missing', () => {
-    expect(() => loadConfig(environmentWithout('AUDIO_BUCKET_NAME'))).toThrow(
-      InvalidEnvironmentError,
-    );
-  });
+  // Both buckets, because a deployment that sets only the audio one is the
+  // configuration this system already shipped with: every transcript then goes
+  // to whichever bucket the code happened to fall back to.
+  it.each(['AUDIO_BUCKET_NAME', 'TRANSCRIPTS_BUCKET_NAME'])(
+    'refuses to start when %s is missing',
+    (name) => {
+      expect(() => loadConfig(environmentWithout(name))).toThrow(InvalidEnvironmentError);
+    },
+  );
 
   it('names every offending variable rather than the first', () => {
     let thrown: unknown;
@@ -101,6 +107,17 @@ describe('loadConfig', () => {
 
   it('rejects a log level pino would not understand', () => {
     expect(() => loadConfig({ ...COMPLETE_ENVIRONMENT, LOG_LEVEL: 'verbose' })).toThrow(
+      InvalidEnvironmentError,
+    );
+  });
+
+  it('rejects a log level that would silence every line the system can write', () => {
+    // `fatal` is a value pino understands perfectly well, which is why the
+    // schema used to take it. Nothing this system emits is above `error`, so
+    // setting it turns off all logging — including the lines recording that a
+    // clinical transcription failed. Refused at boot, where it names the
+    // variable, rather than at the first incident nobody can then diagnose.
+    expect(() => loadConfig({ ...COMPLETE_ENVIRONMENT, LOG_LEVEL: 'fatal' })).toThrow(
       InvalidEnvironmentError,
     );
   });

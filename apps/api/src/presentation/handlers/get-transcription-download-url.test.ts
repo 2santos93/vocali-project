@@ -10,6 +10,8 @@ import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 
+const TRANSCRIPTS_BUCKET = 'transcripts-bucket';
+
 const NOW = new Date('2026-08-11T09:00:00.000Z');
 
 function buildSubject(): {
@@ -19,7 +21,7 @@ function buildSubject(): {
 } {
   const clock = new FixedClock(NOW);
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage(clock);
+  const storage = new InMemoryFileStorage({ bucketName: TRANSCRIPTS_BUCKET, clock });
 
   return {
     handler: getTranscriptionDownloadUrlHandler({
@@ -57,7 +59,7 @@ describe('getTranscriptionDownloadUrlHandler', () => {
 
     expect(response.statusCode).toBe(200);
     expect(parseResponseBody(response.body)).toEqual({
-      url: 'https://storage.test/download/transcripts/user-1/01ID001.txt',
+      url: `https://storage.test/download/${TRANSCRIPTS_BUCKET}/transcripts/user-1/01ID001.txt`,
       format: 'txt',
       expiresAt: '2026-08-11T09:15:00.000Z',
     });

@@ -34,6 +34,7 @@ export function saveRealtimeTranscriptionHandler(
           text: body.text,
           durationSeconds: body.durationSeconds,
           language: body.language,
+          clientSessionId: body.clientSessionId,
         });
 
         return jsonResponse(CREATED_STATUS, transcription, request.requestId);

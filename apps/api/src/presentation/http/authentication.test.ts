@@ -1,6 +1,7 @@
 import { withAuthenticatedUser } from './authentication.js';
 import { jsonResponse, type HttpResponse } from './http-response.js';
 import type { AuthenticatedHttpRequest, HttpRequest } from './api-gateway-request.js';
+import { SilentLogger } from '../../../test/doubles/silent-logger.js';
 import {
   buildApiGatewayEvent,
   parseResponseBody,
@@ -22,7 +23,7 @@ function buildSubject(): {
 }
 
 function toRequest(event: ReturnType<typeof buildApiGatewayEvent>): HttpRequest {
-  return { event, requestId: event.requestContext.requestId };
+  return { event, requestId: event.requestContext.requestId, logger: new SilentLogger() };
 }
 
 describe('withAuthenticatedUser', () => {

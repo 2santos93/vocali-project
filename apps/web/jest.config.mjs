@@ -5,6 +5,8 @@ import path from 'node:path';
 // 0. Keyed absolutely, the threshold survives Jest being invoked from the
 // repository root, which is what a CI job does.
 const COMPONENTS_DIR = path.join(import.meta.dirname, 'app/components/');
+const SERVER_DIR = path.join(import.meta.dirname, 'server/');
+const SHELL_RULES_DIR = path.join(import.meta.dirname, 'app/utils/');
 
 export default {
   rootDir: import.meta.dirname,
@@ -15,7 +17,14 @@ export default {
   testEnvironment: 'jsdom',
 
   moduleFileExtensions: ['ts', 'js', 'mjs', 'json', 'vue'],
-  testMatch: ['<rootDir>/app/**/*.test.ts'],
+
+  // The server's own modules are covered here too. They are written against
+  // plain values and a `CookieJar` interface rather than against an `H3Event`,
+  // precisely so the cookie flags, the refresh decision and the proxy's
+  // pass-through can be asserted without booting Nitro or reaching AWS. Each
+  // of those files declares `@jest-environment node`, since none of them has
+  // any business touching a DOM.
+  testMatch: ['<rootDir>/app/**/*.test.ts', '<rootDir>/server/**/*.test.ts'],
 
   moduleNameMapper: {
     // The workspace compiles with `verbatimModuleSyntax`, so relative imports
@@ -40,7 +49,36 @@ export default {
     ],
   },
 
-  collectCoverageFrom: ['app/components/**/*.vue'],
+  collectCoverageFrom: [
+    'app/components/**/*.vue',
+    // `app/utils` holds the rules the shell applies rather than the Nuxt calls
+    // that apply them — which route a visitor may see, and nothing that needs
+    // a runtime to decide it.
+    'app/utils/**/*.ts',
+    'server/**/*.ts',
+    '!**/*.test.ts',
+
+    /*
+     * Three adapters, excluded because they are the places where this package
+     * touches something a test cannot stand in for, and because they were
+     * written thin on purpose so that exclusion costs nothing.
+     *
+     * `cognito-gateway` is the AWS SDK call sites; `auth-runtime` reads the
+     * client secret from Parameter Store; `http` is the four-line bridge from
+     * `H3Event` to the `CookieJar` interface everything else is written
+     * against. Every decision they would otherwise contain — which flags a
+     * cookie carries, when to refresh, how a Cognito failure reads in Spanish,
+     * what the proxy does with a status — lives in a module beside them that
+     * is covered.
+     *
+     * The route handlers are excluded for the same reason and are the same
+     * shape: parse, delegate, respond.
+     */
+    '!server/utils/cognito-gateway.ts',
+    '!server/utils/auth-runtime.ts',
+    '!server/utils/http.ts',
+    '!server/api/**',
+  ],
 
   /*
    * Branches sit lower than the other three, and the gap is measured rather
@@ -59,5 +97,16 @@ export default {
    */
   coverageThreshold: {
     [COMPONENTS_DIR]: { statements: 95, branches: 84, functions: 100, lines: 96 },
+
+    /*
+     * The server's logic carries no such penalty — it is plain TypeScript with
+     * no template compilation — so it is held to the full figure. These are
+     * the modules that decide whether a token is exposed to script, whether a
+     * signed-out session is really over, and whether an error message answers
+     * a question the caller has not earned. A gap in the report here is a
+     * branch of one of those decisions that nothing exercises.
+     */
+    [SERVER_DIR]: { statements: 100, branches: 100, functions: 100, lines: 100 },
+    [SHELL_RULES_DIR]: { statements: 100, branches: 100, functions: 100, lines: 100 },
   },
 };

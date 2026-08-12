@@ -13,6 +13,15 @@ const TEXT_PREVIEW_LENGTH = 200;
 export interface TranscriptionPrimitives {
   readonly id: string;
   readonly userId: string;
+  /**
+   * The revision this entity was read at, and the value every write is
+   * conditioned on. `0` means the record has never been stored, so its first
+   * write is an insert. Mutating the entity deliberately does not touch it:
+   * a use case may apply two transitions before saving once, and what the
+   * write has to match is the revision the store held when it was read, not
+   * the number of changes made to it since.
+   */
+  readonly version: number;
   readonly fileName: string;
   readonly source: TranscriptionSource;
   readonly status: TranscriptionStatus;
@@ -63,6 +72,7 @@ export class Transcription {
     return new Transcription({
       id: input.id,
       userId: input.userId,
+      version: 0,
       fileName: input.audioFile.fileName,
       source: 'FILE',
       status: 'PENDING_UPLOAD',
@@ -85,6 +95,7 @@ export class Transcription {
     return new Transcription({
       id: input.id,
       userId: input.userId,
+      version: 0,
       fileName: buildRealtimeFileName(input.createdAt),
       source: 'MICROPHONE',
       status: 'COMPLETED',

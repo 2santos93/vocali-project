@@ -101,16 +101,22 @@ export function withErrorMapping(
 ): ApiGatewayRequestHandler {
   return async (event: ApiGatewayRequestEvent): Promise<HttpResponse> => {
     const requestId = event.requestContext.requestId;
+    // Bound once, here, and handed to the handler. Every line written under
+    // this request then carries the id the client was quoted, whether or not
+    // whoever wrote that line thought about correlation — which is the
+    // difference between a convention and a guarantee. It reaches the log
+    // under the same name the client receives, so an operator handed a
+    // `requestId` can filter on it without translating anything.
+    const requestLogger = logger.withCorrelationId(requestId);
 
     try {
-      return await handler({ event, requestId });
+      return await handler({ event, requestId, logger: requestLogger });
     } catch (cause: unknown) {
       // The detail the client is denied goes here instead, under the same id
       // the client was given. That pairing is the whole point of the generic
       // response: nothing is hidden, it is only moved somewhere the person
       // who can act on it can read it.
-      logger.info('Request failed and was answered with a generic error', {
-        requestId,
+      requestLogger.error('Request failed and was answered with a generic error', {
         ...describeThrown(cause),
       });
 

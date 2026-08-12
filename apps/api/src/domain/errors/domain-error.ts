@@ -104,3 +104,28 @@ export class InvalidCursorError extends DomainError {
     super(`Invalid pagination cursor: ${reason}`);
   }
 }
+
+/**
+ * Returned by `TranscriptionRepository.save` when the record changed in the
+ * store after the entity was read, so the write would have overwritten
+ * somebody else's newer state.
+ *
+ * A `Result` value rather than a thrown error: every write path here is
+ * driven by at-least-once delivery — an S3 event, a provider callback, a
+ * browser retry — so two writers meeting is an ordinary outcome the caller
+ * must decide about, not an infrastructure fault.
+ *
+ * Deliberately not a `DomainError`, for the same reason
+ * `MalformedTranscriptionRecordError` is not: `DomainErrorCode` is the closed
+ * union the front end branches on, and no client ever sees this. Every caller
+ * absorbs it — by acknowledging the delivery it lost, or by treating it as an
+ * impossible id collision.
+ */
+export class ConcurrentModificationError extends Error {
+  readonly code = 'CONCURRENT_MODIFICATION';
+
+  constructor(transcriptionId: string) {
+    super(`Transcription "${transcriptionId}" was modified by another writer`);
+    this.name = 'ConcurrentModificationError';
+  }
+}

@@ -6,7 +6,7 @@ const AT = new Date('2026-08-10T10:00:00.000Z');
 
 describe('InMemoryFileStorage', () => {
   it('records every call with its full arguments', async () => {
-    const storage = new InMemoryFileStorage(new FixedClock(AT));
+    const storage = new InMemoryFileStorage({ clock: new FixedClock(AT) });
 
     await storage.createPresignedUpload({
       objectKey: 'audio/user-1/01A/visit.mp3',
@@ -31,7 +31,7 @@ describe('InMemoryFileStorage', () => {
   });
 
   it('derives expiresAt from the injected clock, not the system clock', async () => {
-    const storage = new InMemoryFileStorage(new FixedClock(AT));
+    const storage = new InMemoryFileStorage({ clock: new FixedClock(AT) });
 
     const upload = await storage.createPresignedUpload({
       objectKey: 'audio/user-1/01A/visit.mp3',

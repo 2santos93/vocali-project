@@ -1,3 +1,4 @@
+import type { Logger } from '../../domain/ports/logger.js';
 import type { HttpResponse } from './http-response.js';
 
 /**
@@ -37,8 +38,15 @@ export type ApiGatewayRequestHandler = (event: ApiGatewayRequestEvent) => Promis
 
 export interface HttpRequest {
   readonly event: ApiGatewayRequestEvent;
-  /** The API Gateway request id, echoed to the client and stamped on every log line. */
+  /** The API Gateway request id, echoed to the client in the body and the header. */
   readonly requestId: string;
+  /**
+   * Already bound to `requestId`, so a handler correlates its lines by using
+   * this logger rather than by remembering to put the id in every context it
+   * writes. Handed down rather than reached for: the one built in the
+   * composition root has no request to correlate with.
+   */
+  readonly logger: Logger;
 }
 
 /**

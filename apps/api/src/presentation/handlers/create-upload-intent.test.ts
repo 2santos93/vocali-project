@@ -11,6 +11,8 @@ import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storag
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 import { SequentialIdGenerator } from '../../../test/doubles/sequential-id-generator.js';
 
+const AUDIO_BUCKET = 'audio-bucket';
+
 const NOW = new Date('2026-08-11T09:00:00.000Z');
 
 const VALID_BODY = {
@@ -27,7 +29,7 @@ function buildSubject(): {
 } {
   const clock = new FixedClock(NOW);
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage(clock);
+  const storage = new InMemoryFileStorage({ bucketName: AUDIO_BUCKET, clock });
   const useCase = new CreateAudioUploadIntent(
     repository,
     storage,
@@ -52,7 +54,7 @@ describe('createUploadIntentHandler', () => {
     const body = parseResponseBody(response.body);
     expect(body.transcriptionId).toBe('01ID001');
     expect(body.upload).toEqual({
-      url: 'https://storage.test/bucket',
+      url: `https://storage.test/${AUDIO_BUCKET}`,
       fields: { key: 'audio/user-1/01ID001/informe radiologia.mp3', 'Content-Type': 'audio/mpeg' },
       expiresAt: '2026-08-11T09:15:00.000Z',
     });

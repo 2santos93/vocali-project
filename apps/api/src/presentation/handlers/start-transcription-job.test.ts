@@ -12,6 +12,8 @@ import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 
+const AUDIO_BUCKET = 'audio-bucket';
+
 const NOW = new Date('2026-08-11T09:00:00.000Z');
 const CALLBACK_BASE_URL = 'https://api.test/webhooks/transcription-provider';
 
@@ -30,7 +32,7 @@ function buildSubject(): {
 } {
   const clock = new FixedClock(NOW);
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage(clock);
+  const storage = new InMemoryFileStorage({ bucketName: AUDIO_BUCKET, clock });
   const provider = new FakeTranscriptionProvider(clock);
   const logger = new CapturingLogger();
 
@@ -111,7 +113,9 @@ describe('startTranscriptionJobHandler', () => {
     await handler(buildEvent(`audio/user-1/01ID001/${ENCODED_FILE_NAME}`));
 
     expect(provider.submissions).toHaveLength(1);
-    expect(provider.submissions[0]?.audioUrl).toBe(`https://storage.test/read/${audioObjectKey}`);
+    expect(provider.submissions[0]?.audioUrl).toBe(
+      `https://storage.test/read/${AUDIO_BUCKET}/${audioObjectKey}`,
+    );
     expect(provider.submissions[0]?.callbackUrl).toBe(
       `${CALLBACK_BASE_URL}?transcriptionId=01ID001&userId=user-1`,
     );

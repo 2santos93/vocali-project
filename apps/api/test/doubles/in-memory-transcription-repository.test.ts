@@ -143,6 +143,84 @@ describe('InMemoryTranscriptionRepository', () => {
     expect(page.nextCursor).toBeNull();
   });
 
+  it('rejects a save derived from a read older than the stored revision', async () => {
+    const repository = new InMemoryTranscriptionRepository();
+    const transcription = buildTranscription({ id: '01A', userId: 'user-1' });
+
+    // The same entity saved twice: the first write stores it and advances the
+    // revision, so the second is a write derived from a read that is now
+    // stale — exactly the shape of the defect this exists to stop, where a
+    // completion webhook writes COMPLETED and another in-flight path then puts
+    // the record back to PROCESSING from an entity it read beforehand.
+    await expect(repository.save(transcription)).resolves.toEqual({
+      success: true,
+      value: undefined,
+    });
+
+    const second = await repository.save(transcription);
+
+    expect(second.success).toBe(false);
+    if (!second.success) {
+      expect(second.error.code).toBe('CONCURRENT_MODIFICATION');
+    }
+  });
+
+  it('accepts a save carrying the revision the record was last written at', async () => {
+    const repository = new InMemoryTranscriptionRepository();
+    await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
+
+    // Re-read, so the entity carries the current revision rather than the one
+    // it was constructed with. Without this the rejection above could be
+    // satisfied by a double that refuses every second write.
+    const reread = await repository.findById('user-1', '01A');
+    expect(reread).not.toBeNull();
+
+    const result = await repository.save(reread!);
+
+    expect(result.success).toBe(true);
+  });
+
+  it('refuses a second save claiming a session id already taken', async () => {
+    const repository = new InMemoryTranscriptionRepository();
+    await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+      clientSessionId: 'session-abc',
+    });
+
+    const result = await repository.save(buildTranscription({ id: '01B', userId: 'user-1' }), {
+      clientSessionId: 'session-abc',
+    });
+
+    expect(result.success).toBe(false);
+    // Refused as a whole, like the transaction the adapter sends: a double
+    // that stored the record and only skipped the claim would let a use-case
+    // test pass while production left nothing behind at all.
+    expect(await repository.findById('user-1', '01B')).toBeNull();
+    expect((await repository.findByClientSession('user-1', 'session-abc'))?.toPrimitives().id).toBe(
+      '01A',
+    );
+  });
+
+  it('keeps one user session id out of another user partition', async () => {
+    const repository = new InMemoryTranscriptionRepository();
+    await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+      clientSessionId: 'session-abc',
+    });
+
+    const theirs = await repository.save(buildTranscription({ id: '01B', userId: 'user-2' }), {
+      clientSessionId: 'session-abc',
+    });
+
+    expect(theirs.success).toBe(true);
+    expect(await repository.findByClientSession('user-2', 'session-abc')).not.toBeNull();
+  });
+
+  it('returns null for a session id nothing has claimed', async () => {
+    const repository = new InMemoryTranscriptionRepository();
+    await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
+
+    expect(await repository.findByClientSession('user-1', 'session-abc')).toBeNull();
+  });
+
   it('rejects with the injected failure and clears it after one use', async () => {
     const repository = new InMemoryTranscriptionRepository();
     const failure = new Error('table is throttled');
@@ -175,6 +253,6 @@ describe('InMemoryTranscriptionRepository', () => {
     // The scheduled failure was consumed by the one save call above.
     await expect(
       repository.save(buildTranscription({ id: '01B', userId: 'user-1' })),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ success: true, value: undefined });
   });
 });

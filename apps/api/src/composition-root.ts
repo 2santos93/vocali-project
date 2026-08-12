@@ -11,10 +11,11 @@ import { GetTranscriptionDownloadUrl } from './application/use-cases/get-transcr
 import { ListUserTranscriptions } from './application/use-cases/list-user-transcriptions.js';
 import { SaveRealtimeTranscription } from './application/use-cases/save-realtime-transcription.js';
 import { StartFileTranscription } from './application/use-cases/start-file-transcription.js';
+import type { Logger } from './domain/ports/logger.js';
 import type { SecretsProvider } from './domain/ports/secrets-provider.js';
 import { loadConfig, type AppConfig } from './infrastructure/config/environment.js';
 import { UlidIdGenerator } from './infrastructure/id/ulid-id-generator.js';
-import { createLogger, type PinoLogger } from './infrastructure/logging/pino-logger.js';
+import { createLogger } from './infrastructure/logging/pino-logger.js';
 import { DynamoTranscriptionRepository } from './infrastructure/persistence/dynamo-transcription-repository.js';
 import { SpeechmaticsTranscriptionProvider } from './infrastructure/providers/speechmatics-transcription-provider.js';
 import { SsmSecretsProvider } from './infrastructure/secrets/ssm-secrets-provider.js';
@@ -29,7 +30,7 @@ import { SystemClock } from './infrastructure/time/system-clock.js';
  */
 export interface Container {
   readonly config: AppConfig;
-  readonly logger: PinoLogger;
+  readonly logger: Logger;
   readonly secrets: SecretsProvider;
   readonly createAudioUploadIntent: CreateAudioUploadIntent;
   readonly listUserTranscriptions: ListUserTranscriptions;
@@ -77,7 +78,14 @@ export function buildContainer(config: AppConfig): Container {
   // in `string | null` rather than in `{ S: ... }` and `{ NULL: true }`.
   const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region: config.region }));
 
-  const storage = new S3FileStorage(s3, config.audioBucketName, clock);
+  // Two buckets, two adapters, and which one a use case receives is a
+  // decision made here and nowhere else. `FileStorage` carries an object key
+  // and no bucket, so a use case cannot tell which store it was handed — and
+  // the execution roles grant `s3:PutObject` on the transcripts bucket alone,
+  // so a transcript writer holding the audio adapter is denied at the moment
+  // it writes, after the provider has already done the work.
+  const audioStorage = new S3FileStorage(s3, config.audioBucketName, clock);
+  const transcriptsStorage = new S3FileStorage(s3, config.transcriptsBucketName, clock);
   const repository = new DynamoTranscriptionRepository(dynamo, config.transcriptionsTableName);
   const secrets = new SsmSecretsProvider(ssm);
   const provider = new SpeechmaticsTranscriptionProvider(
@@ -91,20 +99,29 @@ export function buildContainer(config: AppConfig): Container {
     config,
     logger,
     secrets,
-    createAudioUploadIntent: new CreateAudioUploadIntent(repository, storage, idGenerator, clock),
+    createAudioUploadIntent: new CreateAudioUploadIntent(
+      repository,
+      audioStorage,
+      idGenerator,
+      clock,
+    ),
     listUserTranscriptions: new ListUserTranscriptions(repository),
     getTranscription: new GetTranscription(repository),
-    getTranscriptionDownloadUrl: new GetTranscriptionDownloadUrl(repository, storage, clock),
+    getTranscriptionDownloadUrl: new GetTranscriptionDownloadUrl(
+      repository,
+      transcriptsStorage,
+      clock,
+    ),
     saveRealtimeTranscription: new SaveRealtimeTranscription(
       repository,
-      storage,
+      transcriptsStorage,
       idGenerator,
       clock,
     ),
     createRealtimeSession: new CreateRealtimeSession(provider),
     startFileTranscription: new StartFileTranscription(
       repository,
-      storage,
+      audioStorage,
       provider,
       clock,
       logger,
@@ -112,7 +129,7 @@ export function buildContainer(config: AppConfig): Container {
         callbackBaseUrl: config.providerCallbackBaseUrl,
       },
     ),
-    completeTranscription: new CompleteTranscription(repository, storage, clock),
+    completeTranscription: new CompleteTranscription(repository, transcriptsStorage, clock),
     failTranscription: new FailTranscription(repository, clock),
   };
 }

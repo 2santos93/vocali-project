@@ -16,6 +16,21 @@ export const SaveRealtimeTranscriptionRequestSchema = z.object({
   text: z.string().min(1).max(500_000),
   durationSeconds: z.number().nonnegative(),
   language: z.enum(SUPPORTED_TRANSCRIPTION_LANGUAGES).default(DEFAULT_TRANSCRIPTION_LANGUAGE),
+  /**
+   * An idempotency key the client mints once per dictation and repeats on
+   * every retry of the same save.
+   *
+   * This is the one write path the user's own browser posts to, and a retry
+   * after a committed-but-unacknowledged write would otherwise put two
+   * identical transcriptions in the history — indistinguishable from each
+   * other and impossible to merge. On a phone, in a clinic, on hospital wifi,
+   * that retry is not hypothetical.
+   *
+   * Optional so a client that has not adopted it still works, and never the
+   * record's id: ids are ULIDs so that sort-key order is chronological order,
+   * and a client-chosen id destroys the property the history query depends on.
+   */
+  clientSessionId: z.string().min(1).max(64).optional(),
 });
 
 export type RealtimeSessionResponse = z.infer<typeof RealtimeSessionResponseSchema>;

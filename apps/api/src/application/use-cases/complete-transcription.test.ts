@@ -6,6 +6,8 @@ import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storag
 import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 import { Transcription } from '../../domain/entities/transcription.js';
 
+const TRANSCRIPTS_BUCKET = 'transcripts-bucket';
+
 const NOW = new Date('2026-08-10T10:10:00.000Z');
 
 function buildUseCase(): {
@@ -14,7 +16,7 @@ function buildUseCase(): {
   storage: InMemoryFileStorage;
 } {
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage();
+  const storage = new InMemoryFileStorage({ bucketName: TRANSCRIPTS_BUCKET });
   const useCase = new CompleteTranscription(repository, storage, new FixedClock(NOW));
   return { useCase, repository, storage };
 }

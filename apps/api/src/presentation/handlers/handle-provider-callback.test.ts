@@ -13,6 +13,8 @@ import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 
+const TRANSCRIPTS_BUCKET = 'transcripts-bucket';
+
 const NOW = new Date('2026-08-11T09:00:00.000Z');
 const WEBHOOK_SECRET_NAME = '/vocali/test/speechmatics/webhook-secret';
 const WEBHOOK_SECRET = 'a-long-shared-webhook-secret-value';
@@ -40,7 +42,7 @@ function buildSubject(): {
 } {
   const clock = new FixedClock(NOW);
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage(clock);
+  const storage = new InMemoryFileStorage({ bucketName: TRANSCRIPTS_BUCKET, clock });
   const secrets = new FakeSecretsProvider({ [WEBHOOK_SECRET_NAME]: WEBHOOK_SECRET });
   const logger = new CapturingLogger();
 
@@ -67,11 +69,13 @@ function buildCallback(options: {
   transcriptionId?: string;
   userId?: string;
   body?: string;
+  requestId?: string;
 }): ReturnType<typeof buildApiGatewayEvent> {
   const secret = options.secret === undefined ? WEBHOOK_SECRET : options.secret;
 
   return buildApiGatewayEvent({
     authorizer: null,
+    ...(options.requestId === undefined ? {} : { requestId: options.requestId }),
     headers: secret === null ? {} : { [options.headerName ?? 'authorization']: `Bearer ${secret}` },
     queryStringParameters: {
       transcriptionId: options.transcriptionId ?? '01ID001',
@@ -135,6 +139,28 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
     expect(parseResponseBody(response.body).code).toBe('UNAUTHENTICATED');
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
     expect(storage.calls.writes).toHaveLength(0);
+  });
+
+  it('correlates the lines it writes with the request id the caller is given', async () => {
+    const { handler, logger } = buildSubject();
+
+    const response = await handler(
+      buildCallback({ secret: 'not-the-shared-secret-at-all-xxxx', requestId: 'request-77' }),
+    );
+
+    // The whole point of answering with an opaque id: a user quoting
+    // `request-77` has to lead an operator to the lines that request wrote.
+    // Asserted end to end through the handler rather than on the logger,
+    // because the correlation is only real if the middleware actually binds it
+    // and the handler actually uses what it was handed.
+    expect(parseResponseBody(response.body).requestId).toBe('request-77');
+    expect(logger.entries).toEqual([
+      {
+        level: 'warn',
+        message: 'Rejected a provider callback with an invalid credential',
+        context: { requestId: 'request-77' },
+      },
+    ]);
   });
 
   it.each([

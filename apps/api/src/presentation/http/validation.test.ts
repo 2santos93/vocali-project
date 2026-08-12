@@ -11,13 +11,14 @@ import {
 } from './validation.js';
 import { jsonResponse, type HttpResponse } from './http-response.js';
 import type { HttpRequest } from './api-gateway-request.js';
+import { SilentLogger } from '../../../test/doubles/silent-logger.js';
 import {
   buildApiGatewayEvent,
   parseResponseBody,
 } from '../../../test/builders/api-gateway-event.builder.js';
 
 function toRequest(event: ReturnType<typeof buildApiGatewayEvent>): HttpRequest {
-  return { event, requestId: event.requestContext.requestId };
+  return { event, requestId: event.requestContext.requestId, logger: new SilentLogger() };
 }
 
 /** Echoes whatever the middleware handed over, so a test can assert on it. */

@@ -1,10 +1,20 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import type { GetCommandInput, PutCommandInput, QueryCommandInput } from '@aws-sdk/lib-dynamodb';
+import {
+  ConditionalCheckFailedException,
+  DynamoDBClient,
+  TransactionCanceledException,
+} from '@aws-sdk/client-dynamodb';
+import type {
+  GetCommandInput,
+  PutCommandInput,
+  QueryCommandInput,
+  TransactWriteCommandInput,
+} from '@aws-sdk/lib-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   QueryCommand,
+  TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 import { DynamoTranscriptionRepository } from './dynamo-transcription-repository.js';
@@ -84,6 +94,54 @@ class FakeDynamoTable {
 
     return { Items: page };
   }
+
+  /**
+   * All items or none, with every condition evaluated first — the property the
+   * idempotent realtime save depends on. A fake that wrote the record and then
+   * discovered the claim was taken would leave the table in a state the real
+   * transaction cannot produce, and the orphan it left would never be seen.
+   */
+  transactWrite(input: TransactWriteCommandInput): void {
+    const puts = (input.TransactItems ?? []).map((entry) => {
+      const put = entry.Put;
+      if (put === undefined) throw new Error('the fake table only models Put in a transaction');
+
+      return put;
+    });
+
+    const failed = puts.filter((put) => !this.conditionHolds(put));
+    if (failed.length > 0) {
+      throw new TransactionCanceledException({
+        $metadata: {},
+        message: 'transaction cancelled',
+        CancellationReasons: puts.map((put) => ({
+          Code: this.conditionHolds(put) ? 'None' : 'ConditionalCheckFailed',
+        })),
+      });
+    }
+
+    for (const put of puts) this.put(put.Item ?? {});
+  }
+
+  private conditionHolds(
+    put: NonNullable<TransactWriteCommandInput['TransactItems']>[number]['Put'] & object,
+  ): boolean {
+    const existing = this.get({ PK: put.Item?.PK, SK: put.Item?.SK });
+
+    switch (put.ConditionExpression) {
+      case 'attribute_not_exists(SK)':
+        return existing === undefined;
+      case 'attribute_not_exists(SK) OR #version = :expectedVersion':
+        return (
+          existing === undefined ||
+          existing.version === put.ExpressionAttributeValues?.[':expectedVersion']
+        );
+      default:
+        throw new Error(
+          `the fake table does not model the condition ${String(put.ConditionExpression)}`,
+        );
+    }
+  }
 }
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
@@ -97,6 +155,12 @@ function buildRepository(table: FakeDynamoTable): DynamoTranscriptionRepository 
     Item: table.get(input.Key),
   }));
   ddbMock.on(QueryCommand).callsFake((input: QueryCommandInput): QueryResult => table.query(input));
+  ddbMock
+    .on(TransactWriteCommand)
+    .callsFake((input: TransactWriteCommandInput): Record<string, never> => {
+      table.transactWrite(input);
+      return {};
+    });
 
   const client = DynamoDBDocumentClient.from(
     new DynamoDBClient({
@@ -142,6 +206,187 @@ describe('DynamoTranscriptionRepository', () => {
         source: 'FILE',
         language: 'es',
       });
+    });
+
+    it('conditions the write on the revision it was read at, so a stale entity cannot win', async () => {
+      const table = new FakeDynamoTable();
+      await buildRepository(table).save(buildTranscription({ id: '01A', userId: 'user-1' }));
+
+      const input = ddbMock.commandCalls(PutCommand)[0]?.args[0].input;
+
+      // Hardcoded rather than built from the helper: loosening the condition
+      // is the whole defect, so the assertion must not follow it there.
+      expect(input?.ConditionExpression).toBe(
+        'attribute_not_exists(SK) OR #version = :expectedVersion',
+      );
+      expect(input?.ExpressionAttributeNames).toEqual({ '#version': 'version' });
+      expect(input?.ExpressionAttributeValues).toEqual({ ':expectedVersion': 0 });
+      // Stored one ahead of the revision read, or the next writer would match
+      // a version nobody advanced and every stale write would be accepted.
+      expect(input?.Item?.version).toBe(1);
+    });
+
+    it('reports a rejected condition as a lost race rather than throwing', async () => {
+      // Built first: the helper installs its own PutCommand behaviour, so a
+      // rejection set before it would be overwritten and the test would pass
+      // against a write that never failed.
+      const repository = buildRepository(new FakeDynamoTable());
+      ddbMock
+        .on(PutCommand)
+        .rejects(
+          new ConditionalCheckFailedException({ $metadata: {}, message: 'condition failed' }),
+        );
+
+      const result = await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe('CONCURRENT_MODIFICATION');
+      }
+    });
+
+    it('propagates an infrastructure failure instead of reporting it as a lost race', async () => {
+      // A throttle is not a race. Reporting it as one would tell the caller a
+      // write was safely superseded when it simply never happened.
+      const repository = buildRepository(new FakeDynamoTable());
+      ddbMock.on(PutCommand).rejects(new Error('table is throttled'));
+
+      await expect(
+        repository.save(buildTranscription({ id: '01A', userId: 'user-1' })),
+      ).rejects.toThrow('table is throttled');
+    });
+  });
+
+  describe('save with a client session id', () => {
+    const SESSION = 'session-abc';
+
+    it('claims the session id in the same transaction as the record', async () => {
+      const table = new FakeDynamoTable();
+
+      await buildRepository(table).save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+        clientSessionId: SESSION,
+      });
+
+      // A separate write for the claim, in either order, has an outcome the
+      // transaction does not: a claim pointing at a record that was never
+      // stored, or a record no retry can ever find again.
+      expect(ddbMock.commandCalls(PutCommand)).toHaveLength(0);
+      const items = ddbMock.commandCalls(TransactWriteCommand)[0]?.args[0].input.TransactItems;
+      expect(items).toHaveLength(2);
+      expect(items?.[0]?.Put?.Item).toMatchObject({ PK: 'USER#user-1', SK: 'TRANS#01A' });
+      expect(items?.[1]?.Put?.Item).toEqual({
+        PK: 'USER#user-1',
+        SK: 'IDEM#session-abc',
+        transcriptionId: '01A',
+      });
+      // Hardcoded rather than derived: weakening this condition is the defect,
+      // so the assertion must not follow it there.
+      expect(items?.[1]?.Put?.ConditionExpression).toBe('attribute_not_exists(SK)');
+    });
+
+    it('keeps the claim out of the history, which reads transcription keys only', async () => {
+      const table = new FakeDynamoTable();
+      const repository = buildRepository(table);
+      await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+        clientSessionId: SESSION,
+      });
+
+      const page = expectOk(
+        await repository.listByUser({ userId: 'user-1', limit: 10, cursor: null }),
+      );
+
+      // `IDEM#` sorts before `TRANS#`, so without the sort-key prefix on the
+      // query the user's first history page would be full of claim items that
+      // the mapper cannot turn into transcriptions.
+      expect(page.items.map((item) => item.id)).toEqual(['01A']);
+    });
+
+    it('reports a session id already claimed as a lost race', async () => {
+      const table = new FakeDynamoTable();
+      const repository = buildRepository(table);
+      await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+        clientSessionId: SESSION,
+      });
+
+      const result = await repository.save(buildTranscription({ id: '01B', userId: 'user-1' }), {
+        clientSessionId: SESSION,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.code).toBe('CONCURRENT_MODIFICATION');
+      // The whole transaction was refused, so the second record was not stored
+      // either — a retry left no residue at all.
+      expect(await repository.findById('user-1', '01B')).toBeNull();
+    });
+
+    it('propagates a cancellation that is not a failed condition', async () => {
+      // A transaction cancelled by a throttle or a conflicting transaction is
+      // infrastructure, not a claim someone else won. Reported as a lost race
+      // it would tell the caller a retry had already been stored when nothing
+      // had been written at all.
+      const repository = buildRepository(new FakeDynamoTable());
+      ddbMock.on(TransactWriteCommand).rejects(
+        new TransactionCanceledException({
+          $metadata: {},
+          message: 'transaction cancelled',
+          CancellationReasons: [{ Code: 'TransactionConflict' }, { Code: 'None' }],
+        }),
+      );
+
+      await expect(
+        repository.save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+          clientSessionId: SESSION,
+        }),
+      ).rejects.toThrow(TransactionCanceledException);
+    });
+  });
+
+  describe('findByClientSession', () => {
+    const SESSION = 'session-abc';
+
+    it('resolves the claim to the record that holds it', async () => {
+      const table = new FakeDynamoTable();
+      const repository = buildRepository(table);
+      await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+        clientSessionId: SESSION,
+      });
+
+      const found = await repository.findByClientSession('user-1', SESSION);
+
+      expect(found?.toPrimitives().id).toBe('01A');
+      const claimLookup = ddbMock.commandCalls(GetCommand)[0]?.args[0].input;
+      expect(claimLookup?.Key).toEqual({ PK: 'USER#user-1', SK: 'IDEM#session-abc' });
+      // A retry can follow the original by milliseconds, and an eventually
+      // consistent read would report the key as unclaimed — producing exactly
+      // the duplicate this path exists to prevent.
+      expect(claimLookup?.ConsistentRead).toBe(true);
+    });
+
+    it('returns null when nothing has claimed the session id', async () => {
+      expect(
+        await buildRepository(new FakeDynamoTable()).findByClientSession('user-1', SESSION),
+      ).toBeNull();
+    });
+
+    it('looks in the requesting user partition, so a shared session id stays private', async () => {
+      const table = new FakeDynamoTable();
+      const repository = buildRepository(table);
+      await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }), {
+        clientSessionId: SESSION,
+      });
+
+      // Session ids are short client-generated strings, so two users picking
+      // the same one is plausible. Nothing about it may be global.
+      expect(await repository.findByClientSession('user-2', SESSION)).toBeNull();
+    });
+
+    it('refuses a claim that names no transcription rather than resolving it', async () => {
+      const table = new FakeDynamoTable();
+      table.put({ PK: 'USER#user-1', SK: 'IDEM#session-abc', transcriptionId: '' });
+
+      await expect(buildRepository(table).findByClientSession('user-1', SESSION)).rejects.toThrow(
+        MalformedTranscriptionRecordError,
+      );
     });
   });
 
@@ -312,6 +557,23 @@ describe('DynamoTranscriptionRepository', () => {
         cursor: 'not-a-cursor',
       });
 
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.code).toBe('INVALID_CURSOR');
+      expect(ddbMock.commandCalls(QueryCommand)).toHaveLength(0);
+    });
+
+    it('rejects a cursor that decodes to JSON which is not an object', async () => {
+      const result = await buildRepository(new FakeDynamoTable()).listByUser({
+        userId: 'user-1',
+        limit: 10,
+        cursor: Buffer.from('null').toString('base64url'),
+      });
+
+      // The case above dies inside JSON.parse and never reaches the shape
+      // guard. This one parses cleanly, so without the guard the adapter reads
+      // .userId off null: an attacker-controlled query parameter becomes an
+      // uncaught TypeError and a 500 rather than INVALID_CURSOR and a 400.
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error.code).toBe('INVALID_CURSOR');

@@ -1,25 +1,36 @@
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { mockClient } from 'aws-sdk-client-mock';
-import { clearSecretCache, SsmSecretsProvider } from './ssm-secrets-provider.js';
+import { SsmSecretsProvider } from './ssm-secrets-provider.js';
 
 const API_KEY_PARAMETER = '/vocali/speechmatics/api-key';
 const WEBHOOK_SECRET_PARAMETER = '/vocali/speechmatics/webhook-secret';
 
+/**
+ * Read only by the module-scope test, which is the one test that must use the
+ * shared cache and therefore cannot empty it afterwards. A name of its own
+ * keeps that entry out of every other test's way.
+ */
+const SHARED_CACHE_PARAMETER = '/vocali/speechmatics/shared-cache-probe';
+
 const ssmMock = mockClient(SSMClient);
 
-function buildProvider(): SsmSecretsProvider {
-  const client = new SSMClient({
+function buildClient(): SSMClient {
+  // Credentials are supplied inline so nothing in the suite ever reaches for
+  // an instance metadata endpoint or a shared credentials file.
+  return new SSMClient({
     region: 'eu-west-1',
     credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'secret' },
   });
+}
 
-  return new SsmSecretsProvider(client);
+/** A cache of its own per provider, so nothing here leaks into the next test. */
+function buildProvider(cache: Map<string, Promise<string>> = new Map()): SsmSecretsProvider {
+  return new SsmSecretsProvider(buildClient(), cache);
 }
 
 describe('SsmSecretsProvider', () => {
   beforeEach(() => {
     ssmMock.reset();
-    clearSecretCache();
   });
 
   it('reads the parameter and asks for it to be decrypted', async () => {
@@ -47,13 +58,16 @@ describe('SsmSecretsProvider', () => {
 
   it('keeps the cache across rebuilt dependency graphs, not just across calls', async () => {
     ssmMock.on(GetParameterCommand).resolves({ Parameter: { Value: 'the-provider-key' } });
+    const client = buildClient();
 
-    await buildProvider().getSecret(API_KEY_PARAMETER);
-    await buildProvider().getSecret(API_KEY_PARAMETER);
+    // Built without a cache, which is how the composition root builds it: both
+    // providers then share the module-scope map, so a warm Lambda container
+    // reads Parameter Store once however many times the graph is rebuilt. An
+    // instance field would pass every other test in this file and still
+    // re-fetch on each invocation.
+    await new SsmSecretsProvider(client).getSecret(SHARED_CACHE_PARAMETER);
+    await new SsmSecretsProvider(client).getSecret(SHARED_CACHE_PARAMETER);
 
-    // The cache is module state, so a warm Lambda container reads Parameter
-    // Store once however many times the graph is constructed. An instance
-    // field would pass the test above and still re-fetch on every invocation.
     expect(ssmMock.commandCalls(GetParameterCommand)).toHaveLength(1);
   });
 
@@ -82,9 +96,15 @@ describe('SsmSecretsProvider', () => {
     expect(await provider.getSecret(WEBHOOK_SECRET_PARAMETER)).toBe('the-webhook-secret');
   });
 
-  it('reports a parameter that exists with no value', async () => {
-    ssmMock.on(GetParameterCommand).resolves({ Parameter: {} });
+  it.each([
+    ['carries no value at all', undefined],
+    ['exists but holds an empty string', ''],
+  ])('reports a parameter that %s', async (_case, value) => {
+    ssmMock.on(GetParameterCommand).resolves({ Parameter: { Value: value } });
 
+    // An empty parameter is the shape a half-finished deployment leaves
+    // behind. Handed onwards as the api key it produces a 401 with nothing to
+    // explain it, where SECRET_NOT_FOUND names the parameter that is empty.
     await expect(buildProvider().getSecret(API_KEY_PARAMETER)).rejects.toMatchObject({
       code: 'SECRET_NOT_FOUND',
     });

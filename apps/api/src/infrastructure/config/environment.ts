@@ -21,8 +21,21 @@ const PositiveInteger = (fallback: number): z.ZodDefault<z.ZodNumber> =>
   z.coerce.number().int().positive().default(fallback);
 
 const EnvironmentSchema = z.object({
+  /**
+   * Reserved by Lambda: a function definition cannot set this key, the runtime
+   * supplies it. It is validated here because the code depends on it, not
+   * because a deployment can provide it — outside Lambda (a test, a local
+   * script) it has to be set by whoever runs the process.
+   */
   AWS_REGION: z.string().min(1),
+  /** Uploaded audio only. The two buckets are separate grants in every role. */
   AUDIO_BUCKET_NAME: z.string().min(1),
+  /**
+   * Produced transcripts only. Writing one into the audio bucket is denied by
+   * IAM at the moment of the write, after the provider has already
+   * transcribed and billed for the job.
+   */
+  TRANSCRIPTS_BUCKET_NAME: z.string().min(1),
   TRANSCRIPTIONS_TABLE_NAME: z.string().min(1),
   /** Parameter Store paths, not the secrets themselves. */
   SPEECHMATICS_API_KEY_PARAMETER: z.string().min(1),
@@ -37,6 +50,7 @@ const EnvironmentSchema = z.object({
 export interface AppConfig {
   readonly region: string;
   readonly audioBucketName: string;
+  readonly transcriptsBucketName: string;
   readonly transcriptionsTableName: string;
   readonly providerCallbackBaseUrl: string;
   readonly logLevel: LogLevel;
@@ -62,14 +76,10 @@ export class InvalidEnvironmentError extends Error {
 }
 
 /**
- * Validates the whole environment at once and returns a typed configuration.
- *
  * Called from the composition root at module scope, so an invalid environment
  * fails while the container is initialising. A Lambda that boots happily and
- * then throws on its first request reports that failure as a 500 on a user's
- * action, minutes or hours after the deploy that caused it; one that refuses
- * to initialise reports it as an init failure on every invocation, with the
- * missing variable named.
+ * then throws on its first request reports that as a 500 on a user's action,
+ * possibly hours after the deploy that caused it.
  */
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = EnvironmentSchema.safeParse(source);
@@ -85,6 +95,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     region: environment.AWS_REGION,
     audioBucketName: environment.AUDIO_BUCKET_NAME,
+    transcriptsBucketName: environment.TRANSCRIPTS_BUCKET_NAME,
     transcriptionsTableName: environment.TRANSCRIPTIONS_TABLE_NAME,
     providerCallbackBaseUrl: environment.PROVIDER_CALLBACK_BASE_URL,
     logLevel: environment.LOG_LEVEL,

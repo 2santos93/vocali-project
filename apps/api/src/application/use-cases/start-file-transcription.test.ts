@@ -10,6 +10,8 @@ import { FakeTranscriptionProvider } from '../../../test/doubles/fake-transcript
 import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 import { SilentLogger } from '../../../test/doubles/silent-logger.js';
 
+const AUDIO_BUCKET = 'audio-bucket';
+
 const CALLBACK_BASE_URL = 'https://api.test/webhooks/transcription-provider';
 const NOW = new Date('2026-08-10T10:05:00.000Z');
 
@@ -20,7 +22,7 @@ function buildUseCase(): {
   provider: FakeTranscriptionProvider;
 } {
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage();
+  const storage = new InMemoryFileStorage({ bucketName: AUDIO_BUCKET });
   const provider = new FakeTranscriptionProvider();
   const useCase = new StartFileTranscription(
     repository,
@@ -99,7 +101,7 @@ describe('StartFileTranscription', () => {
     expect(result.success).toBe(true);
     expect(provider.submissions).toHaveLength(1);
     expect(provider.submissions[0]?.audioUrl).toBe(
-      'https://storage.test/read/audio/user-1/01A/visit.mp3',
+      `https://storage.test/read/${AUDIO_BUCKET}/audio/user-1/01A/visit.mp3`,
     );
     expect(provider.submissions[0]?.language).toBe('ca');
     expect(provider.submissions[0]?.callbackUrl).toBe(

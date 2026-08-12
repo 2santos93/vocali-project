@@ -14,12 +14,7 @@ import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
  * The promise is cached, not the resolved value, so two concurrent callers
  * during a cold start share one request instead of racing to make two.
  */
-const secretCache = new Map<string, Promise<string>>();
-
-/** Test seam: module state outlives a test file otherwise, as it is meant to. */
-export function clearSecretCache(): void {
-  secretCache.clear();
-}
+const sharedSecretCache = new Map<string, Promise<string>>();
 
 export class MissingSecretError extends Error {
   readonly code = 'SECRET_NOT_FOUND';
@@ -33,21 +28,29 @@ export class MissingSecretError extends Error {
 }
 
 export class SsmSecretsProvider implements SecretsProvider {
-  constructor(private readonly client: SSMClient) {}
+  /**
+   * The cache is a collaborator with the shared map as its default, so a test
+   * constructs a provider over a map of its own instead of production
+   * exporting a function whose only purpose is to empty it.
+   */
+  constructor(
+    private readonly client: SSMClient,
+    private readonly cache: Map<string, Promise<string>> = sharedSecretCache,
+  ) {}
 
   getSecret(name: string): Promise<string> {
-    const cached = secretCache.get(name);
+    const cached = this.cache.get(name);
     if (cached !== undefined) return cached;
 
     const pending = this.read(name).catch((cause: unknown) => {
       // A failure must not be remembered. Caching a rejected promise would
       // turn one transient Parameter Store error into a container that can
       // never fetch that secret again for the rest of its life.
-      secretCache.delete(name);
+      this.cache.delete(name);
       throw cause;
     });
 
-    secretCache.set(name, pending);
+    this.cache.set(name, pending);
 
     return pending;
   }

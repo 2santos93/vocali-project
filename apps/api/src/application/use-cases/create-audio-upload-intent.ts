@@ -83,7 +83,17 @@ export class CreateAudioUploadIntent {
       createdAt: this.clock.now(),
     });
 
-    await this.repository.save(transcription);
+    const written = await this.repository.save(transcription);
+    if (!written.success) {
+      // Unreachable: this record was built around an id generated moments ago,
+      // so nothing else can hold it and there is no earlier revision to lose a
+      // race against. An invariant violation rather than an outcome a caller
+      // must handle, so it throws — see `StartFileTranscription` for the full
+      // reasoning behind that choice.
+      throw new Error(
+        `Invariant violated: CreateAudioUploadIntent could not persist a newly created transcription (${written.error.message})`,
+      );
+    }
 
     return ok({
       transcriptionId,

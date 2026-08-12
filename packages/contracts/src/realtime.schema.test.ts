@@ -42,6 +42,39 @@ describe('SaveRealtimeTranscriptionRequestSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('carries a client session id through when the client sent one', () => {
+    const parsed = SaveRealtimeTranscriptionRequestSchema.parse({
+      ...validRequest,
+      clientSessionId: 'a3f9c1e0-session',
+    });
+
+    // Stripped instead of carried, the field would be validated and then
+    // discarded, and every retry would store a second copy of the dictation.
+    expect(parsed.clientSessionId).toBe('a3f9c1e0-session');
+  });
+
+  it('accepts a request without a client session id', () => {
+    // Optional so a client that has not adopted the key still saves; it gives
+    // up deduplication, not the endpoint.
+    expect(
+      SaveRealtimeTranscriptionRequestSchema.parse(validRequest).clientSessionId,
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ['', 'empty'],
+    ['s'.repeat(65), 'longer than the key may be'],
+  ])('rejects a client session id that is %s', (clientSessionId) => {
+    // The value becomes a sort key in the user's partition, so it is bounded
+    // here rather than at the table, which would reject it far later.
+    const result = SaveRealtimeTranscriptionRequestSchema.safeParse({
+      ...validRequest,
+      clientSessionId,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('rejects a negative duration', () => {
     const result = SaveRealtimeTranscriptionRequestSchema.safeParse({
       ...validRequest,

@@ -149,6 +149,13 @@ export class StartFileTranscription {
       );
     }
 
+    // A lost race is not a failure on this path. It means another writer
+    // advanced the record between the read above and this write, so whatever
+    // this upload notification would have applied is already applied or
+    // superseded — which is precisely the case the conditional write exists to
+    // stop being resolved by overwriting. The sender only needs a success to
+    // stop retrying, so the outcome is the same either way and is deliberately
+    // not branched on.
     await this.repository.save(transcription);
 
     return ok(undefined);

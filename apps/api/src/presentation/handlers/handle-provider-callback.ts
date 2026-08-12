@@ -74,13 +74,12 @@ export function handleProviderCallbackHandler(
     const expectedSecret = await dependencies.secrets.getSecret(dependencies.webhookSecretName);
 
     if (!secretsMatch(readPresentedSecret(request.event), expectedSecret)) {
-      // Nothing about the request is logged beyond the correlation id: the
-      // body of a forged callback is attacker-controlled, and a rejected
-      // credential must not be written to a log where it would sit in
-      // plaintext next to the endpoint it was presented to.
-      dependencies.logger.info('Rejected a provider callback with an invalid credential', {
-        requestId: request.requestId,
-      });
+      // Nothing about the request is logged beyond the correlation id the
+      // request logger already carries: the body of a forged callback is
+      // attacker-controlled, and a rejected credential must not be written to
+      // a log where it would sit in plaintext next to the endpoint it was
+      // presented to.
+      request.logger.warn('Rejected a provider callback with an invalid credential');
 
       return errorResponse(UNAUTHENTICATED_STATUS, {
         code: UNAUTHENTICATED_CODE,
@@ -127,8 +126,7 @@ async function applyFailure(
   // The provider's own status word is operational detail. `reason` is stored
   // on the record and shown in the history, so it says something a clinician
   // can act on rather than repeating a third party's vocabulary.
-  dependencies.logger.info('Provider reported a job it did not complete', {
-    requestId: request.requestId,
+  request.logger.warn('Provider reported a job it did not complete', {
     transcriptionId: query.transcriptionId,
     providerStatus: query.status,
   });

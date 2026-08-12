@@ -6,16 +6,20 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
-    "typecheck": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.cypress.json",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt prepare && vue-tsc --noEmit && vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.cypress.json",
     "test": "node ../../node_modules/jest/bin/jest.js",
     "test:coverage": "node ../../node_modules/jest/bin/jest.js --coverage",
     "e2e": "cypress run",
     "e2e:open": "cypress open"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1107.0",
+    "@aws-sdk/client-ssm": "^3.1107.0",
     "@vocali/contracts": "workspace:*",
     "nuxt": "^4.2.1",
-    "vue": "^3.5.0"
+    "vue": "^3.5.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",

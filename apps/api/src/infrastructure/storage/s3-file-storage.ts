@@ -6,12 +6,15 @@ import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage, PresignedUpload } from '../../domain/ports/file-storage.js';
 
 /**
- * Everything a browser is allowed to send with the upload has to survive the
+ * Everything a client may ask for as a download name has to survive the
  * quoted-string form of `Content-Disposition`, so anything that could close
- * the quote or start a new header line is removed rather than escaped.
- * `\p{C}` covers CR, LF, NUL and the rest of the control and format
- * categories while leaving letters and combining diacritics alone, so Spanish
- * clinical file names keep their accents.
+ * the quote, escape it or start a new header line is removed rather than
+ * escaped. What a browser may send as an upload name is a separate question,
+ * answered by `SafeFileNameSchema`.
+ *
+ * `\p{C}` covers CR, LF, NUL and the rest of the control and format categories
+ * while leaving letters and combining diacritics alone, so Spanish clinical
+ * file names keep their accents.
  */
 const UNSAFE_DOWNLOAD_NAME_CHARACTERS = /[\p{C}"\\/]/gu;
 

@@ -4,6 +4,8 @@ import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
 import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 
+const TRANSCRIPTS_BUCKET = 'transcripts-bucket';
+
 const NOW = new Date('2026-08-10T12:00:00.000Z');
 
 function buildUseCase(): {
@@ -12,7 +14,7 @@ function buildUseCase(): {
   storage: InMemoryFileStorage;
 } {
   const repository = new InMemoryTranscriptionRepository();
-  const storage = new InMemoryFileStorage();
+  const storage = new InMemoryFileStorage({ bucketName: TRANSCRIPTS_BUCKET });
   const useCase = new GetTranscriptionDownloadUrl(repository, storage, new FixedClock(NOW));
   return { useCase, repository, storage };
 }
@@ -44,7 +46,9 @@ describe('GetTranscriptionDownloadUrl', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.value.url).toBe('https://storage.test/download/transcripts/user-1/01A.txt');
+    expect(result.value.url).toBe(
+      `https://storage.test/download/${TRANSCRIPTS_BUCKET}/transcripts/user-1/01A.txt`,
+    );
     expect(result.value.format).toBe('txt');
     // Both values are hardcoded rather than derived from the source constant:
     // shortening or lengthening the link's lifetime must break this test, not

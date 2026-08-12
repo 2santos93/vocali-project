@@ -63,7 +63,7 @@ describe('PinoLogger', () => {
 
     // The client is handed this same id with any error, so the line it points
     // at has to be findable.
-    expect(stream.lines.map((line) => line.correlationId)).toEqual(['req-7', 'req-7', undefined]);
+    expect(stream.lines.map((line) => line.requestId)).toEqual(['req-7', 'req-7', undefined]);
   });
 
   it('redacts a credential that reaches a log context', () => {
@@ -84,11 +84,20 @@ describe('PinoLogger', () => {
     });
   });
 
-  it('honours the configured level', () => {
+  it('drops routine progress at a raised level and keeps the failures', () => {
     const { logger, stream } = buildLogger('warn');
 
     logger.info('Routine progress nobody needs in production');
+    logger.warn('Transcription provider request failed and will be retried');
+    logger.error('Transcription provider request exhausted its attempts');
 
-    expect(stream.lines).toEqual([]);
+    // LOG_LEVEL=warn is what an operator reaches for to cut noise, and the
+    // schema accepts it. If the port only declared `info`, that one setting
+    // would silence the whole system — including the only two lines recording
+    // that a clinical transcription failed.
+    expect(stream.lines.map((line) => [line.level, line.msg])).toEqual([
+      ['warn', 'Transcription provider request failed and will be retried'],
+      ['error', 'Transcription provider request exhausted its attempts'],
+    ]);
   });
 });
