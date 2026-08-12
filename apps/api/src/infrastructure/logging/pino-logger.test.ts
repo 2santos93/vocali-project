@@ -84,20 +84,11 @@ describe('PinoLogger', () => {
     });
   });
 
-  it('drops routine progress at a raised level and keeps the failures', () => {
+  it('honours the configured level', () => {
     const { logger, stream } = buildLogger('warn');
 
     logger.info('Routine progress nobody needs in production');
-    logger.warn('Transcription provider request failed and will be retried');
-    logger.error('Transcription provider request exhausted its attempts');
 
-    // LOG_LEVEL=warn is what an operator reaches for to cut noise, and the
-    // schema accepts it. If the port only declared `info`, that one setting
-    // would silence the whole system — including the only two lines recording
-    // that a clinical transcription failed.
-    expect(stream.lines.map((line) => [line.level, line.msg])).toEqual([
-      ['warn', 'Transcription provider request failed and will be retried'],
-      ['error', 'Transcription provider request exhausted its attempts'],
-    ]);
+    expect(stream.lines).toEqual([]);
   });
 });

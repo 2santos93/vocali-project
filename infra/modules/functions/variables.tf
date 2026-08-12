@@ -100,6 +100,17 @@ variable "data_kms_key_arns" {
   }
 }
 
+variable "dead_letter_retention_days" {
+  description = "How long a failed asynchronous invocation is kept in the dead-letter queue. Long enough to notice over a weekend and replay it on Monday."
+  type        = number
+  default     = 14
+
+  validation {
+    condition     = var.dead_letter_retention_days >= 1 && var.dead_letter_retention_days <= 14
+    error_message = "dead_letter_retention_days must be between 1 and 14. Fourteen days is the longest SQS retains a message."
+  }
+}
+
 variable "log_retention_days" {
   description = "How long function logs are kept. CloudWatch keeps them forever by default, which for logs describing clinical audio is both a cost and a liability."
   type        = number

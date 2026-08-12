@@ -52,3 +52,73 @@ output "function_log_group_names" {
   description = "Log group for each function, already created with an explicit retention."
   value       = module.functions.log_group_names
 }
+
+output "api_url" {
+  description = "Base URL of the API. The renderer calls it server side; no browser calls it at all."
+  value       = module.api.api_endpoint
+}
+
+output "api_routes" {
+  description = "Every route on the API, so the surface can be read without opening the console."
+  value       = module.lambda.route_keys
+}
+
+output "api_unauthenticated_routes" {
+  description = "Routes with no authorizer. Deliberately an output: the provider webhook belongs here and nothing else ever should."
+  value       = module.lambda.unauthenticated_route_keys
+}
+
+output "provider_callback_url" {
+  description = "PROVIDER_CALLBACK_BASE_URL, as handed to every function. The transcription's identity is appended to it per job."
+  value       = module.lambda.webhook_url
+}
+
+output "function_arns" {
+  description = "Deployed function ARNs, which are also what the deployment role may update."
+  value       = module.lambda.function_arns
+}
+
+output "dead_letter_queue_name" {
+  description = "Queue holding asynchronous invocations Lambda gave up on. A message in it is a recording that was never transcribed."
+  value       = module.functions.dead_letter_queue_name
+}
+
+output "web_url" {
+  description = "Where the front end is served from until there is a custom domain."
+  value       = module.web.front_end_origin
+}
+
+output "web_distribution_id" {
+  description = "Distribution to invalidate once new assets are synced."
+  value       = module.web.distribution_id
+}
+
+output "web_assets_bucket_name" {
+  description = "Bucket the built front end is synced into. Terraform creates it and never writes to it."
+  value       = module.web.assets_bucket_name
+}
+
+output "web_ssr_function_name" {
+  description = "The Nuxt renderer, whose code a deployment updates alongside the API functions."
+  value       = module.web.ssr_function_name
+}
+
+output "alert_topic_arn" {
+  description = "Where every alarm publishes. It has no subscriber until somebody adds one."
+  value       = module.observability.alert_topic_arn
+}
+
+output "alarm_names" {
+  description = "The four alarms this environment raises."
+  value       = module.observability.alarm_names
+}
+
+output "deployment_role_arn" {
+  description = "Role GitHub Actions assumes. It is configuration rather than a secret: it grants nothing without a token that satisfies its trust policy."
+  value       = module.deployment.role_arn
+}
+
+output "bff_client_secret_parameter_name" {
+  description = "Where the renderer expects to find the Cognito app client secret. Terraform does not create the parameter; see infra/README.md."
+  value       = local.bff_client_secret_parameter_name
+}

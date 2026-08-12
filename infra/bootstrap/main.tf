@@ -148,6 +148,32 @@ resource "aws_s3_bucket_lifecycle_configuration" "state" {
   depends_on = [aws_s3_bucket_versioning.state]
 }
 
+# The identity provider GitHub Actions authenticates as.
+#
+# It belongs here rather than in an environment for the same reason the state
+# bucket does: there is one per AWS account, and both environments live in one
+# account, so a copy in each would be two resources fighting over one name.
+# The roles that trust it are per environment, in the `deployment` module.
+#
+# What this makes possible is the whole point of criterion H3: a workflow
+# presents a short-lived token that GitHub signs and that names the repository,
+# the branch and the workflow it came from, and STS exchanges it for
+# credentials that expire in an hour. No access key exists anywhere, so none
+# can leak, and none has to be rotated.
+resource "aws_iam_openid_connect_provider" "github_actions" {
+  url = "https://token.actions.githubusercontent.com"
+
+  # The audience a workflow requests, and the one the trust policies check.
+  # Without this list AWS would accept tokens minted for any audience,
+  # including one issued to a completely different cloud.
+  client_id_list = ["sts.amazonaws.com"]
+
+  # No thumbprint_list. IAM verifies this endpoint's certificate against its
+  # own store of trusted certificate authorities, so a thumbprint pinned here
+  # would be a value that does nothing until the day GitHub rotates a leaf
+  # certificate and every deployment stops.
+}
+
 # There is no lock table. Two applies against one state file is how state gets
 # corrupted, and CI racing a local apply is the ordinary way it happens, but
 # the S3 backend now takes the lock on the state object itself with a

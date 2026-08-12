@@ -179,6 +179,54 @@ locals {
     Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
     Resource = var.data_kms_key_arns
   }]
+
+  # One function is invoked asynchronously: S3 delivers the ObjectCreated
+  # notification to start-transcription-job and nobody waits for the answer.
+  # An asynchronous invocation that exhausts its retries is dropped in
+  # silence unless a failure destination catches it, and dropping it here
+  # means an upload that sits at PENDING_UPLOAD for ever with nothing
+  # anywhere recording why.
+  #
+  # Kept out of `functions` above so that map stays free of resource
+  # attributes: its keys drive several `for_each` arguments, and those have to
+  # be resolvable before anything is created.
+  asynchronous_statements = {
+    "start-transcription-job" = [{
+      Sid    = "RecordAsynchronousFailure"
+      Effect = "Allow"
+      # A failure destination is delivered under the function's own execution
+      # role rather than the Lambda service's, so this grant is needed even
+      # though no line of the handler mentions a queue.
+      Action   = ["sqs:SendMessage"]
+      Resource = [aws_sqs_queue.asynchronous_failures.arn]
+    }]
+  }
+}
+
+# Where an asynchronous invocation goes when Lambda has given up on it.
+#
+# There is no consumer. The queue is a record and an alarm source: a message
+# in it is one upload that will never be transcribed, and the payload names
+# the object, so the event can be replayed by hand once the cause is fixed.
+# A dead-letter queue nobody looks at is useless, which is why the alarm on
+# its depth is one of the few this platform raises.
+resource "aws_sqs_queue" "asynchronous_failures" {
+  name = "${var.name_prefix}-asynchronous-failures"
+
+  # SSE-SQS rather than a customer-managed key. The payload is an S3 event —
+  # a bucket name and an object key carrying a user identifier and a clinical
+  # file name — so it is encrypted at rest, and SQS-managed encryption needs
+  # no key policy for the Lambda service to write through.
+  sqs_managed_sse_enabled = true
+
+  message_retention_seconds = var.dead_letter_retention_days * 24 * 60 * 60
+
+  # Long enough that a redrive by hand is not a race against the timer.
+  visibility_timeout_seconds = 300
+
+  tags = {
+    Name = "${var.name_prefix}-asynchronous-failures"
+  }
 }
 
 # One role per function, never one role shared by all of them. A shared role is
@@ -239,6 +287,7 @@ resource "aws_iam_role_policy" "function" {
       ],
       each.value,
       local.data_key_statements,
+      lookup(local.asynchronous_statements, each.key, []),
     )
   })
 }

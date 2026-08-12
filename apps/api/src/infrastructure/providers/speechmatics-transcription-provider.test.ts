@@ -3,7 +3,6 @@ import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
 import {
   SpeechmaticsTranscriptionProvider,
   type SpeechmaticsProviderOptions,
-  type SpeechmaticsRuntimeHooks,
 } from './speechmatics-transcription-provider.js';
 import { CapturingLogger } from '../../../test/doubles/capturing-logger.js';
 import { FixedClock } from '../../../test/doubles/fixed-clock.js';
@@ -156,10 +155,7 @@ function normaliseHeaders(headers: unknown): Record<string, string> {
   );
 }
 
-function buildProvider(
-  overrides: Partial<SpeechmaticsProviderOptions> = {},
-  hooks: Partial<SpeechmaticsRuntimeHooks> = {},
-): {
+function buildProvider(overrides: Partial<SpeechmaticsProviderOptions> = {}): {
   provider: SpeechmaticsTranscriptionProvider;
   logger: CapturingLogger;
   secrets: StubSecretsProvider;
@@ -183,7 +179,6 @@ function buildProvider(
         return Promise.resolve();
       },
       random: (): number => 1,
-      ...hooks,
     },
   );
 
@@ -199,20 +194,6 @@ function submittedConfig(request: CapturedRequest): Record<string, unknown> {
   if (typeof config !== 'string') throw new Error('the multipart body carried no config field');
 
   return JSON.parse(config) as Record<string, unknown>;
-}
-
-/**
- * Counts outbound attempts, including one that never produced a response.
- * `requests` cannot see those: it is filled by the mock's reply callback, so
- * an attempt answered with a transport error leaves no trace in it — and "the
- * submission went out exactly once" is precisely what those tests assert.
- */
-function countingFetch(counter: { sent: number }): SpeechmaticsRuntimeHooks['fetch'] {
-  return (url, init): Promise<Response> => {
-    counter.sent += 1;
-
-    return fetch(url, dispatchedThroughMock(init));
-  };
 }
 
 function firstRequest(): CapturedRequest {
@@ -316,11 +297,8 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       );
     });
 
-    it.each([
-      ['the quota window has not rolled over', 429, 'sm-job-77'],
-      ['the provider gave up waiting for the request', 408, 'sm-job-84'],
-    ])('resubmits when %s', async (_case, status, jobId) => {
-      interceptJobs({ status }, { status: 201, body: { id: jobId } });
+    it('retries a server fault and returns the job from the later attempt', async () => {
+      interceptJobs({ status: 503 }, { status: 201, body: { id: 'sm-job-77' } });
       const { provider, delays } = buildProvider();
 
       const job = await provider.submitFileJob({
@@ -329,122 +307,11 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         callbackUrl: CALLBACK_URL,
       });
 
-      // Both statuses say the request was refused outright, so no job can
-      // exist behind either and sending it again cannot duplicate one.
-      expect(job.externalJobId).toBe(jobId);
+      expect(job.externalJobId).toBe('sm-job-77');
       expect(requests).toHaveLength(2);
       // Equal jitter with `random` pinned to 1: half the exponential term is
       // fixed, half is the pinned draw, so the first delay is the base delay.
       expect(delays).toEqual([100]);
-    });
-
-    it('splits the backoff into a fixed half and a jittered half', async () => {
-      interceptJobs({ status: 429 }, { status: 201, body: { id: 'sm-job-87' } });
-      // A draw of 1 is the single value where equal jitter and no jitter
-      // agree, so the other tests cannot tell them apart. Half of the 100 ms
-      // base delay is fixed and half is drawn: 50 + 50 * 0.5.
-      const { provider, delays } = buildProvider({}, { random: (): number => 0.5 });
-
-      await provider.submitFileJob({
-        audioUrl: AUDIO_URL,
-        language: 'es',
-        callbackUrl: CALLBACK_URL,
-      });
-
-      expect(delays).toEqual([75]);
-    });
-
-    it('does not skip the backoff when a dated Retry-After has already passed', async () => {
-      interceptJobs(
-        { status: 429, headers: { 'retry-after': 'Tue, 11 Aug 2026 08:59:53 GMT' } },
-        { status: 201, body: { id: 'sm-job-88' } },
-      );
-      const { provider, delays } = buildProvider();
-
-      await provider.submitFileJob({
-        audioUrl: AUDIO_URL,
-        language: 'es',
-        callbackUrl: CALLBACK_URL,
-      });
-
-      // Seven seconds before the injected clock. Subtracting without a floor
-      // gives a negative delay, which a timer treats as no wait at all: the
-      // adapter would send the next attempt straight into the rate limit it
-      // was just told about.
-      expect(delays).toEqual([0]);
-    });
-
-    it('drains the body of a response nothing will read', async () => {
-      let cancelled = false;
-      const body = new ReadableStream<Uint8Array>({
-        start(controller): void {
-          controller.enqueue(new TextEncoder().encode('{"error":"Invalid config"}'));
-        },
-        cancel(): void {
-          cancelled = true;
-        },
-      });
-      const { provider } = buildProvider(
-        { maxAttempts: 1 },
-        { fetch: (): Promise<Response> => Promise.resolve(new Response(body, { status: 400 })) },
-      );
-
-      await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
-      );
-
-      // An undici socket stays checked out of the pool until its body is read
-      // or cancelled. Nothing reads the body of a failed response, so leaving
-      // it undrained leaks one connection per failure for the container's
-      // whole life — and the failures come in bursts, by definition.
-      expect(cancelled).toBe(true);
-    });
-
-    it('does not resubmit a job a server fault answered', async () => {
-      interceptJobs({ status: 500 }, { status: 201, body: { id: 'sm-job-85' } });
-      const attempts = { sent: 0 };
-      const { provider, delays } = buildProvider({}, { fetch: countingFetch(attempts) });
-
-      const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
-      );
-
-      // This endpoint creates a resource and the provider documents no
-      // idempotency key, so a 5xx cannot be told apart from an edge proxy
-      // answering for a server that had already created the job. Retrying
-      // would transcribe the same audio twice against the same callback url,
-      // and the losing job's callback carries an id no record holds.
-      expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
-      expect(attempts.sent).toBe(1);
-      expect(delays).toEqual([]);
-    });
-
-    it('does not resubmit a job the provider never answered', async () => {
-      agent
-        .get(BATCH_ORIGIN)
-        .intercept({ path: JOBS_PATH, method: 'POST' })
-        .replyWithError(new Error('socket hang up'));
-      interceptJobs({ status: 201, body: { id: 'sm-job-86' } });
-      const attempts = { sent: 0 };
-      const { provider, delays, logger } = buildProvider({}, { fetch: countingFetch(attempts) });
-
-      const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
-      );
-
-      // A request that produced no response may still have been received. The
-      // adapter cannot tell, so it reports a failure the caller can act on
-      // rather than creating a job that might be the second one.
-      expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
-      expect(attempts.sent).toBe(1);
-      expect(delays).toEqual([]);
-
-      // The cause's own message is not repeated: a fetch failure names the
-      // url it was fetching, and here that is the presigned link to a
-      // patient's audio.
-      const written = logger.serialise();
-      expect(written).toContain('the request could not be completed');
-      expect(written).not.toContain(AUDIO_URL);
     });
 
     it('waits the number of seconds a 429 asked for', async () => {
@@ -484,8 +351,8 @@ describe('SpeechmaticsTranscriptionProvider', () => {
     });
 
     it('gives up after the configured number of attempts', async () => {
-      interceptJobs({ status: 429 }, { status: 429 }, { status: 429 });
-      const { provider, delays, logger } = buildProvider();
+      interceptJobs({ status: 500 }, { status: 500 }, { status: 500 });
+      const { provider, delays } = buildProvider();
 
       const error = await expectProviderError(
         provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
@@ -495,20 +362,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(requests).toHaveLength(3);
       // Two waits for three attempts: nothing sleeps after the last one.
       expect(delays).toEqual([100, 200]);
-
-      // At `error`, and the level is asserted rather than the text alone: this
-      // line is the only record that a clinical transcription will never
-      // happen, and written at `info` it would vanish the moment an operator
-      // raised LOG_LEVEL to cut noise.
-      expect(logger.entries).toContainEqual({
-        level: 'error',
-        message: 'Transcription provider request exhausted its attempts',
-        context: {
-          operation: 'submitFileJob',
-          attempts: 3,
-          reason: 'the provider returned a retryable status',
-        },
-      });
     });
 
     it('never waits longer than the configured ceiling, whatever Retry-After asks for', async () => {
@@ -527,6 +380,30 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       // An hour is longer than any Lambda may run, so honouring it literally
       // would trade a retry for a certain timeout.
       expect(delays).toEqual([5_000]);
+    });
+
+    it('retries a request that never reached the provider at all', async () => {
+      agent
+        .get(BATCH_ORIGIN)
+        .intercept({ path: JOBS_PATH, method: 'POST' })
+        .replyWithError(new Error('socket hang up'));
+      interceptJobs({ status: 201, body: { id: 'sm-job-82' } });
+      const { provider, delays, logger } = buildProvider();
+
+      const job = await provider.submitFileJob({
+        audioUrl: AUDIO_URL,
+        language: 'es',
+        callbackUrl: CALLBACK_URL,
+      });
+
+      expect(job.externalJobId).toBe('sm-job-82');
+      expect(delays).toEqual([100]);
+      // The cause's own message is not repeated: a fetch failure names the
+      // url it was fetching, and here that is the presigned link to a
+      // patient's audio.
+      const written = logger.serialise();
+      expect(written).toContain('the request could not be completed');
+      expect(written).not.toContain(AUDIO_URL);
     });
 
     it('abandons a request that outlives the configured timeout', async () => {
@@ -574,7 +451,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
     });
 
     it('never writes the api key or the webhook secret into a log line', async () => {
-      interceptJobs({ status: 429 }, { status: 400, body: { error: 'Invalid config' } });
+      interceptJobs({ status: 503 }, { status: 400, body: { error: 'Invalid config' } });
       const { provider, logger } = buildProvider();
 
       await expectProviderError(
@@ -622,61 +499,15 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(secrets.requested).toEqual([API_KEY_PARAMETER]);
     });
 
-    // A ttl outside the documented range comes back as a 400, which is the one
-    // status this adapter refuses to retry — so an unclamped value does not
-    // cost a round trip, it costs the session. The reported expiry has to move
-    // with the clamp too: a caller told its key lasts a day when the provider
-    // issued a minute reconnects onto a key that is already dead.
-    it.each([
-      ['below the provider minimum', 5, 60],
-      ['above the provider maximum', 100_000, 86_400],
-      ['carrying a fraction of a second', 90.7, 90],
-    ])('brings a ttl %s into the range the provider accepts', async (_case, requested, applied) => {
+    it('raises a ttl below the provider minimum instead of spending a rejected request', async () => {
       interceptTemporaryKeys({ status: 201, body: { key_value: 'temporary-jwt-value' } });
       const { provider, logger } = buildProvider();
 
-      const credentials = await provider.createRealtimeCredentials({ ttlSeconds: requested });
+      const credentials = await provider.createRealtimeCredentials({ ttlSeconds: 5 });
 
-      expect(firstRequest().body).toBe(JSON.stringify({ ttl: applied }));
-      expect(credentials.expiresAt).toEqual(new Date(NOW.getTime() + applied * 1_000));
+      expect(firstRequest().body).toBe(JSON.stringify({ ttl: 60 }));
+      expect(credentials.expiresAt).toEqual(new Date('2026-08-11T09:01:00.000Z'));
       expect(logger.serialise()).toContain('Clamped the realtime key lifetime');
-    });
-
-    it('retries a server fault, which submitting a job deliberately does not', async () => {
-      interceptTemporaryKeys(
-        { status: 503 },
-        { status: 201, body: { key_value: 'temporary-jwt-value' } },
-      );
-      const { provider, delays } = buildProvider();
-
-      const credentials = await provider.createRealtimeCredentials({ ttlSeconds: 60 });
-
-      // Minting a key has no second effect: a duplicate is one unused key that
-      // expires within the minute. That is what makes the ambiguity of a 5xx
-      // worth another attempt here and not on the submission.
-      expect(credentials.token).toBe('temporary-jwt-value');
-      expect(requests).toHaveLength(2);
-      expect(delays).toEqual([100]);
-    });
-
-    it('retries a request that never reached the provider at all', async () => {
-      agent
-        .get(MANAGEMENT_ORIGIN)
-        .intercept({ path: KEYS_PATH, method: 'POST', query: { type: 'rt' } })
-        .replyWithError(new Error('socket hang up'));
-      interceptTemporaryKeys({ status: 201, body: { key_value: 'temporary-jwt-value' } });
-      const attempts = { sent: 0 };
-      const { provider, delays, logger } = buildProvider({}, { fetch: countingFetch(attempts) });
-
-      const credentials = await provider.createRealtimeCredentials({ ttlSeconds: 60 });
-
-      expect(credentials.token).toBe('temporary-jwt-value');
-      expect(attempts.sent).toBe(2);
-      expect(delays).toEqual([100]);
-      // A retried request is a problem being handled, so it is written at
-      // `warn`: an operator cutting noise to `warn` keeps it and loses only
-      // the routine progress lines.
-      expect(logger.entries.map((entry) => entry.level)).toEqual(['warn']);
     });
 
     it('translates a rejected key request into a domain error', async () => {

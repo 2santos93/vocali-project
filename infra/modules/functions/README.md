@@ -2,13 +2,16 @@
 
 Everything a Lambda function needs except the function itself: one execution
 role per function, with an inline policy scoped to the resources that function
-actually touches, and one log group per function, with an explicit retention.
+actually touches, one log group per function, with an explicit retention, and
+the dead-letter queue that catches an asynchronous invocation Lambda has given
+up on.
 
-The functions arrive in the next round, when there are handlers to deploy.
-They are named here because the log group name has to match the function name
-exactly, and because a role written alongside a function tends to be written
-until the function works, while a role written from the use cases tends to be
-written to be small.
+The functions themselves are created by the `lambda` module, which consumes
+the names, roles, log groups and queue published here. They are named here
+because the log group name has to match the function name exactly, and because
+a role written alongside a function tends to be written until the function
+works, while a role written from the use cases tends to be written to be
+small.
 
 ## The permission matrix
 
@@ -39,6 +42,23 @@ Four things are worth reading off that table:
 - **The signing functions hold the permission the browser then uses.** A
   presigned URL carries the signer's authority, so `create-upload-intent`
   needs `s3:PutObject` even though it never writes an object itself.
+
+## The dead-letter queue
+
+`start-transcription-job` is the only function nobody is waiting on: S3
+delivers an `ObjectCreated` notification to it and reads no response. Lambda
+retries an asynchronous invocation twice and then discards it, so without a
+failure destination the visible symptom of a permanent failure is an upload
+that stays at `PENDING_UPLOAD` for ever, with the reason nowhere.
+
+The queue is that destination. Nothing consumes it — a message in it is one
+recording that was never transcribed, and the alarm on its depth is the only
+thing that reads it automatically. The payload names the object, so an event
+can be replayed once whatever caused it is fixed.
+
+That is why one function, and only that one, is granted `sqs:SendMessage`: a
+failure destination is delivered under the function's own execution role, not
+the service's, so it is a permission and not merely a setting.
 
 ## Why one role per function
 

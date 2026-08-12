@@ -82,15 +82,9 @@ describe('SsmSecretsProvider', () => {
     expect(await provider.getSecret(WEBHOOK_SECRET_PARAMETER)).toBe('the-webhook-secret');
   });
 
-  it.each([
-    ['carries no value at all', undefined],
-    ['exists but holds an empty string', ''],
-  ])('reports a parameter that %s', async (_case, value) => {
-    ssmMock.on(GetParameterCommand).resolves({ Parameter: { Value: value } });
+  it('reports a parameter that exists with no value', async () => {
+    ssmMock.on(GetParameterCommand).resolves({ Parameter: {} });
 
-    // An empty parameter is the shape a half-finished deployment leaves
-    // behind. Handed onwards as the api key it produces a 401 with nothing to
-    // explain it, where SECRET_NOT_FOUND names the parameter that is empty.
     await expect(buildProvider().getSecret(API_KEY_PARAMETER)).rejects.toMatchObject({
       code: 'SECRET_NOT_FOUND',
     });

@@ -25,55 +25,13 @@ const MIN_REALTIME_KEY_TTL_SECONDS = 60;
 const MAX_REALTIME_KEY_TTL_SECONDS = 86_400;
 
 /**
- * The two statuses that say the request was not accepted: the provider gave up
- * waiting for it (408), or the quota window has not rolled over yet (429).
- * Because neither can have been acted on, both are safe to send again whatever
- * the operation does. Everything else in the 4xx range describes the request
- * itself, and a request the provider has already rejected will be rejected
- * identically the second time — retrying it only spends quota and holds a
- * Lambda open.
+ * Statuses worth trying again: the request timed out on their side, the quota
+ * window has not rolled over yet, or a server fault. Everything else in the
+ * 4xx range describes the request itself, and a request the provider has
+ * already rejected will be rejected identically the second time — retrying it
+ * only spends quota and holds a Lambda open.
  */
-const REQUEST_NOT_ACCEPTED_STATUS_CODES = new Set([408, 429]);
-
-/**
- * What to do with the two outcomes where the request may or may not have been
- * acted on: one that produced no response at all, and a 5xx, which can be an
- * edge proxy answering for a server that already did the work.
- *
- * Retryability belongs to the operation rather than to the status, so it is
- * declared beside each call instead of being a global rule to remember.
- */
-interface RetryPolicy {
-  readonly onUnansweredRequest: boolean;
-  readonly onServerFault: boolean;
-}
-
-/**
- * For an operation that can be performed twice without a second effect.
- * Minting a temporary key again costs one unused key that expires within the
- * minute, so an unknown outcome is worth another attempt.
- */
-const REPEATABLE_OPERATION_RETRY_POLICY: RetryPolicy = {
-  onUnansweredRequest: true,
-  onServerFault: true,
-};
-
-/**
- * `POST /v2/jobs/` creates a resource and Speechmatics documents no
- * idempotency key, so a second attempt cannot be recognised as the same
- * submission. A first attempt that reached the provider and then timed out —
- * or that an edge proxy answered 5xx after the job had been created — would
- * leave two jobs transcribing the same audio against the same callback URL:
- * the account's minutes spent twice, and a callback carrying a job id that
- * does not match the stored one, which the webhook can only answer 404 to.
- *
- * So an unknown outcome is treated as a submitted job and reported as a
- * failure, which the caller can act on, rather than retried blindly.
- */
-const JOB_SUBMISSION_RETRY_POLICY: RetryPolicy = {
-  onUnansweredRequest: false,
-  onServerFault: false,
-};
+const RETRYABLE_STATUS_CODES = new Set([408, 429]);
 
 export interface SpeechmaticsProviderOptions {
   /** SSM parameter holding the long-lived provider key. */
@@ -107,7 +65,7 @@ type RequestInitWithHeaders = RequestInit & { headers: Record<string, string> };
 
 type AttemptResult =
   | { readonly kind: 'success'; readonly response: Response }
-  | { readonly kind: 'permanent'; readonly reason: string; readonly status: number | null }
+  | { readonly kind: 'permanent'; readonly status: number }
   | {
       readonly kind: 'transient';
       readonly reason: string;
@@ -180,19 +138,14 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       }),
     );
 
-    const response = await this.send(
-      'submitFileJob',
-      BATCH_JOBS_URL,
-      {
-        method: 'POST',
-        // No `Content-Type`: `fetch` derives the multipart type and its
-        // boundary from the `FormData` body, and a hand-written header would
-        // omit the boundary and make the body unparseable.
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body,
-      },
-      JOB_SUBMISSION_RETRY_POLICY,
-    );
+    const response = await this.send('submitFileJob', BATCH_JOBS_URL, {
+      method: 'POST',
+      // No `Content-Type`: `fetch` derives the multipart type and its boundary
+      // from the `FormData` body, and a hand-written header would omit the
+      // boundary and make the body unparseable.
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body,
+    });
 
     const payload = await readJsonObject(response, 'the job submission');
     const externalJobId = payload.id;
@@ -212,16 +165,11 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     const apiKey = await this.secrets.getSecret(this.options.apiKeySecretName);
     const ttlSeconds = this.resolveKeyTtlSeconds(input.ttlSeconds);
 
-    const response = await this.send(
-      'createRealtimeCredentials',
-      TEMPORARY_KEY_URL,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ttl: ttlSeconds }),
-      },
-      REPEATABLE_OPERATION_RETRY_POLICY,
-    );
+    const response = await this.send('createRealtimeCredentials', TEMPORARY_KEY_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ttl: ttlSeconds }),
+    });
 
     const payload = await readJsonObject(response, 'the temporary key request');
     const token = payload.key_value;
@@ -266,38 +214,28 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     operation: string,
     url: string,
     init: RequestInitWithHeaders,
-    retry: RetryPolicy,
   ): Promise<Response> {
     let lastReason = 'the request never completed';
 
     for (let attempt = 1; attempt <= this.options.maxAttempts; attempt += 1) {
-      const result = await this.attempt(url, init, retry);
+      const result = await this.attempt(url, init);
 
       if (result.kind === 'success') return result.response;
 
       if (result.kind === 'permanent') {
-        // At `error`, because for a submission this line is the only record
-        // that a clinical transcription will never happen, and an operator who
-        // raises `LOG_LEVEL` to cut noise must not lose it.
-        //
         // The status is logged, never carried into the thrown error: it is
         // operational detail for whoever reads CloudWatch, not something a
         // client should see or branch on.
-        this.logger.error('Transcription provider request failed and was not retried', {
+        this.logger.info('Transcription provider rejected the request', {
           operation,
           attempt,
-          reason: result.reason,
           status: result.status,
         });
-        throw new TranscriptionProviderError(
-          result.status === null
-            ? `${operation} could not be completed`
-            : `${operation} was rejected by the provider`,
-        );
+        throw new TranscriptionProviderError(`${operation} was rejected by the provider`);
       }
 
       lastReason = result.reason;
-      this.logger.warn('Transcription provider request failed and will be retried', {
+      this.logger.info('Transcription provider request failed and will be retried', {
         operation,
         attempt,
         reason: result.reason,
@@ -309,7 +247,7 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       }
     }
 
-    this.logger.error('Transcription provider request exhausted its attempts', {
+    this.logger.info('Transcription provider request exhausted its attempts', {
       operation,
       attempts: this.options.maxAttempts,
       reason: lastReason,
@@ -319,11 +257,7 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     );
   }
 
-  private async attempt(
-    url: string,
-    init: RequestInitWithHeaders,
-    retry: RetryPolicy,
-  ): Promise<AttemptResult> {
+  private async attempt(url: string, init: RequestInitWithHeaders): Promise<AttemptResult> {
     let response: Response;
 
     try {
@@ -336,11 +270,12 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
         signal: AbortSignal.timeout(this.options.requestTimeoutMs),
       });
     } catch (cause) {
-      const reason = describeRequestFailure(cause);
-
-      return retry.onUnansweredRequest
-        ? { kind: 'transient', reason, status: null, retryAfterMs: null }
-        : { kind: 'permanent', reason, status: null };
+      return {
+        kind: 'transient',
+        reason: describeRequestFailure(cause),
+        status: null,
+        retryAfterMs: null,
+      };
     }
 
     if (response.ok) return { kind: 'success', response };
@@ -352,7 +287,7 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     // its socket checked out of the pool for the rest of the container's life.
     await discardBody(response);
 
-    if (REQUEST_NOT_ACCEPTED_STATUS_CODES.has(status) || (retry.onServerFault && status >= 500)) {
+    if (RETRYABLE_STATUS_CODES.has(status) || status >= 500) {
       return {
         kind: 'transient',
         reason: 'the provider returned a retryable status',
@@ -361,7 +296,7 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       };
     }
 
-    return { kind: 'permanent', reason: 'the provider returned an error status', status };
+    return { kind: 'permanent', status };
   }
 
   /**

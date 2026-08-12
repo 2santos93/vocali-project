@@ -1,5 +1,15 @@
+variable "github_repository" {
+  description = "The repository allowed to assume the deployment role, as owner/name. No default: a wrong value is a role that somebody else's workflow can assume, and a placeholder here would be applied without anyone reading it."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$", var.github_repository))
+    error_message = "github_repository must be owner/name."
+  }
+}
+
 variable "front_end_origins" {
-  description = "Origins the browser uploads audio from. Locally this is the Nuxt dev server; it becomes the CloudFront domain as well once the front end is deployed."
+  description = "Origins the browser uploads audio from, beyond the distribution's own domain, which is added automatically. Locally this is the Nuxt dev server."
   type        = list(string)
   default     = ["http://localhost:3000"]
 

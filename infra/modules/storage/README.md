@@ -51,9 +51,24 @@ The delete-marker and abandoned-upload rules are there because versioning and
 multipart uploads both leave residue that is billed and does not appear in a
 normal listing.
 
-## Not here yet
+## The notification is next door
 
-The audio bucket will need an `ObjectCreated` notification pointing at the
-function that starts a transcription job. It arrives with that function, in
-the round that creates it, since a notification cannot reference a Lambda that
-does not exist.
+The audio bucket's `ObjectCreated` notification, which starts a transcription
+job, is configured by the `lambda` module rather than here: a notification has
+to name the function it invokes, and that function is created there.
+
+It filters on the `audio/` prefix, which is also what stops it feeding itself
+— anything the platform writes back into this bucket under another prefix
+creates an object too.
+
+## A disagreement to be aware of
+
+The application does not currently write to the transcripts bucket. Its
+composition root builds one `S3FileStorage` over `AUDIO_BUCKET_NAME` and uses
+it for both, so a finished transcript is written to `transcripts/…` inside the
+**audio** bucket. The execution roles grant that write on this module's
+transcripts bucket, so as things stand the write would be denied.
+
+It is one line in `apps/api/src/composition-root.ts` and it is not fixed here,
+because that file is outside the round this module was last changed in. See
+`modules/lambda/README.md`, which sets `TRANSCRIPTS_BUCKET_NAME` ready for it.

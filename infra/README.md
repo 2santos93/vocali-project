@@ -4,30 +4,38 @@ Every AWS resource this platform uses is defined here, in Terraform, in
 `eu-west-1`.
 
 ```
-bootstrap/          State bucket and the key encrypting it. Applied once, by hand.
+bootstrap/          State bucket, its key, and the GitHub identity provider. Applied once, by hand.
+build/              The esbuild step that produces the function packages
 modules/
   auth/             Cognito user pool and the app client the BFF uses
   database/         The single DynamoDB table
   storage/          The audio and transcript buckets
-  functions/        One execution role and one log group per function
+  functions/        One execution role and one log group per function, and the dead-letter queue
+  api/              The HTTP API, its Cognito JWT authorizer and its stage
+  lambda/           The eight functions, their routes and the bucket notification
+  web/              CloudFront, the asset bucket and the Nuxt renderer
+  observability/    Four alarms and the topic they publish to
+  deployment/       The role GitHub Actions assumes through OIDC
 environments/
   dev/              Composes the modules; holds no resource of its own
   prod/             The same composition with production settings
 ```
 
-## What exists so far
+## What exists now
 
-This round covers the resources the application layer already needs: identity,
-the table, the buckets, the roles those functions will run as, and the log
-groups they will write to.
+All of it. Identity, the table, the buckets, the roles, the log groups, the
+eight functions, the API in front of them, the front end's distribution, the
+alarms and the deployment role.
 
-Not here yet, and deliberately: the Lambda functions themselves, API Gateway,
-CloudFront and the Nuxt hosting. Each of those needs a deployable artefact
-that does not exist yet, and a function resource pointing at a package that
-has not been built is a configuration that cannot be applied. The modules are
-shaped so they slot in — `functions` already publishes the names, roles and
-log groups the next round consumes, and the storage module notes where the
-`ObjectCreated` notification will attach.
+Two things are complete in configuration and cannot be applied until an
+artefact exists:
+
+- **The functions** need `infra/build/bundle-functions.sh` to have run.
+- **The renderer** needs `apps/web/.output/server`, which needs the front end
+  to build. It is being written as this is committed.
+
+Neither is stubbed and neither is behind a flag. The plan stops on the missing
+package, names it, and prints the command that produces it.
 
 ## Running it
 
@@ -44,14 +52,36 @@ aws ssm put-parameter --type SecureString \
 aws ssm put-parameter --type SecureString \
   --name /vocali/dev/transcription-provider/webhook-secret --value '...'
 
+# Build what is deployed, before planning what deploys it.
+infra/build/bundle-functions.sh
+NITRO_PRESET=aws_lambda pnpm --filter @vocali/web build
+
 # Then, per environment.
-cd infra/environments/dev && terraform init && terraform plan
+cd infra/environments/dev
+terraform init
+terraform plan -var 'github_repository=owner/name'
 ```
 
-`prod` additionally requires `front_end_origins`, which has no default on
-purpose: the front end is served from a domain that does not exist yet, and a
-placeholder would silently become the upload allow-list of a production
-bucket.
+`github_repository` has no default in either environment. It decides which
+repository's workflows can assume the deployment role, and a placeholder there
+would be applied by somebody who never read it.
+
+After the first apply, one more parameter. Cognito generates the app client
+secret, so it is in the state file already; this copies it where the renderer
+can read it at runtime rather than from a plaintext environment variable.
+
+```bash
+aws ssm put-parameter --type SecureString \
+  --name "$(terraform output -raw bff_client_secret_parameter_name)" \
+  --value "$(terraform output -raw cognito_user_pool_client_secret)"
+```
+
+Then the assets, which Terraform creates a bucket for and never writes to:
+
+```bash
+aws s3 sync apps/web/.output/public "s3://$(terraform output -raw web_assets_bucket_name)" --delete
+aws cloudfront create-invalidation --distribution-id "$(terraform output -raw web_distribution_id)" --paths '/*'
+```
 
 ## The checks
 
@@ -101,14 +131,15 @@ front end is deployed.
 
 ## Where the security requirements are met
 
-| Requirement                   | Where                                                                       |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| Encryption at rest            | Both buckets, the table, and the state bucket under a customer-managed key  |
-| No public access              | Both buckets: access blocked, ACLs disabled, TLS-only policy                |
-| Least privilege               | One role per function, inline policies, concrete ARNs, no wildcard resource |
-| Bounded log retention         | Log groups created here rather than by Lambda, with an explicit retention   |
-| Mandatory email verification  | The Cognito pool auto-verifies email and recovers only through it           |
-| Secrets out of the repository | SSM parameters created out of band; Terraform holds only their names        |
+| Requirement                   | Where                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Encryption at rest            | Every bucket, the table, the queue, the alert topic, and the state bucket under its own key |
+| No public access              | Every bucket: access blocked, ACLs disabled, TLS-only policy, reached only through an OAC   |
+| Least privilege               | One role per function, inline policies, concrete ARNs, no wildcard resource                 |
+| Bounded log retention         | Log groups created here rather than by the services, with an explicit retention             |
+| Mandatory email verification  | The Cognito pool auto-verifies email and recovers only through it                           |
+| Secrets out of the repository | SSM parameters created out of band; Terraform holds only their names                        |
+| No long-lived AWS credentials | Deployment is a federated role assumed with an OIDC token, valid for an hour                |
 
 ## What is in the state file
 
@@ -123,3 +154,20 @@ there by hand, and Terraform never reads them.
 So the state bucket is treated as a secret store: a customer-managed KMS key,
 public access blocked, versioned, TLS-only, and `s3:GetObject` on it granted
 to nobody who should not hold the client secret.
+
+The compute and edge layers added nothing to that list. Function environment
+variables carry Parameter Store paths and never values; the deployment role
+holds no key, because there is no key; and the renderer reads the client
+secret from a `SecureString` put there by hand rather than from a variable.
+
+## One thing the code and this configuration disagree about
+
+`buildContainer` in `apps/api` constructs a single `S3FileStorage` over
+`AUDIO_BUCKET_NAME` and writes both audio and transcripts through it, so a
+finished transcript lands under `transcripts/` **inside the audio bucket**.
+The execution roles grant `s3:PutObject` on the transcripts bucket, so the two
+functions that write a transcript would be denied at the moment they write.
+
+The fix is a second bucket name in the composition root, in `apps/`, which
+this round does not touch. `TRANSCRIPTS_BUCKET_NAME` is already set on every
+function so that nothing here has to change when it is made.

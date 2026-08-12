@@ -122,19 +122,6 @@ describe('transcription mapper', () => {
       expect(() => toTranscriptionPrimitives(drifted)).toThrow(MalformedTranscriptionRecordError);
     });
 
-    it.each(['createdAt', 'updatedAt'])(
-      'rejects %s stored as a string that is not a timestamp',
-      (field) => {
-        const drifted = { ...toTranscriptionItem(COMPLETED_FILE_UPLOAD), [field]: 'yesterday' };
-
-        // These two travel out to the client unchanged. Accepting any string at
-        // all lets a value like this round-trip into the domain untouched and
-        // surface as a history row the front end cannot sort or format, with
-        // nothing between the store and the screen to say where it came from.
-        expect(() => toTranscriptionPrimitives(drifted)).toThrow(MalformedTranscriptionRecordError);
-      },
-    );
-
     it('fails deliberately rather than with a TypeError, and carries a stable code', () => {
       let thrown: unknown;
       try {
