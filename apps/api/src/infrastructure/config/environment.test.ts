@@ -8,6 +8,8 @@ const COMPLETE_ENVIRONMENT = {
   SPEECHMATICS_API_KEY_PARAMETER: '/vocali/speechmatics/api-key',
   SPEECHMATICS_WEBHOOK_SECRET_PARAMETER: '/vocali/speechmatics/webhook-secret',
   PROVIDER_CALLBACK_BASE_URL: 'https://api.vocali.test/webhooks/transcription-provider',
+  WEBSOCKET_URL: 'wss://sockets.vocali.test/prod',
+  WEBSOCKET_MANAGEMENT_ENDPOINT: 'https://sockets.vocali.test/prod',
 };
 
 function environmentWithout(...names: string[]): NodeJS.ProcessEnv {
@@ -31,6 +33,12 @@ describe('loadConfig', () => {
       transcriptsBucketName: 'vocali-transcripts',
       transcriptionsTableName: 'vocali-transcriptions',
       providerCallbackBaseUrl: 'https://api.vocali.test/webhooks/transcription-provider',
+      // Two endpoints for one API, and they are not interchangeable: the
+      // browser dials `wss://`, the server posts to `https://`. Both are
+      // asserted because deriving one from the other would put a scheme
+      // rewrite between a completion and the browser waiting for it.
+      websocketUrl: 'wss://sockets.vocali.test/prod',
+      websocketManagementEndpoint: 'https://sockets.vocali.test/prod',
       logLevel: 'debug',
       speechmatics: {
         apiKeySecretName: '/vocali/speechmatics/api-key',

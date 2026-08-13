@@ -1,3 +1,6 @@
+import { PublishTranscriptionUpdate } from '../../application/use-cases/publish-transcription-update.js';
+import { InMemoryConnectionRegistry } from '../../../test/doubles/in-memory-connection-registry.js';
+import { RecordingConnectionPublisher } from '../../../test/doubles/recording-connection-publisher.js';
 import { handleProviderCallbackHandler } from './handle-provider-callback.js';
 import { CompleteTranscription } from '../../application/use-cases/complete-transcription.js';
 import { FailTranscription } from '../../application/use-cases/fail-transcription.js';
@@ -57,6 +60,8 @@ function buildSubject(): {
   storage: InMemoryFileStorage;
   secrets: FakeSecretsProvider;
   provider: FakeTranscriptionProvider;
+  connections: InMemoryConnectionRegistry;
+  publisher: RecordingConnectionPublisher;
   logger: CapturingLogger;
 } {
   const clock = new FixedClock(NOW);
@@ -64,6 +69,8 @@ function buildSubject(): {
   const storage = new InMemoryFileStorage({ bucketName: TRANSCRIPTS_BUCKET, clock });
   const secrets = new FakeSecretsProvider({ [WEBHOOK_SECRET_NAME]: WEBHOOK_SECRET });
   const provider = new FakeTranscriptionProvider(clock);
+  const connections = new InMemoryConnectionRegistry();
+  const publisher = new RecordingConnectionPublisher();
   const logger = new CapturingLogger();
 
   // Completion is the common case, so it is the default; every test that means
@@ -75,6 +82,12 @@ function buildSubject(): {
     handler: handleProviderCallbackHandler({
       completeTranscription: new CompleteTranscription(repository, storage, clock),
       failTranscription: new FailTranscription(repository, clock),
+      publishTranscriptionUpdate: new PublishTranscriptionUpdate(
+        repository,
+        connections,
+        publisher,
+        logger,
+      ),
       transcriptionProvider: provider,
       secrets,
       webhookSecretName: WEBHOOK_SECRET_NAME,
@@ -84,6 +97,8 @@ function buildSubject(): {
     storage,
     secrets,
     provider,
+    connections,
+    publisher,
     logger,
   };
 }
@@ -484,5 +499,135 @@ describe('handleProviderCallbackHandler — failure', () => {
 
     expect(response.statusCode).toBe(200);
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');
+  });
+});
+
+/** The id and status of the first pushed transcription, for the assertions below. */
+function readPushedTranscription(publisher: RecordingConnectionPublisher): {
+  id: string;
+  status: string;
+} {
+  const payload = publisher.calls[0]?.payload as {
+    type: string;
+    transcription: { id: string; status: string };
+  };
+  // The discriminator is checked here so every caller gets it for free: a
+  // payload with the right transcription under the wrong `type` is silently
+  // ignored by the browser, which is indistinguishable from no push at all.
+  expect(payload.type).toBe('transcription.updated');
+
+  return { id: payload.transcription.id, status: payload.transcription.status };
+}
+
+describe('handleProviderCallbackHandler — announcing the outcome', () => {
+  it('pushes the settled transcription to the sockets its owner has open', async () => {
+    const { handler, repository, connections, publisher } = buildSubject();
+    await saveProcessing(repository);
+    await connections.add({ userId: 'user-1', connectionId: 'connection-a', expiresAt: NOW });
+
+    const response = await handler(buildCallback({}));
+
+    expect(response.statusCode).toBe(200);
+    expect(publisher.calls).toHaveLength(1);
+    expect(publisher.calls[0]?.connectionId).toBe('connection-a');
+    expect(readPushedTranscription(publisher)).toEqual({ id: '01ID001', status: 'COMPLETED' });
+  });
+
+  it('pushes a failure too, so a waiting client is not left to time out', async () => {
+    const { handler, repository, provider, connections, publisher } = buildSubject();
+    await saveProcessing(repository);
+    await connections.add({ userId: 'user-1', connectionId: 'connection-a', expiresAt: NOW });
+    provider.nextCallbackOutcome = failed();
+
+    const response = await handler(buildCallback({ status: 'error' }));
+
+    expect(response.statusCode).toBe(200);
+    expect(readPushedTranscription(publisher)).toEqual({ id: '01ID001', status: 'FAILED' });
+  });
+
+  /*
+   * The case that must never regress.
+   *
+   * The overwhelmingly common shape of this platform is a user who uploads and
+   * closes the tab. If a completion with nowhere to be delivered answered
+   * anything but 2xx, the provider would redeliver it — and, if the condition
+   * persisted, eventually abandon a transcription that was already written and
+   * stored.
+   */
+  it('acknowledges a completion when the user has no connection open', async () => {
+    const { handler, repository, publisher } = buildSubject();
+    await saveProcessing(repository);
+
+    const response = await handler(buildCallback({}));
+
+    expect(response.statusCode).toBe(200);
+    expect(publisher.calls).toEqual([]);
+    // The record is still written. The push is a notification; this is the
+    // source of truth the client falls back to reading.
+    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');
+  });
+
+  /*
+   * The same guarantee under the harsher condition: the push machinery is
+   * broken rather than merely unused. A browser that closed its laptop lid,
+   * or a management API being throttled, must not turn a finished
+   * transcription into one the provider believes was never delivered.
+   */
+  it('still acknowledges when the push itself fails outright', async () => {
+    const { handler, repository, connections, publisher } = buildSubject();
+    await saveProcessing(repository);
+    await connections.add({ userId: 'user-1', connectionId: 'connection-a', expiresAt: NOW });
+    publisher.failNextWith = new Error('rate exceeded');
+
+    const response = await handler(buildCallback({}));
+
+    expect(response.statusCode).toBe(200);
+    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');
+  });
+
+  it('still acknowledges when the registry cannot even be read', async () => {
+    const { handler, repository, connections } = buildSubject();
+    await saveProcessing(repository);
+    connections.failNextWith = new Error('table unavailable');
+
+    const response = await handler(buildCallback({}));
+
+    expect(response.statusCode).toBe(200);
+    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');
+  });
+
+  it('cleans up a connection that has gone away', async () => {
+    const { handler, repository, connections, publisher } = buildSubject();
+    await saveProcessing(repository);
+    await connections.add({ userId: 'user-1', connectionId: 'departed', expiresAt: NOW });
+    publisher.goneConnectionIds.add('departed');
+
+    const response = await handler(buildCallback({}));
+
+    expect(response.statusCode).toBe(200);
+    expect(await connections.listByUser('user-1')).toEqual([]);
+  });
+
+  it('announces nothing when the callback was refused', async () => {
+    const { handler, repository, connections, publisher } = buildSubject();
+    await saveProcessing(repository);
+    await connections.add({ userId: 'user-1', connectionId: 'connection-a', expiresAt: NOW });
+
+    const response = await handler(buildCallback({ secret: 'wrong-secret' }));
+
+    expect(response.statusCode).toBe(401);
+    // A forged callback must not be able to make the platform push anything at
+    // all to a named user's browser.
+    expect(publisher.calls).toEqual([]);
+  });
+
+  it('announces nothing when the record named does not exist', async () => {
+    const { handler, connections, publisher } = buildSubject();
+    await connections.add({ userId: 'user-1', connectionId: 'connection-a', expiresAt: NOW });
+
+    const response = await handler(buildCallback({ transcriptionId: '01ID404' }));
+
+    expect(response.statusCode).toBe(404);
+    expect(publisher.calls).toEqual([]);
   });
 });

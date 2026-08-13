@@ -24,6 +24,8 @@ const ENVIRONMENT = {
   SPEECHMATICS_API_KEY_PARAMETER: '/vocali/test/speechmatics/api-key',
   SPEECHMATICS_WEBHOOK_SECRET_PARAMETER: '/vocali/test/speechmatics/webhook-secret',
   PROVIDER_CALLBACK_BASE_URL: 'https://api.test/webhooks/transcription-provider',
+  WEBSOCKET_URL: 'wss://sockets.test/prod',
+  WEBSOCKET_MANAGEMENT_ENDPOINT: 'https://sockets.test/prod',
 };
 
 /**
@@ -47,6 +49,11 @@ const USE_CASE_KEYS = [
   'startFileTranscription',
   'completeTranscription',
   'failTranscription',
+  'issueConnectionTicket',
+  'redeemConnectionTicket',
+  'registerConnection',
+  'deregisterConnection',
+  'publishTranscriptionUpdate',
 ] as const satisfies readonly (keyof Container)[];
 
 const s3Mock = mockClient(S3Client);

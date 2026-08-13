@@ -117,7 +117,100 @@ locals {
       Action   = ["kms:Decrypt"]
       Resource = [local.secrets_kms_key_arn]
     }
+
+    write_connection_ticket = {
+      Sid    = "IssueConnectionTicket"
+      Effect = "Allow"
+      Action = ["dynamodb:PutItem"]
+      # Narrowed to the ticket partitions by leading key, which is the one
+      # dimension DynamoDB lets IAM condition on. So the function that mints
+      # connection tickets cannot write a transcription record, even though
+      # both live in this table.
+      Resource = [var.transcriptions_table_arn]
+      Condition = {
+        "ForAllValues:StringLike" = {
+          "dynamodb:LeadingKeys" = ["${local.ticket_partition_key_prefix}*"]
+        }
+      }
+    }
+
+    redeem_connection_ticket = {
+      Sid    = "RedeemConnectionTicket"
+      Effect = "Allow"
+      # The delete IS the read: one DeleteItem with ReturnValues=ALL_OLD both
+      # spends the ticket and says whose it was, which is what makes single use
+      # atomic. Hence no GetItem here — granting one would let a future change
+      # split the two and reintroduce the window.
+      Action   = ["dynamodb:DeleteItem"]
+      Resource = [var.transcriptions_table_arn]
+      Condition = {
+        "ForAllValues:StringLike" = {
+          "dynamodb:LeadingKeys" = ["${local.ticket_partition_key_prefix}*"]
+        }
+      }
+    }
+
+    write_connection = {
+      Sid      = "RecordWebsocketConnection"
+      Effect   = "Allow"
+      Action   = ["dynamodb:PutItem"]
+      Resource = [var.transcriptions_table_arn]
+      Condition = {
+        "ForAllValues:StringLike" = {
+          "dynamodb:LeadingKeys" = ["${local.connection_partition_key_prefix}*"]
+        }
+      }
+    }
+
+    query_connections = {
+      Sid      = "ReadOwnConnections"
+      Effect   = "Allow"
+      Action   = ["dynamodb:Query"]
+      Resource = [var.transcriptions_table_arn]
+      Condition = {
+        "ForAllValues:StringLike" = {
+          "dynamodb:LeadingKeys" = ["${local.connection_partition_key_prefix}*"]
+        }
+      }
+    }
+
+    delete_connection = {
+      Sid    = "ForgetWebsocketConnection"
+      Effect = "Allow"
+      # Connections have a partition of their own so that this grant can be
+      # conditioned: DynamoDB lets IAM condition on the partition key and not
+      # on the sort key, so an unconditioned DeleteItem would reach every item
+      # in the table. See docs/adr/0011.
+      Action   = ["dynamodb:DeleteItem"]
+      Resource = [var.transcriptions_table_arn]
+      Condition = {
+        "ForAllValues:StringLike" = {
+          "dynamodb:LeadingKeys" = ["${local.connection_partition_key_prefix}*"]
+        }
+      }
+    }
+
+    manage_connections = {
+      Sid    = "PushToWebsocketConnection"
+      Effect = "Allow"
+      # The whole of the platform's outbound websocket capability, and it is
+      # one action on one stage of one API. `execute-api:ManageConnections` is
+      # what the management API authorises `POST /@connections/{id}` against;
+      # `execute-api:Invoke` is not granted, because nothing here calls a route
+      # of this API.
+      Action   = ["execute-api:ManageConnections"]
+      Resource = ["${var.websocket_api_execution_arn}/${var.websocket_stage_name}/POST/@connections/*"]
+    }
   }
+
+  # Mirror `TICKET_PARTITION_KEY_PREFIX` and `CONNECTION_PARTITION_KEY_PREFIX`
+  # in apps/api/src/infrastructure/persistence/connection.mapper.ts. Nothing
+  # compares the two sides, which is the same standing gap as the route list:
+  # if a prefix changes in the TypeScript and not here, every condition above
+  # stops matching and the function is denied at the moment it writes. Recorded
+  # in docs/adr/0011.
+  ticket_partition_key_prefix     = "TICKET#"
+  connection_partition_key_prefix = "CONN#"
 
   # The functions this platform will run, and what each is allowed to touch.
   # They do not exist yet — the round that creates them consumes the role and
@@ -136,6 +229,12 @@ locals {
       local.statements.write_record,
       local.statements.read_audio,
       local.statements.read_provider_api_key,
+      # It reads the webhook secret as well as the API key: the job it submits
+      # carries the callback's authentication header, so the provider can
+      # present it when it reports the result. Granting only the API key made
+      # every file upload fail at the moment of submission and stop at
+      # PENDING_UPLOAD, with nothing in the interface to say why.
+      local.statements.read_provider_webhook_secret,
       local.statements.decrypt_secrets,
     ]
 
@@ -145,6 +244,36 @@ locals {
       local.statements.write_transcript,
       local.statements.read_provider_webhook_secret,
       local.statements.decrypt_secrets,
+      # It also announces the outcome, which is what replaced the browser's
+      # polling loop: read the user's open connections, post the finished
+      # record to each, and forget the ones that answer 410.
+      #
+      # None of it may fail the callback. The provider redelivers until it gets
+      # a 2xx, so a missing permission here would turn a completed
+      # transcription into one that is retried and eventually abandoned — which
+      # is why the handler catches, and why these three are granted rather than
+      # the push being left to fail quietly.
+      local.statements.query_connections,
+      local.statements.delete_connection,
+      local.statements.manage_connections,
+    ]
+
+    "create-connection-ticket" = [
+      local.statements.write_connection_ticket,
+    ]
+
+    # The `$connect` authorizer. It reads no record and writes none: it spends
+    # a ticket and resolves a user, and that is its whole authority.
+    "authorize-connection" = [
+      local.statements.redeem_connection_ticket,
+    ]
+
+    "handle-connection-opened" = [
+      local.statements.write_connection,
+    ]
+
+    "handle-connection-closed" = [
+      local.statements.delete_connection,
     ]
 
     "list-transcriptions" = [

@@ -66,7 +66,13 @@ export const SPANISH_MESSAGES = {
 
   /* Signing in, registering, confirming an address. */
   'auth.email': 'Correo electrónico',
-  'auth.emailPlaceholder': 'nombre@centro.es',
+  /*
+   * `{'@'}` is an escaped at sign, not a placeholder. `vue-i18n` reads a bare
+   * `@` as the start of a link to another message and refuses the whole
+   * catalogue with "Invalid linked format" — loudly, at least, but it has to be
+   * written this way. What a reader sees is `nombre@centro.es`.
+   */
+  'auth.emailPlaceholder': "nombre{'@'}centro.es",
   'auth.emailMissing': 'Introduce tu correo electrónico.',
   'auth.password': 'Contraseña',
   'auth.passwordMissing': 'Introduce tu contraseña.',

@@ -181,3 +181,33 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 # block. The DynamoDB table that used to be required is the older mechanism,
 # and its backend argument is deprecated: it still works, and warns on every
 # init. Nothing here has to exist for locking to happen.
+
+# API Gateway writes access logs through a role named in an account-wide
+# setting, not through the role of whatever created the stage. A websocket
+# stage refuses to be created at all while it is unset, and it is one setting
+# per account rather than per environment — which is why it lives here beside
+# the other account-level singleton rather than in either environment, where
+# dev and prod would take turns overwriting each other's.
+resource "aws_iam_role" "api_gateway_logs" {
+  name = "${var.project_name}-apigateway-logs"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "apigateway.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "api_gateway_logs" {
+  role       = aws_iam_role.api_gateway_logs.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "this" {
+  cloudwatch_role_arn = aws_iam_role.api_gateway_logs.arn
+
+  depends_on = [aws_iam_role_policy_attachment.api_gateway_logs]
+}

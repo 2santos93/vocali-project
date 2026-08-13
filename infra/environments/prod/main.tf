@@ -60,7 +60,10 @@ module "storage" {
   # end is served from has to be on this list or every upload fails its
   # preflight. The distribution's own domain is added here; the variable
   # carries the custom domain the day there is one.
-  cors_allowed_origins = concat(var.front_end_origins, [module.web.front_end_origin])
+  # TEMPORARY, 2026-08-12. The renderer has no public origin while the account
+  # is unverified, so the only way to exercise the browser's direct upload to
+  # S3 is to serve the page locally. Remove the moment the distribution exists.
+  cors_allowed_origins = concat(var.front_end_origins, ["http://localhost:3000"], [module.web.front_end_origin])
 
   audio_retention_days = 30
 
@@ -87,6 +90,12 @@ module "functions" {
   # rather than an environment convenience, and these lines describe clinical
   # recordings: file names, user identifiers and provider correlation ids.
   log_retention_days = 14
+
+  # The websocket API this platform pushes finished transcriptions over. Its
+  # execution ARN is what the ManageConnections grant is scoped beneath, so a
+  # function can post to a connection of this API and of no other.
+  websocket_api_execution_arn = module.websocket.api_execution_arn
+  websocket_stage_name        = module.websocket.stage_name
 }
 
 module "api" {
@@ -102,6 +111,22 @@ module "api" {
   # Room for a clinic's worth of concurrent use, and still a ceiling: the
   # account default of ten thousand a second is not a limit, it is the number
   # of invocations a runaway client can bill before anyone notices.
+  throttling_rate_limit  = 100
+  throttling_burst_limit = 200
+}
+
+module "websocket" {
+  source = "../../modules/websocket"
+
+  name_prefix = local.name_prefix
+
+  # The same fourteen days as every other log group here. This one records
+  # connections opened against clinical records.
+  log_retention_days = 14
+
+  # The same ceiling as the HTTP API: a client reconnecting in a loop bills an
+  # invocation per attempt, and a connect is cheaper than a request only in the
+  # sense that it does less.
   throttling_rate_limit  = 100
   throttling_burst_limit = 200
 }
@@ -143,6 +168,12 @@ module "lambda" {
   # Info, not debug. A debug line describing a clinical record is retained
   # exactly as long as any other line, and is read by exactly as many people.
   log_level = "info"
+
+  websocket_api_id              = module.websocket.api_id
+  websocket_api_execution_arn   = module.websocket.api_execution_arn
+  websocket_stage_name          = module.websocket.stage_name
+  websocket_browser_url         = module.websocket.browser_url
+  websocket_management_endpoint = module.websocket.management_endpoint
 }
 
 module "web" {
@@ -155,6 +186,11 @@ module "web" {
   # Same account cap as above.
   ssr_memory_size = 512
 
+  # TEMPORARY, 2026-08-12, and paired with the origin below: while there is no
+  # public front end, the only way to exercise the upload is to run the
+  # renderer locally, and the browser posts the file straight to S3 from
+  # whatever origin serves the page. Remove both once the distribution exists.
+  #
   # TEMPORARY, 2026-08-12. AWS has not yet verified this account for
   # CloudFront, so the renderer is published on its own function URL and no
   # distribution exists. See docs/adr/0009 for what this costs. Set back to

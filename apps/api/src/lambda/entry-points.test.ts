@@ -9,6 +9,8 @@ const ENVIRONMENT = {
   SPEECHMATICS_API_KEY_PARAMETER: '/vocali/test/speechmatics/api-key',
   SPEECHMATICS_WEBHOOK_SECRET_PARAMETER: '/vocali/test/speechmatics/webhook-secret',
   PROVIDER_CALLBACK_BASE_URL: 'https://api.test/webhooks/transcription-provider',
+  WEBSOCKET_URL: 'wss://sockets.test/prod',
+  WEBSOCKET_MANAGEMENT_ENDPOINT: 'https://sockets.test/prod',
 };
 
 /**
@@ -24,6 +26,10 @@ const ENTRY_POINTS = [
   './create-realtime-session.js',
   './start-transcription-job.js',
   './handle-provider-callback.js',
+  './create-connection-ticket.js',
+  './authorize-connection.js',
+  './handle-connection-opened.js',
+  './handle-connection-closed.js',
 ];
 
 /**

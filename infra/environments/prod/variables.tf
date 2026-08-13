@@ -14,12 +14,20 @@ variable "front_end_origins" {
   default     = []
 
   validation {
-    condition     = alltrue([for origin in var.front_end_origins : startswith(origin, "https://")])
-    error_message = "Production origins must be https. A presigned upload policy travelling over plain HTTP is readable in transit."
+    # `http://localhost` is the one exception, and a narrow one: a browser
+    # treats it as a secure context, nothing leaves the machine, and it is the
+    # only way to exercise the direct-to-S3 upload while the front end has no
+    # public origin of its own. Every other origin must be https, because a
+    # presigned upload policy travelling over plain HTTP is readable in transit.
+    condition = alltrue([
+      for origin in var.front_end_origins :
+      startswith(origin, "https://") || can(regex("^http://localhost(:[0-9]+)?$", origin))
+    ])
+    error_message = "Production origins must be https, or http://localhost for local development."
   }
 
   validation {
-    condition     = alltrue([for origin in var.front_end_origins : can(regex("^https://[^/]+$", origin))])
+    condition     = alltrue([for origin in var.front_end_origins : can(regex("^https?://[^/]+$", origin))])
     error_message = "Each origin must be a scheme and host with no trailing path, such as https://app.example.com."
   }
 }

@@ -3,11 +3,20 @@ import type { MessageKey } from './es';
 /**
  * The English interface.
  *
- * Typed as a `Record` over the key set the Spanish catalogue defines, which is
- * the whole mechanism: a key missing here fails to compile, and a key here
- * that Spanish does not have fails to compile too. There is no runtime
- * fallback to Spanish and there is deliberately none — a fallback is how half
- * a screen ends up in the wrong language and nobody notices for a month.
+ * Typed as a `Record` over the key set the Spanish catalogue defines: a key
+ * missing here fails to compile, and a key here that Spanish does not have
+ * fails to compile too.
+ *
+ * The annotation is belt and braces. `createInterfaceI18n` hands the same key
+ * set to `vue-i18n` as its message schema, so the gap is caught there as well
+ * — but as "I18n<false, Options[...]> is not assignable", pointing at the
+ * instance rather than at the missing word. The annotation here is what makes
+ * the compiler name the key and the file, which is the difference between a
+ * five-second fix and a puzzle.
+ *
+ * There is no runtime fallback to Spanish and there is deliberately none: a
+ * fallback is how half a screen ends up in the wrong language and nobody
+ * notices for a month. `fallbackLocale` is `false` for the same reason.
  *
  * British spelling and a European date and decimal convention (`en-GB`, see
  * `language.ts`): the readers of this catalogue are clinicians in Spain
@@ -51,7 +60,8 @@ export const ENGLISH_MESSAGES: Record<MessageKey, string> = {
   'status.FAILED': 'Failed',
 
   'auth.email': 'Email address',
-  'auth.emailPlaceholder': 'name@clinic.es',
+  // An escaped at sign; see the note beside the Spanish entry.
+  'auth.emailPlaceholder': "name{'@'}clinic.es",
   'auth.emailMissing': 'Enter your email address.',
   'auth.password': 'Password',
   'auth.passwordMissing': 'Enter your password.',

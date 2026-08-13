@@ -44,6 +44,19 @@ const EnvironmentSchema = z.object({
   PROVIDER_CALLBACK_BASE_URL: z.string().url(),
   PROVIDER_REQUEST_TIMEOUT_MS: PositiveInteger(10_000),
   PROVIDER_MAX_ATTEMPTS: PositiveInteger(3),
+  /**
+   * What the browser opens: `wss://<api>.execute-api.<region>.amazonaws.com/<stage>`.
+   * Returned in the ticket response rather than configured into the front end,
+   * so the endpoint is written down in one place.
+   */
+  WEBSOCKET_URL: z.string().url(),
+  /**
+   * What the *server* posts to, which is the same API over `https` and is not
+   * the same string. Sending a message to `wss://` fails at the SDK, and
+   * deriving one from the other in code would put a scheme rewrite between a
+   * completion and the browser waiting for it.
+   */
+  WEBSOCKET_MANAGEMENT_ENDPOINT: z.string().url(),
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
 });
 
@@ -53,6 +66,8 @@ export interface AppConfig {
   readonly transcriptsBucketName: string;
   readonly transcriptionsTableName: string;
   readonly providerCallbackBaseUrl: string;
+  readonly websocketUrl: string;
+  readonly websocketManagementEndpoint: string;
   readonly logLevel: LogLevel;
   readonly speechmatics: SpeechmaticsProviderOptions;
 }
@@ -98,6 +113,8 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     transcriptsBucketName: environment.TRANSCRIPTS_BUCKET_NAME,
     transcriptionsTableName: environment.TRANSCRIPTIONS_TABLE_NAME,
     providerCallbackBaseUrl: environment.PROVIDER_CALLBACK_BASE_URL,
+    websocketUrl: environment.WEBSOCKET_URL,
+    websocketManagementEndpoint: environment.WEBSOCKET_MANAGEMENT_ENDPOINT,
     logLevel: environment.LOG_LEVEL,
     speechmatics: {
       apiKeySecretName: environment.SPEECHMATICS_API_KEY_PARAMETER,

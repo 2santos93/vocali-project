@@ -124,3 +124,23 @@ variable "log_retention_days" {
     error_message = "log_retention_days must be one of the values CloudWatch accepts. Note that zero, meaning never expire, is deliberately not among them."
   }
 }
+
+variable "websocket_api_execution_arn" {
+  description = "Execution ARN prefix of the websocket API. The ManageConnections grant is scoped beneath it, so a function can post to a connection of this API and of no other."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:execute-api:", var.websocket_api_execution_arn))
+    error_message = "websocket_api_execution_arn must be an execute-api ARN."
+  }
+}
+
+variable "websocket_stage_name" {
+  description = "Stage of the websocket API. Named in the ManageConnections grant rather than matched with a wildcard, so a second stage added later is not silently reachable."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9_-]{1,128}$", var.websocket_stage_name))
+    error_message = "websocket_stage_name must be 1-128 characters of letters, digits, underscores and hyphens."
+  }
+}

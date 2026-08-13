@@ -1,5 +1,5 @@
-import { MissingMessageError, translate } from './translate';
-import type { MessageKey } from './translate';
+import { MissingMessageError, createInterfaceI18n, translate } from './translate';
+import type { MessageKey, MessageSchema } from './translate';
 
 /*
  * Real keys and real sentences throughout. Asserting that `translate` returns
@@ -76,5 +76,27 @@ describe('translate', () => {
 
   it('leaves a message with no placeholders alone when given values anyway', () => {
     expect(translate('es', 'history.retry', { number: 3 })).toBe('Reintentar');
+  });
+
+  /*
+   * A gap filled from another language is the worst of the three behaviours:
+   * the screen looks translated, reads correctly to nobody, and reports
+   * nothing. The typed schema means a gap cannot exist in these catalogues, so
+   * this drives one in deliberately — the only way to find out what the
+   * instance would do if one ever did.
+   *
+   * What this pins is the outcome, not the `fallbackLocale: false` line.
+   * `vue-i18n` consults the `missing` handler once per locale it tries, so the
+   * throw pre-empts the fallback: setting `fallbackLocale: 'es'` leaves this
+   * test passing. Reverting the handler is what makes it fail — which is the
+   * behaviour worth pinning, and the one a reader would notice.
+   */
+  it('never fills a gap in one language with another language sentence', () => {
+    const i18n = createInterfaceI18n('en');
+
+    i18n.global.setLocaleMessage('en', {} as MessageSchema);
+
+    expect(() => i18n.global.t('history.retry')).toThrow(MissingMessageError);
+    expect(() => i18n.global.t('history.retry')).not.toThrow('Reintentar');
   });
 });

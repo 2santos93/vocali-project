@@ -32,6 +32,24 @@ export const REALTIME_SESSIONS_PATH = `${BFF_PREFIX}/realtime-sessions`;
 export const REALTIME_TRANSCRIPTIONS_PATH = `${BFF_PREFIX}/transcriptions/realtime`;
 
 /**
+ * Mints the short-lived, single-use credential the update socket is opened
+ * with. Authenticated like every other call here — the whole point of the
+ * endpoint is to turn a header-borne session into something safe to put in a
+ * websocket's query string.
+ */
+export const CONNECTION_TICKETS_PATH = `${BFF_PREFIX}/connection-tickets`;
+
+/**
+ * One transcription by id, which is what the push fallback polls. The old
+ * fallback asked for the whole first page of the history and searched it,
+ * which cost a page per attempt and lost sight of any record that had been
+ * overtaken by ten newer uploads.
+ */
+export function transcriptionPath(transcriptionId: string): string {
+  return `${TRANSCRIPTIONS_PATH}/${transcriptionId}`;
+}
+
+/**
  * The signed-URL route for one transcript. The id is a ULID the API minted and
  * the record on screen carries, so nothing a user typed is interpolated here.
  */

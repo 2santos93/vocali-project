@@ -89,6 +89,12 @@ module "functions" {
   provider_webhook_secret_parameter_name = local.provider_webhook_secret_parameter_name
 
   log_retention_days = 14
+
+  # The websocket API this platform pushes finished transcriptions over. Its
+  # execution ARN is what the ManageConnections grant is scoped beneath, so a
+  # function can post to a connection of this API and of no other.
+  websocket_api_execution_arn = module.websocket.api_execution_arn
+  websocket_stage_name        = module.websocket.stage_name
 }
 
 module "api" {
@@ -104,6 +110,19 @@ module "api" {
   # Lower than production. A development environment is a handful of people
   # and a test script, and the ceiling exists to bound what a loop in that
   # script can bill.
+  throttling_rate_limit  = 20
+  throttling_burst_limit = 40
+}
+
+module "websocket" {
+  source = "../../modules/websocket"
+
+  name_prefix = local.name_prefix
+
+  log_retention_days = 14
+
+  # The same ceiling as the HTTP API in this environment, and for the same
+  # reason: a client reconnecting in a loop bills an invocation per attempt.
   throttling_rate_limit  = 20
   throttling_burst_limit = 40
 }
@@ -139,6 +158,12 @@ module "lambda" {
   # Debug here and not in production. A debug line describing a clinical
   # record is retained exactly as long as any other line.
   log_level = "debug"
+
+  websocket_api_id              = module.websocket.api_id
+  websocket_api_execution_arn   = module.websocket.api_execution_arn
+  websocket_stage_name          = module.websocket.stage_name
+  websocket_browser_url         = module.websocket.browser_url
+  websocket_management_endpoint = module.websocket.management_endpoint
 }
 
 module "web" {

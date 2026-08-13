@@ -17,12 +17,6 @@ variable "function_names" {
     error_message = "function_names must name at least one function."
   }
 
-  validation {
-    # A CloudWatch metric-math alarm takes at most ten elements, and each of
-    # these alarms spends one on the expression that sums the rest.
-    condition     = length(var.function_names) <= 9
-    error_message = "function_names must hold at most nine functions. A metric-math alarm accepts ten elements and one of them is the sum."
-  }
 }
 
 variable "dead_letter_queue_name" {

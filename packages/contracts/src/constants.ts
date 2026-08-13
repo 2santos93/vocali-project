@@ -52,6 +52,17 @@ export const REALTIME_AUDIO_FORMAT = {
   sampleRate: 16_000,
 } as const;
 
+/**
+ * The `type` discriminator on the only message the server pushes down the
+ * websocket.
+ *
+ * Here rather than inline in the schema so the API's publisher and the
+ * browser's reader are built from one string. A push whose type the client does
+ * not recognise is silently ignored, which is the correct behaviour for an
+ * unknown frame and exactly the wrong behaviour for a typo.
+ */
+export const TRANSCRIPTION_UPDATE_EVENT = 'transcription.updated';
+
 export const TRANSCRIPTION_SOURCES = ['FILE', 'MICROPHONE'] as const;
 
 export type TranscriptionSource = (typeof TRANSCRIPTION_SOURCES)[number];

@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { CompleteTranscription } from '../../application/use-cases/complete-transcription.js';
 import type { FailTranscription } from '../../application/use-cases/fail-transcription.js';
+import type { PublishTranscriptionUpdate } from '../../application/use-cases/publish-transcription-update.js';
 import type { Logger } from '../../domain/ports/logger.js';
 import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
 import type {
@@ -47,6 +48,7 @@ const ProviderCallbackQuerySchema = z.object({
 interface Dependencies {
   readonly completeTranscription: CompleteTranscription;
   readonly failTranscription: FailTranscription;
+  readonly publishTranscriptionUpdate: PublishTranscriptionUpdate;
   readonly transcriptionProvider: TranscriptionProvider;
   readonly secrets: SecretsProvider;
   /** Parameter Store path of the shared secret the provider echoes back. */
@@ -132,9 +134,13 @@ async function applyCompletion(
     durationSeconds: outcome.durationSeconds,
   });
 
-  return result.success
-    ? acknowledged(request.requestId)
-    : toErrorResponse(result.error, request.requestId);
+  if (!result.success) {
+    return toErrorResponse(result.error, request.requestId);
+  }
+
+  await announce(dependencies, request, query);
+
+  return acknowledged(request.requestId);
 }
 
 async function applyFailure(
@@ -158,9 +164,50 @@ async function applyFailure(
     reason: PROVIDER_FAILURE_REASON,
   });
 
-  return result.success
-    ? acknowledged(request.requestId)
-    : toErrorResponse(result.error, request.requestId);
+  if (!result.success) {
+    return toErrorResponse(result.error, request.requestId);
+  }
+
+  // A failure is pushed too. The browser is waiting on this record either way,
+  // and a client told only about successes waits out its whole fallback budget
+  // before discovering a transcription that failed in ten seconds.
+  await announce(dependencies, request, query);
+
+  return acknowledged(request.requestId);
+}
+
+/**
+ * Pushes the settled record to whatever sockets its owner has open.
+ *
+ * **This can never fail the callback**, and the `catch` is not defensive
+ * padding. The provider redelivers until it gets a 2xx, so an exception
+ * escaping here would have a completed transcription reported as undelivered
+ * and retried — and, if the same exception recurred, eventually abandoned. A
+ * browser that closed its laptop lid must not be able to cause that.
+ *
+ * The record is already written by the time this runs. Everything below this
+ * line is a notification, and the history is the source of truth a client
+ * falls back to.
+ *
+ * `PublishTranscriptionUpdate` swallows a departed connection and a failed
+ * publish on its own; this is the second guard, and both are right, because
+ * the cost of being wrong is a lost transcript.
+ */
+async function announce(
+  dependencies: Dependencies,
+  request: HttpRequest,
+  query: CallbackQuery,
+): Promise<void> {
+  try {
+    await dependencies.publishTranscriptionUpdate.execute({
+      userId: query.userId,
+      transcriptionId: query.transcriptionId,
+    });
+  } catch {
+    request.logger.warn('Could not announce a settled transcription to its open connections', {
+      transcriptionId: query.transcriptionId,
+    });
+  }
 }
 
 /**

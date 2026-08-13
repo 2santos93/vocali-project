@@ -35,6 +35,24 @@ resource "aws_dynamodb_table" "transcriptions" {
     type = "S"
   }
 
+  # Expires the websocket connection records, and nothing else.
+  #
+  # A transcription item has no `ttlEpochSeconds` attribute at all, and DynamoDB
+  # simply never expires an item that lacks the attribute — so enabling this
+  # cannot put a clinical record on a timer. Only the items written by the
+  # connection registry and the ticket store carry it.
+  #
+  # It is a sweeper rather than a clock: DynamoDB deletes expired items within
+  # a couple of days of their expiry, not at it. Both readers therefore compare
+  # the stored expiry themselves, and this exists so an abandoned connection or
+  # an unredeemed ticket does not accumulate for ever. A connection whose
+  # browser vanished without a close frame never gets a `$disconnect`, and
+  # without this there is nothing at all that would remove it.
+  ttl {
+    enabled        = true
+    attribute_name = "ttlEpochSeconds"
+  }
+
   # DynamoDB encrypts every table at rest regardless. Setting this moves the
   # table from the AWS-owned key, which is invisible, to a key that appears in
   # the account: its use is logged in CloudTrail and, with kms_key_arn set, it

@@ -1,28 +1,27 @@
-import { computed, inject } from 'vue';
-import type { ComputedRef, InjectionKey, Ref } from 'vue';
+import { computed } from 'vue';
+import type { ComputedRef } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { localeTag } from './language';
 import type { InterfaceLanguage } from './language';
-import { translate } from './translate';
-import type { MessageKey, MessageValues, TranslatableMessage } from './translate';
+import { translateWith } from './translate';
+import type { MessageKey, MessageSchema, MessageValues, TranslatableMessage } from './translate';
 
 /**
  * How a component reaches the interface language.
  *
- * Plain Vue `provide`/`inject`, and not a Nuxt composable, because that is the
- * rule the design system is built on: atoms, molecules and organisms mount
- * under Jest in milliseconds precisely because none of them can reach a Nuxt
- * runtime. A `useCookie` inside a component would fail the type check, fail
- * the lint, and — worse than either — make the components untestable without
- * booting a framework.
+ * `vue-i18n`'s own composable underneath, and plain Vue injection all the way
+ * down — which is the rule the design system is built on: atoms, molecules and
+ * organisms mount under Jest in milliseconds precisely because none of them can
+ * reach a Nuxt runtime. `@nuxtjs/i18n` would have put one inside every
+ * component that renders a word.
  *
- * Passing every string down as a prop was the alternative. It works for an
- * atom with one label and collapses at the history table, which would need
- * twenty of them; and a prop that is only ever threaded through unchanged
- * stops being an interface and becomes noise.
- *
- * `t` reads the language ref on every call, so it is a reactive dependency of
- * whatever rendered it: switching language re-renders the screen rather than
- * needing a reload.
+ * A thin facade rather than `useI18n` at each call site, for four reasons that
+ * are each a line of code here and fourteen copies of it there: the message
+ * schema is named once, so `t` is typed everywhere without a generic argument;
+ * a message decided elsewhere (`{ key, values }`) can be rendered as it stands;
+ * the placeholder check applies to every call rather than to the ones somebody
+ * remembered; and `locale` is the BCP 47 tag `Intl` needs (`es-ES`), not the
+ * two letters `vue-i18n` holds.
  */
 
 export interface Translate {
@@ -37,41 +36,50 @@ export interface Translations {
   readonly t: Translate;
 }
 
-export const TRANSLATIONS: InjectionKey<Translations> = Symbol('vocali.translations');
-
-export function createTranslations(
-  language: Ref<InterfaceLanguage> | ComputedRef<InterfaceLanguage>,
-): Translations {
-  function t(input: MessageKey | TranslatableMessage, values?: MessageValues): string {
-    return typeof input === 'string'
-      ? translate(language.value, input, values)
-      : translate(language.value, input.key, input.values);
-  }
-
-  return {
-    language: computed<InterfaceLanguage>(() => language.value),
-    locale: computed<string>(() => localeTag(language.value)),
-    t,
-  };
-}
-
 /**
  * The interface language, for a component that renders words.
  *
- * Throws when nothing has provided it. The tempting alternative — falling back
- * to the Spanish catalogue — would mean a plugin that failed to install shows
- * a Spanish interface to somebody who chose English, on every screen, with
- * nothing anywhere reporting it. A component that renders text and cannot say
- * which language it is in is broken, and should say so where it breaks.
+ * Throws when no instance has been installed. `vue-i18n` throws its own error
+ * for this, which names the library rather than the mistake; this one names the
+ * two ways to fix it. The tempting third option — falling back to a Spanish
+ * catalogue of our own — would mean a plugin that failed to install shows a
+ * Spanish interface to somebody who chose English, on every screen, with
+ * nothing anywhere reporting it.
  */
-export function useTranslations(): Translations {
-  const translations = inject(TRANSLATIONS, null);
+type InterfaceComposer = ReturnType<typeof useI18n<{ message: MessageSchema }, InterfaceLanguage>>;
 
-  if (translations === null) {
+function installedComposer(): InterfaceComposer {
+  try {
+    return useI18n<{ message: MessageSchema }, InterfaceLanguage>();
+  } catch (cause) {
     throw new Error(
-      'No interface translations were provided. Install the i18n plugin, or provide TRANSLATIONS when mounting this component.',
+      'No interface translations were provided. Install the i18n plugin, or mount this component with withTranslations().',
+      { cause },
     );
   }
+}
 
-  return translations;
+export function useTranslations(): Translations {
+  const composer = installedComposer();
+
+  const language = computed<InterfaceLanguage>(() => composer.locale.value);
+
+  /*
+   * Reads the locale on every call, so it is a reactive dependency of whatever
+   * rendered it: switching language redraws the screen already on the display
+   * rather than the next one somebody navigates to.
+   */
+  function t(input: MessageKey | TranslatableMessage, values?: MessageValues): string {
+    const render = (key: MessageKey, named: MessageValues): string => composer.t(key, named);
+
+    return typeof input === 'string'
+      ? translateWith(render, language.value, input, values)
+      : translateWith(render, language.value, input.key, input.values);
+  }
+
+  return {
+    language,
+    locale: computed<string>(() => localeTag(language.value)),
+    t,
+  };
 }

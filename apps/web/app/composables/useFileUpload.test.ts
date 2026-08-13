@@ -2,7 +2,6 @@ import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts';
 import type {
   CreateUploadIntentRequest,
   CreateUploadIntentResponse,
-  ListTranscriptionsResponse,
   Transcription,
 } from '@vocali/contracts';
 import {
@@ -18,6 +17,7 @@ import type {
   FileUploadGateway,
   PresignedPostUpload,
 } from './useFileUpload';
+import type { TranscriptionUpdateStream, UpdateStreamHandlers } from './useTranscriptionUpdates';
 
 function fileOf(name: string, type: string, size: number): File {
   const file = new File(['audio'], name, { type });
@@ -69,10 +69,6 @@ function transcriptionWith(status: Transcription['status']): Transcription {
   };
 }
 
-function pageOf(...items: Transcription[]): ListTranscriptionsResponse {
-  return { items, nextCursor: null };
-}
-
 /** An error shaped the way ofetch shapes one, without importing ofetch. */
 function httpError(statusCode: number): Error & { statusCode: number } {
   return Object.assign(new Error(`Request failed with status ${String(statusCode)}`), {
@@ -84,25 +80,50 @@ interface GatewayDouble extends FileUploadGateway {
   readonly intentRequests: CreateUploadIntentRequest[];
   readonly uploads: PresignedPostUpload[];
   readonly waits: number[];
-  listPages: ListTranscriptionsResponse[];
+  readonly transcriptionRequests: string[];
   onCreateIntent: () => Promise<CreateUploadIntentResponse>;
   onUpload: (upload: PresignedPostUpload) => Promise<void>;
-  onList: (() => Promise<ListTranscriptionsResponse>) | null;
+  onGetTranscription: (() => Promise<Transcription>) | null;
+  /** Records `getTranscription` hands back; the last one repeats. */
+  records: Transcription[];
+
+  /** False makes the socket refuse to open, as it does with no network. */
+  socketOpens: boolean;
+  /** Pushed through the handlers the moment the stream is opened. */
+  pushOnOpen: Transcription[];
+  /** True ends the socket right after opening, as a dropped connection does. */
+  dropOnOpen: boolean;
+  streamsOpened: number;
+  streamsClosed: number;
 }
 
+/**
+ * The socket is driven from inside `openUpdateStream` rather than by a test
+ * calling a `push` method afterwards, and that is forced rather than stylistic:
+ * `upload()` does not return until the record settles, so anything a test does
+ * after awaiting it happens too late to be the thing that settled it.
+ */
 function gatewayDouble(): GatewayDouble {
   const intentRequests: CreateUploadIntentRequest[] = [];
   const uploads: PresignedPostUpload[] = [];
   const waits: number[] = [];
+  const transcriptionRequests: string[] = [];
 
   const gateway: GatewayDouble = {
     intentRequests,
     uploads,
     waits,
-    listPages: [],
+    transcriptionRequests,
+    records: [],
     onCreateIntent: () => Promise.resolve(INTENT),
     onUpload: () => Promise.resolve(),
-    onList: null,
+    onGetTranscription: null,
+
+    socketOpens: true,
+    pushOnOpen: [],
+    dropOnOpen: false,
+    streamsOpened: 0,
+    streamsClosed: 0,
 
     createUploadIntent(request: CreateUploadIntentRequest): Promise<CreateUploadIntentResponse> {
       intentRequests.push(request);
@@ -112,17 +133,41 @@ function gatewayDouble(): GatewayDouble {
       uploads.push(upload);
       return gateway.onUpload(upload);
     },
-    listTranscriptions(): Promise<ListTranscriptionsResponse> {
-      if (gateway.onList !== null) {
-        return gateway.onList();
+
+    openUpdateStream(handlers: UpdateStreamHandlers): Promise<TranscriptionUpdateStream> {
+      if (!gateway.socketOpens) {
+        return Promise.reject(new Error('the update socket could not be opened'));
       }
-      // The last page keeps being returned once the script runs out, so a
-      // test only has to describe the transitions it cares about.
-      const next = gateway.listPages.length > 1 ? gateway.listPages.shift() : gateway.listPages[0];
-      return Promise.resolve(next ?? pageOf());
+
+      gateway.streamsOpened += 1;
+
+      for (const record of gateway.pushOnOpen) {
+        handlers.onTranscription(record);
+      }
+      if (gateway.dropOnOpen) {
+        handlers.onClosed();
+      }
+
+      return Promise.resolve({
+        close: () => {
+          gateway.streamsClosed += 1;
+        },
+      });
     },
+
+    getTranscription(transcriptionId: string): Promise<Transcription> {
+      transcriptionRequests.push(transcriptionId);
+      if (gateway.onGetTranscription !== null) {
+        return gateway.onGetTranscription();
+      }
+      // The last record keeps being returned once the script runs out, so a
+      // test only has to describe the transitions it cares about.
+      const next = gateway.records.length > 1 ? gateway.records.shift() : gateway.records[0];
+      return next === undefined ? Promise.reject(httpError(404)) : Promise.resolve(next);
+    },
+
     // Resolved immediately: the schedule is asserted through `waits`, so the
-    // suite never spends the sixty seconds the real polling budget allows.
+    // suite never spends the seven minutes the real budgets allow.
     wait(milliseconds: number): Promise<void> {
       waits.push(milliseconds);
       return Promise.resolve();
@@ -455,12 +500,20 @@ describe('createUploadRequests', () => {
     ]);
   });
 
-  it('reads the history from GET /api/transcriptions', async () => {
-    const { request, calls } = requesterReturning(pageOf(transcriptionWith('COMPLETED')));
+  /*
+   * The fallback asks for one record, not the history.
+   *
+   * The path is asserted as a literal rather than imported from
+   * `utils/api-routes`, for the reason recorded there: a test that imports the
+   * constant it is checking asserts `constant === constant` and would stay
+   * green through the path being changed to something the API does not serve.
+   */
+  it('reads one transcription from GET /api/transcriptions/{id}', async () => {
+    const { request, calls } = requesterReturning(transcriptionWith('COMPLETED'));
 
-    await createUploadRequests(request).listTranscriptions();
+    await createUploadRequests(request).getTranscription('t-1');
 
-    expect(calls).toEqual([{ path: '/api/transcriptions', options: { method: 'GET' } }]);
+    expect(calls).toEqual([{ path: '/api/transcriptions/t-1', options: { method: 'GET' } }]);
   });
 
   it('returns the intent the API sent', async () => {
@@ -484,10 +537,10 @@ describe('createUploadRequests', () => {
     ).rejects.toThrow();
   });
 
-  it('refuses a history page the contract does not describe', async () => {
-    const { request } = requesterReturning({ items: [{ id: 't-1' }], nextCursor: null });
+  it('refuses a transcription the contract does not describe', async () => {
+    const { request } = requesterReturning({ id: 't-1' });
 
-    await expect(createUploadRequests(request).listTranscriptions()).rejects.toThrow();
+    await expect(createUploadRequests(request).getTranscription('t-1')).rejects.toThrow();
   });
 });
 
@@ -504,7 +557,7 @@ describe('useFileUpload', () => {
 
   it('asks for an intent describing the file and the chosen language', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(transcriptionWith('COMPLETED'))];
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
 
     await useFileUpload(gateway).upload(AUDIO_FILE, 'ca');
 
@@ -520,7 +573,7 @@ describe('useFileUpload', () => {
 
   it('uploads with the url and fields the intent returned', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(transcriptionWith('COMPLETED'))];
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
 
     await useFileUpload(gateway).upload(AUDIO_FILE, 'es');
 
@@ -531,7 +584,7 @@ describe('useFileUpload', () => {
 
   it('publishes the progress the uploader reports', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(transcriptionWith('COMPLETED'))];
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     const seen: number[] = [];
     gateway.onUpload = (upload): Promise<void> => {
       upload.onProgress?.(40);
@@ -547,25 +600,35 @@ describe('useFileUpload', () => {
     expect(seen).toEqual([40, 100]);
   });
 
-  it('settles on completed once the record leaves PROCESSING', async () => {
+  /*
+   * The push path, and the whole point of the change.
+   *
+   * Note what is NOT here: a single request for a record. The old flow asked
+   * for the user's entire history every three seconds until the record moved —
+   * sixty pages fetched to observe one field. That absence is the assertion; a
+   * client that opened the socket and then polled anyway would satisfy every
+   * other expectation in this test.
+   *
+   * The one `wait` is the socket budget, started by `Promise.race` alongside
+   * the push and abandoned when the push wins. It is asserted rather than
+   * tolerated: if a poll schedule ever crept back in, this list would grow.
+   */
+  it('settles on the pushed record without asking for anything', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [
-      pageOf(transcriptionWith('PROCESSING')),
-      pageOf(transcriptionWith('PROCESSING')),
-      pageOf(transcriptionWith('COMPLETED')),
-    ];
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
 
     await controller.upload(AUDIO_FILE, 'es');
 
     expect(controller.phase.value).toBe('completed');
     expect(controller.transcription.value?.textPreview).toBe('El paciente refiere…');
-    expect(gateway.waits).toHaveLength(3);
+    expect(gateway.transcriptionRequests).toEqual([]);
+    expect(gateway.waits).toEqual([300_000]);
   });
 
-  it('reports a record that came back FAILED as a failed transcription', async () => {
+  it('reports a pushed FAILED record as a failed transcription', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(transcriptionWith('FAILED'))];
+    gateway.pushOnOpen = [transcriptionWith('FAILED')];
     const controller = useFileUpload(gateway);
 
     await controller.upload(AUDIO_FILE, 'es');
@@ -574,38 +637,124 @@ describe('useFileUpload', () => {
     expect(controller.failure.value?.code).toBe('TRANSCRIPTION_FAILED');
   });
 
+  it('closes the socket once the upload it was watching is over', async () => {
+    const gateway = gatewayDouble();
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
+    const controller = useFileUpload(gateway);
+
+    await controller.upload(AUDIO_FILE, 'es');
+
+    // A socket left open belongs to an upload that has finished, and the
+    // browser would hold it until API Gateway's two-hour ceiling.
+    expect(gateway.streamsOpened).toBe(1);
+    expect(gateway.streamsClosed).toBe(1);
+  });
+
+  /*
+   * The socket carries every transcription this user owns, so a completion
+   * belonging to another tab's upload arrives on this one too. Acting on it
+   * would report someone else's file as this one — with its file name, its
+   * preview and its status.
+   */
+  it('ignores a pushed record belonging to a different upload', async () => {
+    const gateway = gatewayDouble();
+    gateway.pushOnOpen = [{ ...transcriptionWith('COMPLETED'), id: 'another-upload' }];
+    gateway.records = [transcriptionWith('PROCESSING')];
+    const controller = useFileUpload(gateway);
+
+    await controller.upload(AUDIO_FILE, 'es');
+
+    // It fell through to the fallback, which is what "ignored" means here: had
+    // it acted on the foreign record it would have settled as completed.
+    expect(controller.phase.value).toBe('stillProcessing');
+    expect(controller.transcription.value?.id).toBe('t-1');
+  });
+
+  /*
+   * THE FALLBACK, and the reason it exists at all: a push that silently fails
+   * is worse than the polling it replaced, because nothing is left to notice
+   * it.
+   */
+  it('falls back to polling one record when the socket cannot be opened', async () => {
+    const gateway = gatewayDouble();
+    gateway.socketOpens = false;
+    gateway.records = [transcriptionWith('PROCESSING'), transcriptionWith('COMPLETED')];
+    const controller = useFileUpload(gateway);
+
+    await controller.upload(AUDIO_FILE, 'es');
+
+    expect(controller.phase.value).toBe('completed');
+    // One record by id, never the history, and spaced out rather than every
+    // three seconds.
+    expect(gateway.transcriptionRequests).toEqual(['t-1', 't-1']);
+    expect(gateway.waits).toEqual([15_000, 15_000]);
+  });
+
+  it('falls back to polling when the socket opens and then drops', async () => {
+    const gateway = gatewayDouble();
+    gateway.dropOnOpen = true;
+    gateway.records = [transcriptionWith('COMPLETED')];
+    const controller = useFileUpload(gateway);
+
+    await controller.upload(AUDIO_FILE, 'es');
+
+    expect(controller.phase.value).toBe('completed');
+    expect(gateway.transcriptionRequests).toEqual(['t-1']);
+  });
+
+  /*
+   * The case nothing else can catch: the socket opens, stays open, and the
+   * completion is simply never pushed — a publish that failed on the server,
+   * or a connection the service stopped delivering to. Without the budget the
+   * client waits for ever on a message that is not coming, and the user sees a
+   * spinner with no end.
+   */
+  it('falls back to polling when the socket opens and stays silent', async () => {
+    const gateway = gatewayDouble();
+    gateway.records = [transcriptionWith('COMPLETED')];
+    const controller = useFileUpload(gateway);
+
+    await controller.upload(AUDIO_FILE, 'es');
+
+    expect(controller.phase.value).toBe('completed');
+    // Five minutes on the socket, then the polling schedule.
+    expect(gateway.waits).toEqual([300_000, 15_000]);
+  });
+
   /*
    * A loop with no bound is a tab that polls the API all afternoon. The record
    * is not lost when the budget runs out — it is in the history, still being
    * transcribed — so this end state is deliberately not an error.
    */
-  it('stops watching after a bounded number of attempts and says the work continues', async () => {
+  it('stops polling after a bounded number of attempts and says the work continues', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(transcriptionWith('PROCESSING'))];
+    gateway.socketOpens = false;
+    gateway.records = [transcriptionWith('PROCESSING')];
     const controller = useFileUpload(gateway);
 
     await controller.upload(AUDIO_FILE, 'es');
 
     expect(controller.phase.value).toBe('stillProcessing');
     expect(controller.failure.value).toBeNull();
-    expect(gateway.waits).toHaveLength(20);
-    expect(new Set(gateway.waits)).toEqual(new Set([3000]));
+    expect(gateway.waits).toHaveLength(8);
+    expect(new Set(gateway.waits)).toEqual(new Set([15_000]));
   });
 
   /*
    * By this point the file is in storage and the record exists. Surfacing a
-   * transient list failure as an upload error would tell the user their audio
+   * transient read failure as an upload error would tell the user their audio
    * was lost when it was not.
    */
-  it('keeps watching through a failed poll rather than reporting the upload as broken', async () => {
+  it('keeps polling through a failed read rather than reporting the upload as broken', async () => {
     const gateway = gatewayDouble();
+    gateway.socketOpens = false;
     let attempt = 0;
-    gateway.onList = (): Promise<ListTranscriptionsResponse> => {
+    gateway.onGetTranscription = (): Promise<Transcription> => {
       attempt += 1;
       if (attempt < 3) {
         return Promise.reject(httpError(503));
       }
-      return Promise.resolve(pageOf(transcriptionWith('COMPLETED')));
+      return Promise.resolve(transcriptionWith('COMPLETED'));
     };
     const controller = useFileUpload(gateway);
 
@@ -614,9 +763,20 @@ describe('useFileUpload', () => {
     expect(controller.phase.value).toBe('completed');
   });
 
-  it('keeps watching while the record has not reached the first page yet', async () => {
+  /*
+   * The record is written before the upload is acknowledged, so a 404 here is
+   * a read that lost a race rather than a record that is missing.
+   */
+  it('keeps polling while the record is not readable yet', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(), pageOf(transcriptionWith('COMPLETED'))];
+    gateway.socketOpens = false;
+    let attempt = 0;
+    gateway.onGetTranscription = (): Promise<Transcription> => {
+      attempt += 1;
+      return attempt < 2
+        ? Promise.reject(httpError(404))
+        : Promise.resolve(transcriptionWith('COMPLETED'));
+    };
     const controller = useFileUpload(gateway);
 
     await controller.upload(AUDIO_FILE, 'es');
@@ -719,7 +879,7 @@ describe('useFileUpload', () => {
 
   it('reports itself busy through the phases where a second upload must not start', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(transcriptionWith('COMPLETED'))];
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     const seen: boolean[] = [];
     gateway.onCreateIntent = (): Promise<CreateUploadIntentResponse> => {
       seen.push(controller.isBusy.value);
@@ -746,7 +906,7 @@ describe('useFileUpload', () => {
     expect(controller.failure.value).not.toBeNull();
 
     gateway.onCreateIntent = (): Promise<CreateUploadIntentResponse> => Promise.resolve(INTENT);
-    gateway.listPages = [pageOf(transcriptionWith('COMPLETED'))];
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     await controller.upload(AUDIO_FILE, 'es');
 
     expect(controller.failure.value).toBeNull();
@@ -755,7 +915,7 @@ describe('useFileUpload', () => {
 
   it('returns to idle when reset', async () => {
     const gateway = gatewayDouble();
-    gateway.listPages = [pageOf(transcriptionWith('COMPLETED'))];
+    gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
     await controller.upload(AUDIO_FILE, 'es');
 

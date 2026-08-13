@@ -17,6 +17,19 @@ export default {
   // of Jest is affordable here.
   testEnvironment: 'jsdom',
 
+  /*
+   * jsdom's environment asks packages for their `browser` build, and a package
+   * that ships an ES module there — `vue-i18n` does — reaches Jest as
+   * `import * as Vue from 'vue'` inside `node_modules`, which it cannot parse.
+   * `node` puts it back on the CommonJS entry point Jest can require, which is
+   * where `vue-i18n` keeps its only CommonJS build.
+   *
+   * Nothing here wanted the `browser` build: the DOM comes from jsdom, not
+   * from a package's choice of entry point, and `vue` resolves to the same
+   * CommonJS file either way.
+   */
+  testEnvironmentOptions: { customExportConditions: ['node'] },
+
   moduleFileExtensions: ['ts', 'js', 'mjs', 'json', 'vue'],
 
   // The server's own modules are covered here too. They are written against

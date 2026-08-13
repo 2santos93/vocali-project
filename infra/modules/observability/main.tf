@@ -120,7 +120,7 @@ resource "aws_sns_topic_subscription" "email" {
 # knowing about.
 resource "aws_cloudwatch_metric_alarm" "function_errors" {
   alarm_name        = "${var.name_prefix}-function-errors"
-  alarm_description = "One or more Lambda functions raised an unhandled error. Every expected failure in this application is a 4xx, so this means a defect: read the log group of the function named in the alarm's metrics."
+  alarm_description = "One or more Lambda functions raised an unhandled error. Every expected failure in this application is a 4xx, so this means a defect: open Lambda metrics grouped by function name to see which one, then read its log group."
 
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = var.error_threshold
@@ -133,29 +133,16 @@ resource "aws_cloudwatch_metric_alarm" "function_errors" {
   alarm_actions = [aws_sns_topic.alerts.arn]
   ok_actions    = [aws_sns_topic.alerts.arn]
 
-  metric_query {
-    id          = "total_errors"
-    expression  = "SUM(METRICS())"
-    label       = "Errors across every function"
-    return_data = true
-  }
-
-  dynamic "metric_query" {
-    for_each = local.function_metric_ids
-
-    content {
-      id          = metric_query.key
-      return_data = false
-
-      metric {
-        namespace   = "AWS/Lambda"
-        metric_name = "Errors"
-        period      = var.period_seconds
-        stat        = "Sum"
-        dimensions  = { FunctionName = metric_query.value }
-      }
-    }
-  }
+  # The service-wide metric rather than a sum over each function. A metric-math
+  # alarm takes ten elements, which put a ceiling on how many functions this
+  # platform could have, and that ceiling was reached the moment four were
+  # added. This account holds nothing but this application, so the aggregate is
+  # exactly the same number without the arithmetic and without the limit — and
+  # a function added later is covered without anyone remembering to add it.
+  namespace   = "AWS/Lambda"
+  metric_name = "Errors"
+  period      = var.period_seconds
+  statistic   = "Sum"
 }
 
 # 2. A function was throttled.
@@ -168,7 +155,7 @@ resource "aws_cloudwatch_metric_alarm" "function_errors" {
 # reaches for without knowing it is happening.
 resource "aws_cloudwatch_metric_alarm" "function_throttles" {
   alarm_name        = "${var.name_prefix}-function-throttles"
-  alarm_description = "Lambda refused to run an invocation because the account's concurrency was exhausted. Nothing is logged when this happens, because nothing ran."
+  alarm_description = "Lambda refused an invocation for want of concurrency. Nothing ran, so there is no log line: on a synchronous route the caller saw a 429, and on the S3 notification an upload was simply never transcribed. Group Lambda metrics by function name to see which one."
 
   comparison_operator = "GreaterThanOrEqualToThreshold"
   threshold           = var.throttle_threshold
@@ -178,29 +165,16 @@ resource "aws_cloudwatch_metric_alarm" "function_throttles" {
   alarm_actions = [aws_sns_topic.alerts.arn]
   ok_actions    = [aws_sns_topic.alerts.arn]
 
-  metric_query {
-    id          = "total_throttles"
-    expression  = "SUM(METRICS())"
-    label       = "Throttles across every function"
-    return_data = true
-  }
-
-  dynamic "metric_query" {
-    for_each = local.function_metric_ids
-
-    content {
-      id          = metric_query.key
-      return_data = false
-
-      metric {
-        namespace   = "AWS/Lambda"
-        metric_name = "Throttles"
-        period      = var.period_seconds
-        stat        = "Sum"
-        dimensions  = { FunctionName = metric_query.value }
-      }
-    }
-  }
+  # The service-wide metric rather than a sum over each function. A metric-math
+  # alarm takes ten elements, which put a ceiling on how many functions this
+  # platform could have, and that ceiling was reached the moment four were
+  # added. This account holds nothing but this application, so the aggregate is
+  # exactly the same number without the arithmetic and without the limit — and
+  # a function added later is covered without anyone remembering to add it.
+  namespace   = "AWS/Lambda"
+  metric_name = "Throttles"
+  period      = var.period_seconds
+  statistic   = "Sum"
 }
 
 # 3. An asynchronous invocation was given up on.

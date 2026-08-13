@@ -37,6 +37,15 @@ locals {
     PROVIDER_REQUEST_TIMEOUT_MS = tostring(var.provider_request_timeout_ms)
     PROVIDER_MAX_ATTEMPTS       = tostring(var.provider_max_attempts)
 
+    # Two endpoints for one websocket API, and they are not interchangeable.
+    # The browser dials `wss://`; the server posts to the same API over
+    # `https://`, and sending a message to a `wss://` endpoint fails inside the
+    # SDK. Both are passed in rather than one being rewritten from the other,
+    # because a scheme rewrite sits between a finished transcription and the
+    # browser waiting for it.
+    WEBSOCKET_URL                 = var.websocket_browser_url
+    WEBSOCKET_MANAGEMENT_ENDPOINT = var.websocket_management_endpoint
+
     LOG_LEVEL = var.log_level
 
     # Set although the configuration schema does not read it yet. The
@@ -170,9 +179,61 @@ locals {
       # Sixty leaves the retry policy room to finish being wrong.
       route = null
     }
+
+    "create-connection-ticket" = {
+      memory_size = 512
+      timeout     = 10
+      # One PutItem and 32 bytes from the system's random source. Called once
+      # per page that wants pushes, immediately before the socket is opened, so
+      # its latency is felt as part of the connect.
+      route = {
+        method          = "POST"
+        path            = "/connection-tickets"
+        permission_path = "/connection-tickets"
+        authenticated   = true
+      }
+    }
+
+    # The three websocket functions below take `route = null` because their
+    # routes are not HTTP routes: they attach to the websocket API further
+    # down, which has its own route keys, its own authorizer and its own
+    # permissions.
+    "authorize-connection" = {
+      memory_size = 512
+      timeout     = 10
+      # One DeleteItem. It runs on every connect attempt, including every
+      # rejected one, so it is the function most exposed to unauthenticated
+      # traffic in the stack and the one that should do least.
+      route = null
+    }
+
+    "handle-connection-opened" = {
+      memory_size = 512
+      timeout     = 10
+      route       = null
+    }
+
+    "handle-connection-closed" = {
+      memory_size = 512
+      timeout     = 10
+      route       = null
+    }
   }
 
   http_functions = { for name, spec in local.functions : name => spec if spec.route != null }
+
+  # The websocket routes, keyed by the function that serves them.
+  #
+  # `$connect` and `$disconnect` only. There is no `$default`: the browser
+  # sends nothing on this socket — it opens it and listens — so a route for
+  # inbound messages would be an entry point with no caller, and an entry point
+  # with no caller is one nobody thinks about when its function's role is
+  # written. An unroutable frame is dropped by API Gateway, which is the
+  # correct handling of a message this protocol does not have.
+  websocket_routes = {
+    "handle-connection-opened" = { route_key = "$connect", authorised = true }
+    "handle-connection-closed" = { route_key = "$disconnect", authorised = false }
+  }
 }
 
 # The bundle for each function, zipped.
@@ -381,4 +442,129 @@ resource "aws_lambda_permission" "api_gateway" {
   # API Gateway matches these against: the ARN is compared with the request's
   # actual path, so a literal `{transcriptionId}` would never match anything.
   source_arn = "${var.api_execution_arn}/${var.stage_name}/${each.value.route.method}${each.value.route.permission_path}"
+}
+
+# ---------------------------------------------------------------------------
+# The websocket API's routes, its authorizer, and the permissions behind them.
+#
+# Here rather than in the `websocket` module for the same reason the HTTP
+# routes are here: the routes have to name the functions they invoke and the
+# authorizer has to name the function that runs it, while the functions have to
+# be told the API's management endpoint. One module holding both halves makes
+# that circular.
+# ---------------------------------------------------------------------------
+
+# The `$connect` authorizer, and the only thing standing between the open
+# internet and a socket opened as a named user.
+#
+# REQUEST rather than TOKEN, and that is forced rather than chosen: a browser
+# cannot set a header on a `WebSocket`, so there is no `Authorization` header
+# to build a TOKEN authorizer on and no way to put a Cognito JWT authorizer
+# here at all. What the browser can do is put something in the query string,
+# and a query string is written into an access log — so what travels there is a
+# connection ticket that lives thirty seconds and can be spent once, minted by
+# an authenticated HTTP call the browser makes first. See docs/adr/0011.
+resource "aws_apigatewayv2_authorizer" "websocket_connect" {
+  api_id           = var.websocket_api_id
+  name             = "${var.name_prefix}-connection-ticket"
+  authorizer_type  = "REQUEST"
+  authorizer_uri   = aws_lambda_function.this["authorize-connection"].invoke_arn
+  identity_sources = ["route.request.querystring.ticket"]
+
+  # ZERO, and this is the single most important line in the file.
+  #
+  # There is deliberately no `authorizer_result_ttl_in_seconds` here, and it is
+  # worth saying why rather than leaving its absence to be read as an omission.
+  #
+  # A cached authorizer result would be keyed on the identity source — here the
+  # ticket itself — so a second connect presenting the same ticket would be
+  # answered from the cache without the function running, and the ticket would
+  # be spendable for as long as the cache lasted. The single-use property would
+  # then exist only in the application code and its tests.
+  #
+  # Setting it to zero is what this module tried first. API Gateway rejects the
+  # attribute outright on a websocket API: "AuthorizerResultTtlInSeconds cannot
+  # be set for WEBSOCKET protocol Apis." Websocket authorizers are not cached,
+  # so the hazard does not arise — but it arises the moment this authorizer is
+  # reused on an HTTP API, and there the attribute must be set to zero.
+}
+
+resource "aws_lambda_permission" "websocket_authorizer" {
+  statement_id  = "AllowInvocationFromWebsocketAuthorizer"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.this["authorize-connection"].function_name
+  principal     = "apigateway.amazonaws.com"
+
+  # The authorizer's own ARN, not a route's. An authorizer is invoked under
+  # `/authorizers/<id>` rather than under a method and path.
+  source_arn = "${var.websocket_api_execution_arn}/authorizers/${aws_apigatewayv2_authorizer.websocket_connect.id}"
+}
+
+resource "aws_apigatewayv2_integration" "websocket" {
+  for_each = local.websocket_routes
+
+  api_id           = var.websocket_api_id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.this[each.key].invoke_arn
+
+  # How API Gateway calls Lambda, not how the client reached API Gateway. A
+  # websocket frame has no method of its own.
+  integration_method = "POST"
+
+  timeout_milliseconds = min((local.functions[each.key].timeout + 1) * 1000, 29000)
+}
+
+resource "aws_apigatewayv2_route" "websocket" {
+  for_each = local.websocket_routes
+
+  api_id    = var.websocket_api_id
+  route_key = each.value.route_key
+  target    = "integrations/${aws_apigatewayv2_integration.websocket[each.key].id}"
+
+  # Only `$connect` carries an authorizer, and only `$connect` can: API Gateway
+  # authorises the handshake, and every later route of that connection inherits
+  # the decision. `$disconnect` is not a request a client makes — it is the
+  # service reporting that a connection it had already authorised has ended —
+  # so there is nothing there to authorise and no credential to present.
+  #
+  # What `$disconnect` does get is the authorizer's context, carried forward by
+  # API Gateway, which is how it learns whose socket closed without trusting
+  # anything the client sent.
+  authorization_type = each.value.authorised ? "CUSTOM" : "NONE"
+  authorizer_id      = each.value.authorised ? aws_apigatewayv2_authorizer.websocket_connect.id : null
+}
+
+resource "aws_lambda_permission" "websocket_route" {
+  for_each = local.websocket_routes
+
+  statement_id  = "AllowInvocationFromWebsocketApi"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.this[each.key].function_name
+  principal     = "apigateway.amazonaws.com"
+
+  # One route of one stage of one API. The route key is the path segment here,
+  # so `$connect` and `$disconnect` appear literally.
+  source_arn = "${var.websocket_api_execution_arn}/${var.websocket_stage_name}/${each.value.route_key}"
+}
+
+# Every function this module deploys must have been given a name and a role by
+# the functions module, and nothing may arrive that this module does not know
+# how to route. Expressed against the catalogue rather than a count, because a
+# count is a number somebody has to remember to change.
+check "every_function_is_named_and_assumable" {
+  assert {
+    condition = (
+      length(setsubtract(keys(local.functions), keys(var.function_names))) == 0 &&
+      length(setsubtract(keys(var.function_names), keys(local.functions))) == 0
+    )
+    error_message = "function_names must name exactly the functions this module deploys. Missing: ${join(", ", setsubtract(keys(local.functions), keys(var.function_names)))}. Unexpected: ${join(", ", setsubtract(keys(var.function_names), keys(local.functions)))}."
+  }
+
+  assert {
+    condition = (
+      length(setsubtract(keys(local.functions), keys(var.role_arns))) == 0 &&
+      length(setsubtract(keys(var.role_arns), keys(local.functions))) == 0
+    )
+    error_message = "role_arns must cover exactly the functions this module deploys. Missing: ${join(", ", setsubtract(keys(local.functions), keys(var.role_arns)))}."
+  }
 }

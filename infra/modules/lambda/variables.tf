@@ -22,10 +22,11 @@ variable "function_names" {
   description = "Logical name to full function name, from the functions module. The names have to match, because the log groups were created after them."
   type        = map(string)
 
-  validation {
-    condition     = length(var.function_names) == 8
-    error_message = "function_names must hold all eight functions. The application has eight entry points and every one of them is deployed."
-  }
+  # Deliberately no count here. A number in a validation is a second place to
+  # remember, and it was already wrong once: four functions were added and this
+  # still demanded eight. The `check` block in main.tf compares these keys
+  # against the module's own catalogue instead, so the assertion cannot drift
+  # from the thing it is asserting about.
 }
 
 variable "role_arns" {
@@ -229,5 +230,55 @@ variable "max_memory_size_mb" {
   validation {
     condition     = var.max_memory_size_mb == null || (var.max_memory_size_mb >= 128 && var.max_memory_size_mb <= 10240)
     error_message = "max_memory_size_mb must be between 128 and 10240, or null for no cap."
+  }
+}
+
+variable "websocket_api_id" {
+  description = "Identifier of the websocket API the connection routes and the $connect authorizer attach to."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]{6,32}$", var.websocket_api_id))
+    error_message = "websocket_api_id must be an API Gateway API id."
+  }
+}
+
+variable "websocket_api_execution_arn" {
+  description = "Execution ARN prefix of the websocket API. Every invoke permission granted to API Gateway is scoped to one route beneath it."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws[a-z-]*:execute-api:", var.websocket_api_execution_arn))
+    error_message = "websocket_api_execution_arn must be an execute-api ARN."
+  }
+}
+
+variable "websocket_stage_name" {
+  description = "Stage of the websocket API, named in each invoke permission rather than matched with a wildcard."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9_-]{1,128}$", var.websocket_stage_name))
+    error_message = "websocket_stage_name must be 1-128 characters of letters, digits, underscores and hyphens."
+  }
+}
+
+variable "websocket_browser_url" {
+  description = "What the browser dials, wss://<api>.execute-api.<region>.amazonaws.com/<stage>. Returned to the client in the ticket response, so the front end holds no copy of the endpoint."
+  type        = string
+
+  validation {
+    condition     = can(regex("^wss://", var.websocket_browser_url))
+    error_message = "websocket_browser_url must be a wss:// URL. A ws:// endpoint would carry a bearer ticket over plain text."
+  }
+}
+
+variable "websocket_management_endpoint" {
+  description = "What the server posts to, https://<api>.execute-api.<region>.amazonaws.com/<stage>. Not the browser URL: the management SDK rejects a wss:// endpoint."
+  type        = string
+
+  validation {
+    condition     = can(regex("^https://", var.websocket_management_endpoint))
+    error_message = "websocket_management_endpoint must be an https:// URL, not the wss:// URL the browser dials."
   }
 }

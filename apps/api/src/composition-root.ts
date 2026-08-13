@@ -1,3 +1,4 @@
+import { ApiGatewayManagementApiClient } from '@aws-sdk/client-apigatewaymanagementapi';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SSMClient } from '@aws-sdk/client-ssm';
@@ -5,18 +6,27 @@ import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { CompleteTranscription } from './application/use-cases/complete-transcription.js';
 import { CreateAudioUploadIntent } from './application/use-cases/create-audio-upload-intent.js';
 import { CreateRealtimeSession } from './application/use-cases/create-realtime-session.js';
+import { DeregisterConnection } from './application/use-cases/deregister-connection.js';
 import { FailTranscription } from './application/use-cases/fail-transcription.js';
 import { GetTranscription } from './application/use-cases/get-transcription.js';
 import { GetTranscriptionDownloadUrl } from './application/use-cases/get-transcription-download-url.js';
+import { IssueConnectionTicket } from './application/use-cases/issue-connection-ticket.js';
 import { ListUserTranscriptions } from './application/use-cases/list-user-transcriptions.js';
+import { PublishTranscriptionUpdate } from './application/use-cases/publish-transcription-update.js';
+import { RedeemConnectionTicket } from './application/use-cases/redeem-connection-ticket.js';
+import { RegisterConnection } from './application/use-cases/register-connection.js';
 import { SaveRealtimeTranscription } from './application/use-cases/save-realtime-transcription.js';
 import { StartFileTranscription } from './application/use-cases/start-file-transcription.js';
 import type { Logger } from './domain/ports/logger.js';
 import type { SecretsProvider } from './domain/ports/secrets-provider.js';
 import type { TranscriptionProvider } from './domain/ports/transcription-provider.js';
 import { loadConfig, type AppConfig } from './infrastructure/config/environment.js';
+import { CryptoTokenGenerator } from './infrastructure/id/crypto-token-generator.js';
 import { UlidIdGenerator } from './infrastructure/id/ulid-id-generator.js';
+import { ApiGatewayConnectionPublisher } from './infrastructure/messaging/api-gateway-connection-publisher.js';
 import { createLogger } from './infrastructure/logging/pino-logger.js';
+import { DynamoConnectionRegistry } from './infrastructure/persistence/dynamo-connection-registry.js';
+import { DynamoConnectionTicketStore } from './infrastructure/persistence/dynamo-connection-ticket-store.js';
 import { DynamoTranscriptionRepository } from './infrastructure/persistence/dynamo-transcription-repository.js';
 import { SpeechmaticsTranscriptionProvider } from './infrastructure/providers/speechmatics-transcription-provider.js';
 import { SsmSecretsProvider } from './infrastructure/secrets/ssm-secrets-provider.js';
@@ -48,6 +58,11 @@ export interface Container {
   readonly startFileTranscription: StartFileTranscription;
   readonly completeTranscription: CompleteTranscription;
   readonly failTranscription: FailTranscription;
+  readonly issueConnectionTicket: IssueConnectionTicket;
+  readonly redeemConnectionTicket: RedeemConnectionTicket;
+  readonly registerConnection: RegisterConnection;
+  readonly deregisterConnection: DeregisterConnection;
+  readonly publishTranscriptionUpdate: PublishTranscriptionUpdate;
 }
 
 /**
@@ -95,6 +110,18 @@ export function buildContainer(config: AppConfig): Container {
   const transcriptsStorage = new S3FileStorage(s3, config.transcriptsBucketName, clock);
   const repository = new DynamoTranscriptionRepository(dynamo, config.transcriptionsTableName);
   const secrets = new SsmSecretsProvider(ssm);
+  // Pointed at this deployment's own websocket API. The management client is
+  // the one AWS client whose endpoint is not derived from the region alone:
+  // without it the SDK addresses the service's default endpoint and every
+  // publish answers 404 for a connection that is open.
+  const connectionPublisher = new ApiGatewayConnectionPublisher(
+    new ApiGatewayManagementApiClient({
+      region: config.region,
+      endpoint: config.websocketManagementEndpoint,
+    }),
+  );
+  const connections = new DynamoConnectionRegistry(dynamo, config.transcriptionsTableName);
+  const connectionTickets = new DynamoConnectionTicketStore(dynamo, config.transcriptionsTableName);
   const provider = new SpeechmaticsTranscriptionProvider(
     secrets,
     clock,
@@ -139,6 +166,21 @@ export function buildContainer(config: AppConfig): Container {
     ),
     completeTranscription: new CompleteTranscription(repository, transcriptsStorage, clock),
     failTranscription: new FailTranscription(repository, clock),
+    issueConnectionTicket: new IssueConnectionTicket(
+      connectionTickets,
+      new CryptoTokenGenerator(),
+      clock,
+      { websocketUrl: config.websocketUrl },
+    ),
+    redeemConnectionTicket: new RedeemConnectionTicket(connectionTickets, clock),
+    registerConnection: new RegisterConnection(connections, clock),
+    deregisterConnection: new DeregisterConnection(connections),
+    publishTranscriptionUpdate: new PublishTranscriptionUpdate(
+      repository,
+      connections,
+      connectionPublisher,
+      logger,
+    ),
   };
 }
 

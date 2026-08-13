@@ -60,8 +60,12 @@ are mechanical and the design cannot quietly drift while they are written.
 | Transcribe live from the microphone | Partial results appear while you speak                      |
 | Browse transcription history        | Ten per page, newest first, cursor paginated                |
 | Download a transcription            | Short-lived signed URL, plain text or JSON                  |
+| Read it light or dark               | Light, dark, or whatever the machine is set to              |
+| Read it in Spanish or English       | Spanish by default; the choice changes no URL               |
 
-The business rules behind every row — validation, state transitions, pagination, ownership — are implemented and tested, and so are the screens in front of them. What is missing is an AWS account to apply the infrastructure to.
+The business rules behind every row — validation, state transitions, pagination, ownership — are implemented and tested, and so are the screens in front of them.
+
+The interface language is deliberately not the same thing as a transcription's language. A clinician can dictate in Catalan while reading the screen in English; neither setting drives the other, and they are separate types with separate storage so that nobody can later make one follow the other by accident.
 
 ## Architecture
 
@@ -109,6 +113,10 @@ Three constraints shaped almost everything else.
 **A 20 MB file cannot travel through the API.** API Gateway caps a request at 10 MB and Lambda at 6 MB, and base64 encoding inflates a payload by a third. The upload therefore goes directly from the browser to S3 via a presigned POST whose policy carries a `content-length-range` condition. The size limit is enforced by S3 itself, before any code runs — not by a validation that a client could lie its way past.
 
 **Lambda cannot hold a duplex WebSocket.** Live transcription needs a persistent connection to the provider, and a function that lives for the length of one request cannot keep one. So the backend mints a short-lived credential and the browser connects directly. The long-lived API key never leaves the server, the audio never touches our infrastructure, and each session expires on its own.
+
+That constraint is about a _function_ holding a socket, and it is worth separating from a second use of the same word. When a file finishes transcribing, the browser is told over a websocket — but there **API Gateway** holds the connection and the functions do not: one is invoked on connect, another on disconnect, and sending is an ordinary HTTPS request naming a connection the sender has never seen. A completion is one message in one direction; live dictation is a continuous two-way audio stream, which is why only the first of them can work this way.
+
+Authenticating that connection is the part worth reading. A browser cannot set headers on a websocket, so the usual answer is an access token in the query string — and a query string reaches the access log. An authenticated endpoint mints a short-lived, single-use ticket instead, and the connect authorizer spends it with the same call that reads it, so two connections racing the same ticket cannot both win. Verified against the deployed environment: presenting one ticket twice connects once and is refused the second time.
 
 **DynamoDB has no offset pagination.** History is a single `Query` on a partition key of `USER#<sub>` with a sort key of `TRANS#<ULID>`, read backwards with a limit of ten. The ULID makes chronological order free, the partition key makes cross-user isolation structural rather than a check someone can forget, and the client receives an opaque cursor. There is no `Scan` anywhere in the codebase.
 
