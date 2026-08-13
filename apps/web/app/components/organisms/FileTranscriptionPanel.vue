@@ -1,29 +1,31 @@
 <script setup lang="ts">
-import { DEFAULT_TRANSCRIPTION_LANGUAGE } from '@vocali/contracts';
-import type { Transcription, TranscriptionLanguage } from '@vocali/contracts';
+import type { Transcription } from '@vocali/contracts';
 import { computed, ref } from 'vue';
 import BaseButton from '../atoms/BaseButton.vue';
-import BaseSelect from '../atoms/BaseSelect.vue';
 import ProgressBar from '../atoms/ProgressBar.vue';
 import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FileDropZone from '../molecules/FileDropZone.vue';
-import FormField from '../molecules/FormField.vue';
-import type { FileRejection, SelectOption } from '../types';
+import type { FileRejection } from '../component-vocabulary';
 import type { FileUploadFailure, FileUploadPhase } from '../../composables/upload-failures';
 import type { TranslatableMessage } from '../../i18n/translate';
 import { useTranslations } from '../../i18n/translations';
-import { transcriptionLanguageOptions, toTranscriptionLanguage } from '../transcription-languages';
+import { transcriptionLanguageName } from '../transcription-languages';
 
 /**
  * Choosing an audio file, sending it, and watching it become a transcription.
  *
  * Pure Vue: the phase, the progress and the outcome arrive as props and the
- * intent leaves as an event. It holds only the two pieces of state that are
- * nobody else's business — which file is chosen and which language was picked
- * — because a page that had to own those would exist only to pass them
- * straight back down.
+ * intent leaves as an event. It holds one piece of state that is nobody else's
+ * business — which file is chosen — because a page that had to own that would
+ * exist only to pass it straight back down.
+ *
+ * It no longer asks which language the recording is in. The provider
+ * identifies that from the audio itself, which is the one party to this that
+ * has heard it: whoever uploads a file may not have made the recording, and a
+ * dropdown defaulted to Spanish was answered wrongly in silence. What the
+ * screen does instead is report what was identified, once it knows.
  */
 
 interface Props {
@@ -41,16 +43,13 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  submit: [request: { file: File; language: TranscriptionLanguage }];
+  submit: [file: File];
   reset: [];
 }>();
 
 const { t } = useTranslations();
 
 const selectedFile = ref<File | null>(null);
-const language = ref<TranscriptionLanguage>(DEFAULT_TRANSCRIPTION_LANGUAGE);
-
-const languageOptions = computed<readonly SelectOption[]>(() => transcriptionLanguageOptions(t));
 
 /**
  * Why the panel cannot proceed yet — a refused file, or no file at all.
@@ -62,6 +61,20 @@ const languageOptions = computed<readonly SelectOption[]>(() => transcriptionLan
  * still read in the language on screen.
  */
 const warning = ref<TranslatableMessage | null>(null);
+
+/**
+ * The identified language, named for the reader, or null while there is
+ * nothing to report.
+ *
+ * Null covers two cases on purpose — no record yet, and a record whose
+ * language the provider could not identify — because the screen says the same
+ * thing in both: nothing. Announcing "language unknown" beside a finished
+ * transcript would give a non-event a headline.
+ */
+const detectedLanguage = computed<string | null>(() => {
+  const code = props.transcription?.language ?? null;
+  return code === null ? null : transcriptionLanguageName(t, code);
+});
 
 const isBusy = computed<boolean>(
   () => props.phase === 'requesting' || props.phase === 'uploading' || props.phase === 'processing',
@@ -86,13 +99,6 @@ function onReject(refusal: FileRejection): void {
   selectedFile.value = null;
 }
 
-function onLanguageChange(value: string): void {
-  const chosen = toTranscriptionLanguage(value);
-  if (chosen !== null) {
-    language.value = chosen;
-  }
-}
-
 /**
  * The button stays operable with no file chosen, and says why it cannot
  * proceed.
@@ -109,7 +115,7 @@ function onSubmit(): void {
     return;
   }
   warning.value = null;
-  emit('submit', { file, language: language.value });
+  emit('submit', file);
 }
 
 function onReset(): void {
@@ -144,18 +150,13 @@ function onReset(): void {
           @reject="onReject"
         />
 
-        <FormField id="audio-language" :label="t('file.language')" :hint="t('file.languageHint')">
-          <template #default="{ id, describedBy }">
-            <BaseSelect
-              :id="id"
-              :model-value="language"
-              :options="languageOptions"
-              :disabled="isBusy"
-              :described-by="describedBy"
-              @update:model-value="onLanguageChange"
-            />
-          </template>
-        </FormField>
+        <!-- Where the language question used to be. It says what the platform
+             will do rather than asking the reader to do it, because the answer
+             is in the audio and this is the one party to the exchange that has
+             not heard it. -->
+        <p class="text-xs leading-relaxed text-ink-muted" data-testid="automatic-language-note">
+          {{ t('file.automaticLanguage') }}
+        </p>
 
         <div class="flex flex-col gap-2">
           <BaseButton
@@ -254,7 +255,23 @@ function onReset(): void {
             class="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-line bg-surface px-4 py-3"
           >
             <p class="text-sm font-medium text-ink">{{ transcription.fileName }}</p>
-            <StatusBadge :status="transcription.status" />
+
+            <div class="flex items-center gap-2">
+              <!-- The answer to the question the screen stopped asking. It sits
+                   beside the status because it is a fact about the finished
+                   job, and because a reader who expected another language has
+                   to be able to see that here rather than by reading the
+                   transcript and wondering. -->
+              <span
+                v-if="detectedLanguage !== null"
+                class="text-xs text-ink-muted"
+                data-testid="detected-language"
+              >
+                {{ t('file.detectedLanguage', { language: detectedLanguage }) }}
+              </span>
+
+              <StatusBadge :status="transcription.status" />
+            </div>
           </div>
 
           <p

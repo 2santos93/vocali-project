@@ -34,6 +34,7 @@ describe('CompleteTranscription', () => {
       externalJobId: 'job-1',
       text: 'the patient reports mild pain',
       durationSeconds: 42,
+      language: null,
     });
 
     expect(result.success).toBe(true);
@@ -51,6 +52,58 @@ describe('CompleteTranscription', () => {
     expect(stored?.toPrimitives().updatedAt).toBe(NOW.toISOString());
   });
 
+  /*
+   * The upload screen stopped asking which language the recording is in, so
+   * this is the only moment the platform ever learns it. A completion that
+   * dropped it would leave every uploaded transcription permanently unnamed.
+   */
+  it('records the language the provider identified', async () => {
+    const { useCase, repository } = buildUseCase();
+    const transcription = buildTranscription({ id: '01A', userId: 'user-1' });
+    transcription.markAsProcessing('job-1', new Date('2026-08-10T10:01:00.000Z'));
+    await repository.save(transcription);
+
+    // English, on a record created with no language at all: asserting Spanish
+    // could not tell a threaded value from the old default.
+    await useCase.execute({
+      userId: 'user-1',
+      transcriptionId: '01A',
+      externalJobId: 'job-1',
+      text: 'the patient reports mild pain',
+      durationSeconds: 42,
+      language: 'en',
+    });
+
+    const stored = await repository.findById('user-1', '01A');
+    expect(stored?.toPrimitives().language).toBe('en');
+  });
+
+  /*
+   * A job too short to identify still produces a transcript, and that
+   * transcript is the point. Nothing is written over: the record keeps
+   * whatever it held, which for an upload is "not known".
+   */
+  it('leaves the language alone when the provider identified none', async () => {
+    const { useCase, repository } = buildUseCase();
+    const transcription = buildTranscription({ id: '01A', userId: 'user-1' });
+    transcription.markAsProcessing('job-1', new Date('2026-08-10T10:01:00.000Z'));
+    await repository.save(transcription);
+
+    const result = await useCase.execute({
+      userId: 'user-1',
+      transcriptionId: '01A',
+      externalJobId: 'job-1',
+      text: 'mmm',
+      durationSeconds: 1,
+      language: null,
+    });
+
+    expect(result.success).toBe(true);
+    const stored = await repository.findById('user-1', '01A');
+    expect(stored?.status).toBe('COMPLETED');
+    expect(stored?.toPrimitives().language).toBeNull();
+  });
+
   it('fails when no transcription matches the identity, without contacting storage', async () => {
     const { useCase, storage } = buildUseCase();
 
@@ -60,6 +113,7 @@ describe('CompleteTranscription', () => {
       externalJobId: 'job-1',
       text: 'text',
       durationSeconds: 1,
+      language: null,
     });
 
     expect(result.success).toBe(false);
@@ -81,6 +135,7 @@ describe('CompleteTranscription', () => {
       externalJobId: 'job-other',
       text: 'spoofed text',
       durationSeconds: 99,
+      language: null,
     });
 
     expect(result.success).toBe(false);
@@ -102,6 +157,7 @@ describe('CompleteTranscription', () => {
       text: 'original text',
       durationSeconds: 42,
       at: new Date('2026-08-10T10:05:00.000Z'),
+      language: null,
     });
     await repository.save(transcription);
 
@@ -111,6 +167,7 @@ describe('CompleteTranscription', () => {
       externalJobId: 'job-1',
       text: 'a different, redelivered payload',
       durationSeconds: 999,
+      language: null,
     });
 
     expect(result.success).toBe(true);
@@ -134,6 +191,7 @@ describe('CompleteTranscription', () => {
       externalJobId: 'job-1',
       text: 'recovered transcript',
       durationSeconds: 10,
+      language: null,
     });
 
     expect(result.success).toBe(true);
@@ -157,6 +215,7 @@ describe('CompleteTranscription', () => {
       externalJobId: 'job-1',
       text: 'the late transcript arrived after all',
       durationSeconds: 30,
+      language: null,
     });
 
     expect(result.success).toBe(true);
@@ -188,6 +247,7 @@ describe('CompleteTranscription', () => {
       externalJobId: 'job-1',
       text: 'text',
       durationSeconds: 5,
+      language: null,
     });
 
     expect(result.success).toBe(false);
@@ -211,6 +271,7 @@ describe('CompleteTranscription', () => {
         externalJobId: 'job-1',
         text: 'text',
         durationSeconds: 5,
+        language: null,
       }),
     ).rejects.toThrow('storage unavailable');
 

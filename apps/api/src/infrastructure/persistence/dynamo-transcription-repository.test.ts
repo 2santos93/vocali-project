@@ -204,7 +204,10 @@ describe('DynamoTranscriptionRepository', () => {
         userId: 'user-1',
         status: 'PENDING_UPLOAD',
         source: 'FILE',
-        language: 'es',
+        // Written as a null rather than left off the item: the attribute has
+        // to exist for the read schema to find it, and an upload has no
+        // language until the provider identifies one.
+        language: null,
       });
     });
 

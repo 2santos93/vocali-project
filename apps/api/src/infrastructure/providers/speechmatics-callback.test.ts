@@ -174,7 +174,42 @@ describe('interpretSpeechmaticsCallback', () => {
       externalJobId: 'job-1',
       text: 'el paciente refiere dolor.',
       durationSeconds: 42,
+      language: null,
     });
+  });
+
+  /*
+   * The other half of removing the language question from the upload screen:
+   * the provider identifies the language, and this is where that answer enters
+   * the platform. Without it the record would say nothing about a fact the
+   * transcript is carrying.
+   */
+  it('reports the language the provider identified', () => {
+    const body = JSON.stringify({
+      job: { id: 'job-1', duration: 4 },
+      results: [{ ...word('welcome', 0.5), language: 'en' }, word('back', 0.9)],
+    });
+
+    const outcome = interpretSpeechmaticsCallback({ ...callbackQuery(), body });
+
+    expect(outcome).toMatchObject({ kind: 'completed', language: 'en' });
+  });
+
+  /*
+   * The job restricts identification to the platform's five languages, so this
+   * should not arrive — but the payload belongs to somebody else. An
+   * unrecognised code is read as "not identified" rather than stored, because
+   * a language outside the union is one the rest of the system cannot name.
+   */
+  it('ignores a language code the platform does not support', () => {
+    const body = JSON.stringify({
+      job: { id: 'job-1', duration: 4 },
+      results: [{ ...word('bonjour', 0.5), language: 'fr' }],
+    });
+
+    const outcome = interpretSpeechmaticsCallback({ ...callbackQuery(), body });
+
+    expect(outcome).toMatchObject({ kind: 'completed', language: null });
   });
 
   it('reports a failure status as a failure, carrying the job id and the status word', () => {
@@ -250,6 +285,7 @@ describe('interpretSpeechmaticsCallback', () => {
       externalJobId: 'job-1',
       text: '',
       durationSeconds: 0,
+      language: null,
     });
   });
 

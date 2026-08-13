@@ -1,11 +1,9 @@
-import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import { Transcription } from '../../src/domain/entities/transcription.js';
 import { AudioFile } from '../../src/domain/value-objects/audio-file.js';
 
 interface BuilderOverrides {
   readonly id?: string;
   readonly userId?: string;
-  readonly language?: TranscriptionLanguage;
   readonly createdAt?: Date;
 }
 
@@ -25,7 +23,6 @@ export function buildTranscription(overrides: BuilderOverrides = {}): Transcript
     userId,
     audioFile: audioFileResult.value,
     audioObjectKey: `audio/${userId}/${id}/visit.mp3`,
-    language: overrides.language ?? 'es',
     createdAt: overrides.createdAt ?? new Date('2026-08-10T10:00:00.000Z'),
   });
 }

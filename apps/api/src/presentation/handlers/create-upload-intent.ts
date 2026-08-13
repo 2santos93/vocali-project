@@ -34,7 +34,6 @@ export function createUploadIntentHandler(dependencies: Dependencies): ApiGatewa
           fileName: body.fileName,
           contentType: body.contentType,
           sizeBytes: body.sizeBytes,
-          language: body.language,
         });
 
         // The error arm is defence in depth and not reachable through this

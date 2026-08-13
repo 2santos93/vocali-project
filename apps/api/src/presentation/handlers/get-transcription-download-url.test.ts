@@ -44,6 +44,7 @@ async function saveCompleted(
     text: 'el paciente refiere dolor',
     durationSeconds: 42,
     at: NOW,
+    language: null,
   });
   await repository.save(transcription);
 }

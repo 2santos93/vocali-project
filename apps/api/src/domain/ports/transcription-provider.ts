@@ -1,3 +1,5 @@
+import type { TranscriptionLanguage } from '@vocali/contracts/constants';
+
 export interface SubmittedJob {
   readonly externalJobId: string;
 }
@@ -42,6 +44,13 @@ export type ProviderJobOutcome =
       readonly externalJobId: string;
       readonly text: string;
       readonly durationSeconds: number;
+      /**
+       * The language the provider identified in the audio, or null where it
+       * reported none this platform recognises. Null is an ordinary outcome
+       * rather than a failure: a job can be too short to identify, and the
+       * transcript is still a transcript.
+       */
+      readonly language: TranscriptionLanguage | null;
     }
   | {
       readonly kind: 'failed';
@@ -56,11 +65,12 @@ export type ProviderJobOutcome =
   | { readonly kind: 'unrecognised'; readonly reason: string };
 
 export interface TranscriptionProvider {
-  submitFileJob(input: {
-    audioUrl: string;
-    language: string;
-    callbackUrl: string;
-  }): Promise<SubmittedJob>;
+  /**
+   * No language: an uploaded file is identified by the provider, not declared
+   * by the caller. Which languages it may be identified as is the adapter's
+   * business, because it is the adapter that knows what its provider supports.
+   */
+  submitFileJob(input: { audioUrl: string; callbackUrl: string }): Promise<SubmittedJob>;
   createRealtimeCredentials(input: { ttlSeconds: number }): Promise<RealtimeCredentials>;
   /**
    * Translates a job outcome the provider pushed back to us.

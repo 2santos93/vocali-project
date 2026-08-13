@@ -76,19 +76,44 @@ export function useAuthSession(): AuthSession {
   async function signOut(): Promise<void> {
     try {
       await $fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
+    } catch {
       /*
-       * Cleared even when the route reported a failure.
+       * Handled here, and deliberately not carried to the user.
        *
-       * The route only fails after it has already cleared the cookies, and it
-       * fails to say that the *other* sessions are still open — this browser's
-       * is over either way. Leaving the header showing a signed-in user after
-       * that would be a lie the next request would contradict.
+       * The route fails in one way: it could not revoke the session at
+       * Cognito, so the refresh tokens belonging to this user's *other*
+       * sessions stay alive until they expire. It has already cleared this
+       * browser's cookies by the time it says so, which is the half the person
+       * in front of us asked for.
+       *
+       * Telling them the rest means a warning on the sign-in screen they have
+       * just been sent to, reporting that sessions elsewhere are still open
+       * and to try again shortly — advice whose only execution is to sign back
+       * in so as to sign out again, delivered at the moment they are leaving
+       * and quite possibly on a shared machine they have already walked away
+       * from. It reads as an alarm over an outcome that, for them, was
+       * correct.
+       *
+       * Staying quiet does not lose the fact either. The route answers 502
+       * with `SIGN_OUT_INCOMPLETE`, which is a signal to the people who can
+       * act on Cognito refusing a `GlobalSignOut`; this is not the place that
+       * failure gets fixed. What the browser owes is to not claim a session it
+       * no longer has, and to not fall over on the way out — and swallowing
+       * the rejection in a `finally` did the first while failing the second.
        */
-      user.value = null;
-      loaded.value = true;
-      await navigateTo(SIGN_IN_ROUTE);
     }
+
+    /*
+     * Cleared even when the route reported a failure.
+     *
+     * The route only fails after it has already cleared the cookies, and it
+     * fails to say that the *other* sessions are still open — this browser's
+     * is over either way. Leaving the header showing a signed-in user after
+     * that would be a lie the next request would contradict.
+     */
+    user.value = null;
+    loaded.value = true;
+    await navigateTo(SIGN_IN_ROUTE);
   }
 
   return { user, ensureLoaded, refresh, adopt, signOut };

@@ -59,11 +59,16 @@ module "storage" {
   # The browser posts audio straight to the bucket, so the domain the front
   # end is served from has to be on this list or every upload fails its
   # preflight. The distribution's own domain is added here; the variable
-  # carries the custom domain the day there is one.
-  # TEMPORARY, 2026-08-12. The renderer has no public origin while the account
-  # is unverified, so the only way to exercise the browser's direct upload to
-  # S3 is to serve the page locally. Remove the moment the distribution exists.
-  cors_allowed_origins = concat(var.front_end_origins, ["http://localhost:3000"], [module.web.front_end_origin])
+  # carries everything else — a custom domain the day there is one, and
+  # `http://localhost:3000` for as long as development is local.
+  #
+  # That last one used to be a literal in this line, marked temporary and
+  # waiting on the distribution. It was neither: the front end is developed
+  # against this bucket because it is the only one, and that stays true after
+  # the distribution exists. `front_end_origins` already validates localhost
+  # explicitly, and stating the origin at plan time keeps a development
+  # convenience out of the composition that describes production.
+  cors_allowed_origins = concat(var.front_end_origins, [module.web.front_end_origin])
 
   audio_retention_days = 30
 

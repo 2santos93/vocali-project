@@ -120,6 +120,7 @@ describe('FailTranscription', () => {
       text: 'already done',
       durationSeconds: 42,
       at: new Date('2026-08-10T10:05:00.000Z'),
+      language: null,
     });
     await repository.save(transcription);
 

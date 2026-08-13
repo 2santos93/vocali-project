@@ -1,3 +1,5 @@
+import { SUPPORTED_TRANSCRIPTION_LANGUAGES } from '@vocali/contracts/constants';
+import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import { z } from 'zod';
 import type {
   ProviderCallback,
@@ -36,6 +38,12 @@ const TranscriptResultSchema = z.object({
   type: z.string().optional(),
   attaches_to: z.string().optional(),
   end_time: z.number().optional(),
+  /**
+   * Where the identified language arrives. Speechmatics reports it per token
+   * rather than once per job, so the transcript carries it on the words
+   * themselves — see `resolveDetectedLanguage`.
+   */
+  language: z.string().optional(),
   alternatives: z.array(z.object({ content: z.string() })).optional(),
 });
 
@@ -87,7 +95,38 @@ export function interpretSpeechmaticsCallback(callback: ProviderCallback): Provi
     externalJobId,
     text: buildTranscriptText(transcript.results),
     durationSeconds: resolveDurationSeconds(transcript),
+    language: resolveDetectedLanguage(transcript),
   };
+}
+
+/**
+ * The language the provider identified, as this platform names it.
+ *
+ * The job was submitted with the platform's five languages as the only
+ * candidates, so what comes back should always be one of them — but this is
+ * somebody else's payload, and a code we do not recognise is read as "not
+ * known" rather than forced into the union. The alternative is a stored
+ * language the rest of the system cannot render.
+ *
+ * The first token that carries one decides it. A file is submitted as a single
+ * language job, so the tokens agree; taking the first avoids counting votes to
+ * answer a question the provider has already answered.
+ */
+export function resolveDetectedLanguage(
+  transcript: SpeechmaticsTranscript,
+): TranscriptionLanguage | null {
+  for (const result of transcript.results) {
+    const reported = result.language;
+    if (reported !== undefined && isSupportedLanguage(reported)) {
+      return reported;
+    }
+  }
+
+  return null;
+}
+
+function isSupportedLanguage(value: string): value is TranscriptionLanguage {
+  return (SUPPORTED_TRANSCRIPTION_LANGUAGES as readonly string[]).includes(value);
 }
 
 function readParameter(

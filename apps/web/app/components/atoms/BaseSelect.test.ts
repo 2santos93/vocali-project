@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import BaseSelect from './BaseSelect.vue';
-import type { SelectOption } from '../types';
+import type { SelectOption } from '../component-vocabulary';
 import { withTranslations } from '../../i18n/testing';
 
 const LANGUAGES: readonly SelectOption[] = [

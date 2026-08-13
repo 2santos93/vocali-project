@@ -12,20 +12,50 @@ modules/
   storage/          The audio and transcript buckets
   functions/        One execution role and one log group per function, and the dead-letter queue
   api/              The HTTP API, its Cognito JWT authorizer and its stage
-  lambda/           The eight functions, their routes and the bucket notification
+  websocket/        The websocket API finished transcriptions are pushed over
+  lambda/           The twelve functions, their routes and the bucket notification
   web/              CloudFront, the asset bucket and the Nuxt renderer
   observability/    Four alarms and the topic they publish to
   deployment/       The role GitHub Actions assumes through OIDC
 environments/
-  dev/              Composes the modules; holds no resource of its own
-  prod/             The same composition with production settings
+  prod/             Composes the modules; holds no resource of its own
+```
+
+## One environment, and why
+
+There is one deployable environment and it is `prod`. Development is local — the
+Nuxt dev server, Jest and Cypress against a local build — so a second AWS
+environment would describe a deployment nobody is going to create.
+
+An earlier round had `environments/dev/` beside this one. It was removed rather
+than kept as a specimen: two compositions and no deployment is a maintenance
+cost paid for a benefit nobody collects, and it did not even buy the thing it
+was supposed to. The proof of that is what it left behind — `prod` carried
+`http://localhost:3000` in its CORS list, hardcoded and marked temporary,
+because the browser develops against the only bucket that exists. A development
+environment that existed would have absorbed that origin; one that was only
+written down did not.
+
+What a second composition was there to demonstrate — that the modules are
+parameterised rather than holding literals — is demonstrated without it. Every
+module under `modules/` is initialised and validated standalone, as the root of
+its own run, which is why each carries its own `.terraform.lock.hcl`. The
+module boundary is checked by that, not by counting callers.
+
+The local origin is now passed at plan time, through `front_end_origins`, whose
+validation admits `http://localhost` explicitly and refuses every other
+non-HTTPS origin:
+
+```bash
+terraform plan -var 'github_repository=owner/name' \
+               -var 'front_end_origins=["http://localhost:3000"]'
 ```
 
 ## What exists now
 
 All of it. Identity, the table, the buckets, the roles, the log groups, the
-eight functions, the API in front of them, the front end's distribution, the
-alarms and the deployment role.
+twelve functions, the two APIs in front of them, the front end's distribution,
+the alarms and the deployment role.
 
 Two things are complete in configuration and cannot be applied until an
 artefact exists:
@@ -48,23 +78,23 @@ cd infra/bootstrap && terraform init && terraform apply
 
 # Once per account, outside Terraform, so no secret enters the state file.
 aws ssm put-parameter --type SecureString \
-  --name /vocali/dev/transcription-provider/api-key --value '...'
+  --name /vocali/prod/transcription-provider/api-key --value '...'
 aws ssm put-parameter --type SecureString \
-  --name /vocali/dev/transcription-provider/webhook-secret --value '...'
+  --name /vocali/prod/transcription-provider/webhook-secret --value '...'
 
 # Build what is deployed, before planning what deploys it.
 infra/build/bundle-functions.sh
 NITRO_PRESET=aws_lambda pnpm --filter @vocali/web build
 
-# Then, per environment.
-cd infra/environments/dev
+# Then the environment.
+cd infra/environments/prod
 terraform init
 terraform plan -var 'github_repository=owner/name'
 ```
 
-`github_repository` has no default in either environment. It decides which
-repository's workflows can assume the deployment role, and a placeholder there
-would be applied by somebody who never read it.
+`github_repository` has no default. It decides which repository's workflows can
+assume the deployment role, and a placeholder there would be applied by somebody
+who never read it.
 
 After the first apply, one more parameter. Cognito generates the app client
 secret, so it is in the state file already; this copies it where the renderer
@@ -98,7 +128,7 @@ needs credentials, and it has not been run.
 
 ## Conventions
 
-**Naming.** `<project>-<environment>-<thing>`, so `vocali-dev-audio-…`,
+**Naming.** `<project>-<environment>-<thing>`, so `vocali-prod-audio-…`,
 `vocali-prod-list-transcriptions-role`. Bucket names carry the account id
 because S3 names are global; the account id is read at plan time rather than
 written down.
@@ -125,9 +155,11 @@ error.
 
 **Environment values are literals in `locals`, not `.tfvars`.** The
 repository's `.gitignore` excludes `*.tfvars`, so values kept there would not
-survive a clone — and an environment directory is the value set. The one
-exception is `front_end_origins`, a real variable because it changes when the
-front end is deployed.
+survive a clone — and an environment directory is the value set. The exceptions
+are the three real variables: `github_repository`, which decides who may deploy;
+`front_end_origins`, which changes when the front end is deployed and carries
+the local development origin; and `alarm_email_addresses`, which is empty
+because a subscription outlives the person committed to it.
 
 ## Where the security requirements are met
 

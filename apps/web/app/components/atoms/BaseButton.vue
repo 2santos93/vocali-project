@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { ButtonVariant, ControlSize } from '../types';
+import type { ButtonVariant, ControlSize } from '../component-vocabulary';
 import SpinnerIcon from './SpinnerIcon.vue';
 
 interface Props {

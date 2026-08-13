@@ -30,7 +30,6 @@ const VALID_UPLOAD_BODY = {
   fileName: 'informe radiologia.mp3',
   contentType: 'audio/mpeg',
   sizeBytes: 1_024,
-  language: 'es',
 };
 
 describe('withValidatedBody', () => {

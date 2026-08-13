@@ -5,32 +5,24 @@ describe('CreateUploadIntentRequestSchema', () => {
     fileName: 'consultation.mp3',
     contentType: 'audio/mpeg',
     sizeBytes: 1_024,
-    language: 'es',
   };
 
   it('accepts a well-formed upload request', () => {
     expect(CreateUploadIntentRequestSchema.parse(validRequest)).toEqual(validRequest);
   });
 
-  it('defaults language to "es" when omitted', () => {
-    const withoutLanguage = {
-      fileName: validRequest.fileName,
-      contentType: validRequest.contentType,
-      sizeBytes: validRequest.sizeBytes,
-    };
+  /*
+   * An upload no longer declares a language — the provider identifies it from
+   * the audio. A client still sending one is not refused, because refusing
+   * would break the previous version of the web app mid-deploy for no gain,
+   * but the value goes nowhere: it is stripped here rather than reaching a
+   * record that would then claim a language nobody verified.
+   */
+  it('ignores a language a caller still sends', () => {
+    const parsed = CreateUploadIntentRequestSchema.parse({ ...validRequest, language: 'en' });
 
-    const parsed = CreateUploadIntentRequestSchema.parse(withoutLanguage);
-
-    expect(parsed.language).toBe('es');
-  });
-
-  it('rejects an unsupported language code', () => {
-    const result = CreateUploadIntentRequestSchema.safeParse({
-      ...validRequest,
-      language: 'xx',
-    });
-
-    expect(result.success).toBe(false);
+    expect(parsed).toEqual(validRequest);
+    expect(parsed).not.toHaveProperty('language');
   });
 
   it('rejects a file larger than the maximum allowed size', () => {

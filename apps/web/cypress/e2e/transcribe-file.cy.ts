@@ -110,11 +110,12 @@ describe('Transcribing an audio file', () => {
     cy.get('[data-testid=selected-file-name]').should('contain', FILE_NAME);
     cy.get('[data-testid=submit-button]').click();
 
+    // No language: the provider identifies it from the audio, so the screen
+    // has nothing to ask and nothing to send.
     cy.wait('@uploadIntent').its('request.body').should('deep.equal', {
       fileName: FILE_NAME,
       contentType: 'audio/wav',
       sizeBytes: AUDIO_CONTENT.length,
-      language: 'es',
     });
 
     cy.wait('@storageUpload').then((interception): void => {

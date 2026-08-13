@@ -132,6 +132,7 @@ async function applyCompletion(
     externalJobId: outcome.externalJobId,
     text: outcome.text,
     durationSeconds: outcome.durationSeconds,
+    language: outcome.language,
   });
 
   if (!result.success) {

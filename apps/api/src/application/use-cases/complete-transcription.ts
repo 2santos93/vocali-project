@@ -1,3 +1,4 @@
+import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import {
   InvalidStatusTransitionError,
   TranscriptionNotFoundError,
@@ -15,6 +16,8 @@ interface CompleteTranscriptionInput {
   readonly externalJobId: string;
   readonly text: string;
   readonly durationSeconds: number;
+  /** What the provider identified, or null where it identified nothing. */
+  readonly language: TranscriptionLanguage | null;
 }
 
 type CompleteTranscriptionError = TranscriptionNotFoundError | InvalidStatusTransitionError;
@@ -112,6 +115,7 @@ export class CompleteTranscription {
       transcriptObjectKey,
       text: input.text,
       durationSeconds: input.durationSeconds,
+      language: input.language,
       at: this.clock.now(),
     });
     if (!transition.success) {

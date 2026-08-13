@@ -9,7 +9,7 @@ variable "github_repository" {
 }
 
 variable "front_end_origins" {
-  description = "Origins the browser uploads audio from beyond the distribution's own domain, which is now added automatically. It stays a variable because a custom domain is served by the same distribution under a different name, and the bucket has to be told about it separately."
+  description = "Origins the browser uploads audio from beyond the distribution's own domain, which is now added automatically. It stays a variable because a custom domain is served by the same distribution under a different name, and the bucket has to be told about it separately — and because development is local against this same bucket, so http://localhost:3000 is passed here rather than written into the composition."
   type        = list(string)
   default     = []
 

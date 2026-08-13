@@ -2,7 +2,7 @@ import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts';
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import FileDropZone from './FileDropZone.vue';
-import type { FileRejection } from '../types';
+import type { FileRejection } from '../component-vocabulary';
 import { withTranslations } from '../../i18n/testing';
 import { translate } from '../../i18n/translate';
 import type { TranslatableMessage } from '../../i18n/translate';

@@ -200,6 +200,7 @@ describe('composition root', () => {
         externalJobId: 'job-1',
         text: 'the patient reports mild pain',
         durationSeconds: 12,
+        language: null,
       });
 
       expect(result.success).toBe(true);
@@ -242,7 +243,6 @@ describe('composition root', () => {
         fileName: 'visit.mp3',
         contentType: 'audio/mpeg',
         sizeBytes: 2_048,
-        language: 'es',
       });
 
       if (!result.success) throw new Error('the upload could not be signed');
@@ -276,6 +276,7 @@ function completedTranscription(): ReturnType<typeof buildTranscription> {
     text: 'the patient reports mild pain',
     durationSeconds: 12,
     at: new Date('2026-08-10T10:02:00.000Z'),
+    language: null,
   });
   if (!completed.success) throw new Error('fixture must be able to complete');
 

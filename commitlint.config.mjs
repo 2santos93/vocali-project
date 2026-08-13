@@ -27,5 +27,27 @@ export default {
      * first paragraph that ended up on the subject line.
      */
     'header-max-length': [2, 'always', 100],
+
+    /*
+     * The four parts this repository has. Deferred until the architecture
+     * refactor landed, because an enum written while directories are moving
+     * pins the names they had on the way past.
+     *
+     * Measured over the 149 commits in this history at the time this rule was
+     * added: 55 `api`, 42 `web`, 22 `infra`, 4 `contracts`, and 26 with no
+     * scope at all. Nothing else has ever been used, so the enum records the
+     * convention rather than imposing one, and no existing commit fails it.
+     *
+     * An omitted scope stays legal — `scope-enum` constrains the value when
+     * there is one and says nothing when there is not. That is the right shape
+     * here: a sixth of this history is repository-wide work that belongs to no
+     * single part, and forcing those to invent a scope would produce a worse
+     * label rather than a more accurate one.
+     *
+     * What it buys is the typo. `fix(ap)` and `feat(webb)` are accepted by
+     * every other rule in this file and are invisible in a log until someone
+     * filters by scope and silently gets an incomplete answer.
+     */
+    'scope-enum': [2, 'always', ['api', 'web', 'infra', 'contracts']],
   },
 };

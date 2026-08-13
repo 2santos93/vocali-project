@@ -229,26 +229,33 @@ describe('useAuthSession', () => {
    * leaving the user on an application page would be a screen they no longer
    * have a session for.
    */
-  it('ends the session in the browser even when the logout route reports a failure', async () => {
+  it('ends the session in the browser without rejecting when the logout route fails', async () => {
     runtime.logoutAnswer = (): Promise<unknown> =>
       Promise.reject(new Error('one of the other sessions survived'));
     const session = useAuthSession();
     session.adopt(SIGNED_IN);
 
     /*
-     * Asserted as it behaves, not as it reads.
+     * That it resolves is the assertion, not a formality on the way to the two
+     * below.
      *
-     * The clearing is done in a `finally` with no `catch`, so the rejection is
-     * re-thrown after the state has been cleared and the navigation made. The
-     * layout's handler has only a `finally` too, so nothing catches it and a
-     * failed sign-out surfaces as an unhandled rejection in the console —
-     * while the user is, correctly, signed out and on the sign-in page.
+     * This line previously read `.rejects.toThrow(...)`, pinning the behaviour
+     * as it was: the clearing sat in a `finally` with no `catch`, so the
+     * rejection was re-thrown after the state had been cleared and the
+     * navigation made. `signOut` is reached from a template event handler with
+     * only a `finally` of its own, so nothing caught it and a failed sign-out
+     * arrived as an unhandled rejection in the console. That comment said it
+     * should be changed on purpose the day the rejection was handled; this is
+     * that change.
      *
-     * Written this way deliberately rather than swallowed: the day the
-     * rejection is handled, this line fails and is changed on purpose, which
-     * is the opposite of a test that would have stayed green either way.
+     * What it pins now is a decision as much as a mechanism. The failure is
+     * handled and the user is told nothing: all that is left to tell them is
+     * that sessions elsewhere may still be open, on the sign-in screen they
+     * have already reached, with no remedy but to sign in again in order to
+     * sign out again. The route reports it as a 502 `SIGN_OUT_INCOMPLETE` to
+     * the people who can act on it. Restore the `finally` and this line fails.
      */
-    await expect(session.signOut()).rejects.toThrow('one of the other sessions survived');
+    await expect(session.signOut()).resolves.toBeUndefined();
 
     // The half that matters, and the half that is right: this browser's
     // session is over either way, so nothing is left claiming otherwise.

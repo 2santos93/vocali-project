@@ -10,7 +10,7 @@ import AlertBanner from '../molecules/AlertBanner.vue';
 import FormField from '../molecules/FormField.vue';
 import type { RecordingFailure, RecordingPhase } from '../../composables/recording-failures';
 import { useTranslations } from '../../i18n/translations';
-import type { SelectOption } from '../types';
+import type { SelectOption } from '../component-vocabulary';
 import { transcriptionLanguageOptions, toTranscriptionLanguage } from '../transcription-languages';
 
 /**

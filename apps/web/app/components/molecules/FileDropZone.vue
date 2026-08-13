@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 import { useTranslations } from '../../i18n/translations';
 import BaseButton from '../atoms/BaseButton.vue';
 import { formatMegabytes } from '../format';
-import type { FileRejection } from '../types';
+import type { FileRejection } from '../component-vocabulary';
 
 interface Props {
   /**

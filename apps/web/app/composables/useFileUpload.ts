@@ -7,7 +7,6 @@ import type {
   CreateUploadIntentRequest,
   CreateUploadIntentResponse,
   Transcription,
-  TranscriptionLanguage,
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import type { ComputedRef, DeepReadonly, Ref } from 'vue';
@@ -31,13 +30,15 @@ import type { SocketFactory } from './useTranscriptionUpdates';
  *
  * Nothing here reaches the network itself. Every call is a collaborator on
  * `FileUploadGateway`, supplied by the page, which is the only place `$fetch`
- * appears. Two reasons, and the second is the load-bearing one:
+ * appears. The reason is the flow below: a state machine with four failure
+ * exits, and pinning those exits means driving it, not stubbing a global.
  *
- *  - the flow below is a state machine with four failure exits, and pinning
- *    those exits means driving it, not stubbing a global;
- *  - Jest compiles this file with the package's own tsconfig, which carries no
- *    Nuxt types. A bare `$fetch` anywhere in the source fails to compile under
- *    test whether or not any test calls it — the reference only has to exist.
+ * Nothing enforces it. This file could name `$fetch` and both gates would pass
+ * — ts-jest type checks nothing in this configuration, and `tsconfig.app.json`
+ * grants composables the Nuxt types because composables are allowed the
+ * runtime. The cost would be paid at run time, in whichever test reached the
+ * line, which is a far weaker guarantee than the one this comment used to
+ * claim.
  *
  * Three collaborators carry the rest. The transfer to the bucket is in
  * `presigned-post-upload`, where S3's contract lives; finding out that the
@@ -113,7 +114,7 @@ export interface FileUploadController {
    * that destructures them off the controller — which is the natural way to
    * use it — would be doing something the type says is unsafe.
    */
-  readonly upload: (file: File, language: TranscriptionLanguage) => Promise<void>;
+  readonly upload: (file: File) => Promise<void>;
   readonly reset: () => void;
 }
 
@@ -178,7 +179,7 @@ export function useFileUpload(gateway: FileUploadGateway): FileUploadController 
     return false;
   }
 
-  async function upload(file: File, language: TranscriptionLanguage): Promise<void> {
+  async function upload(file: File): Promise<void> {
     reset();
 
     const contentType = supportedContentTypeOf(file);
@@ -195,7 +196,6 @@ export function useFileUpload(gateway: FileUploadGateway): FileUploadController 
         fileName: file.name,
         contentType,
         sizeBytes: file.size,
-        language,
       });
     } catch (error: unknown) {
       fail(describeIntentFailure(error));

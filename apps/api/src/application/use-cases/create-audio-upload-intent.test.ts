@@ -36,7 +36,6 @@ const validInput = {
   fileName: 'visit.mp3',
   contentType: 'audio/mpeg',
   sizeBytes: 2_048,
-  language: 'es' as const,
 };
 
 describe('CreateAudioUploadIntent', () => {
@@ -82,18 +81,21 @@ describe('CreateAudioUploadIntent', () => {
     expect(storage.calls.presignedUploads[0]?.expiresInSeconds).toBe(900);
   });
 
-  it('persists the requested language rather than defaulting it', async () => {
+  /*
+   * The record starts with no language at all, and that is the point: nobody
+   * has heard the audio yet. Storing the old default here — Spanish, chosen by
+   * a dropdown the uploader may never have looked at — is what let an English
+   * recording be filed as Spanish and sent to the provider as Spanish. The
+   * language arrives later, from the provider, in `CompleteTranscription`.
+   */
+  it('records no language, because none has been identified yet', async () => {
     const { useCase, repository } = buildUseCase();
 
-    // Catalan, not the 'es' the rest of this file uses: a clinician selecting
-    // a regional language must not have it silently rewritten to Spanish on
-    // the way to the provider. Asserting 'es' here could not tell a threaded
-    // value from a hardcoded one.
-    const result = await useCase.execute({ ...validInput, language: 'ca' });
+    const result = await useCase.execute(validInput);
 
     expect(result.success).toBe(true);
     const stored = await repository.findById('user-1', '01ID001');
-    expect(stored?.toPrimitives().language).toBe('ca');
+    expect(stored?.toPrimitives().language).toBeNull();
   });
 
   it('treats a collision on a freshly generated id as an invariant violation, not a caller error', async () => {

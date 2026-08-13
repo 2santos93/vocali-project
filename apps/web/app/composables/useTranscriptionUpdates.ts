@@ -7,11 +7,16 @@ import { CONNECTION_TICKETS_PATH } from '../utils/api-routes';
  * The websocket the API pushes finished transcriptions down.
  *
  * Nothing here reaches the network by itself either: the request function and
- * the socket constructor are both injected, for the same two reasons the
- * upload flow injects its gateway — the failure paths are the interesting part
- * and have to be driven rather than stubbed, and a bare Nuxt global anywhere
- * in this file would fail to compile under Jest whether or not a test reached
- * it.
+ * the socket constructor are both injected, for the same reason the upload
+ * flow injects its gateway — the failure paths are the interesting part and
+ * have to be driven rather than stubbed.
+ *
+ * That is a convention this directory keeps, and nothing enforces it. ts-jest
+ * type checks nothing in this configuration, and `tsconfig.app.json` grants
+ * composables the Nuxt types on purpose, because composables are allowed the
+ * runtime — `useAuthSession` next door calls `useState` and `$fetch` bare. A
+ * Nuxt global written here would compile under both gates and fail only at run
+ * time, as a `ReferenceError`, in whichever test reached the line.
  *
  * Why a socket at all, when the platform has already decided that a Lambda
  * cannot hold one: API Gateway holds this connection, not a function. See

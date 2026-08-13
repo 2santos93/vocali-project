@@ -70,7 +70,6 @@ async function savePendingUpload(
       userId: 'user-1',
       audioFile: audioFile.value,
       audioObjectKey,
-      language: 'es',
       createdAt: NOW,
     }),
   );
@@ -148,7 +147,6 @@ describe('startTranscriptionJobHandler', () => {
         userId: 'user-1',
         audioFile: second.value,
         audioObjectKey: 'audio/user-1/01ID002/consulta.mp3',
-        language: 'es',
         createdAt: NOW,
       }),
     );

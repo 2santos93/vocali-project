@@ -20,7 +20,6 @@ function buildPendingTranscription(): Transcription {
     userId: 'user-1',
     audioFile: buildAudioFile(),
     audioObjectKey: 'audio/user-1/01ABC/visit.mp3',
-    language: 'es',
     createdAt: AT,
   });
 }
@@ -75,6 +74,7 @@ describe('Transcription', () => {
       text: 'a'.repeat(500),
       durationSeconds: 30,
       at: LATER,
+      language: null,
     });
 
     expect(result.success).toBe(true);
@@ -91,6 +91,7 @@ describe('Transcription', () => {
       text: 'text',
       durationSeconds: 1,
       at: LATER,
+      language: null,
     });
 
     expect(result.success).toBe(false);
@@ -120,6 +121,7 @@ describe('Transcription', () => {
       text: 'the patient reports mild pain',
       durationSeconds: 45,
       at: LATER,
+      language: null,
     });
 
     expect(result.success).toBe(true);

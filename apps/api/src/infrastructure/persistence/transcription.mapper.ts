@@ -103,7 +103,11 @@ const StoredTranscriptionSchema: z.ZodType<TranscriptionPrimitives> = z.object({
   fileName: z.string().min(1),
   source: z.enum(TRANSCRIPTION_SOURCES),
   status: z.enum(TRANSCRIPTION_STATUSES),
-  language: z.enum(SUPPORTED_TRANSCRIPTION_LANGUAGES),
+  // Nullable since an upload stopped declaring one: the attribute is written
+  // on every record either way, so a record saved by the previous version —
+  // carrying the language its uploader was asked for — still reads back, and
+  // no migration is needed. It is the same nullable shape as `sizeBytes`.
+  language: z.enum(SUPPORTED_TRANSCRIPTION_LANGUAGES).nullable(),
   sizeBytes: z.number().nullable(),
   durationSeconds: z.number().nullable(),
   audioObjectKey: z.string().nullable(),

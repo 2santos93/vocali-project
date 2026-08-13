@@ -37,7 +37,6 @@ const INTENT_REQUEST: CreateUploadIntentRequest = {
   fileName: 'consulta-paciente.mp3',
   contentType: 'audio/mpeg',
   sizeBytes: 1_048_576,
-  language: 'es',
 };
 
 const INTENT: CreateUploadIntentResponse = {
@@ -509,7 +508,6 @@ describe('createUploadRequests', () => {
       fileName: 'consulta-paciente.mp3',
       contentType: 'audio/mpeg',
       sizeBytes: 1_048_576,
-      language: 'es',
     });
 
     expect(calls).toEqual([
@@ -521,7 +519,6 @@ describe('createUploadRequests', () => {
             fileName: 'consulta-paciente.mp3',
             contentType: 'audio/mpeg',
             sizeBytes: 1_048_576,
-            language: 'es',
           },
         },
       },
@@ -583,18 +580,17 @@ describe('useFileUpload', () => {
     expect(controller.isBusy.value).toBe(false);
   });
 
-  it('asks for an intent describing the file and the chosen language', async () => {
+  it('asks for an intent describing the file, and says nothing about a language', async () => {
     const gateway = gatewayDouble();
     gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
 
-    await useFileUpload(gateway).upload(AUDIO_FILE, 'ca');
+    await useFileUpload(gateway).upload(AUDIO_FILE);
 
     expect(gateway.intentRequests).toEqual([
       {
         fileName: 'consulta-paciente.mp3',
         contentType: 'audio/mpeg',
         sizeBytes: 1_048_576,
-        language: 'ca',
       },
     ]);
   });
@@ -603,7 +599,7 @@ describe('useFileUpload', () => {
     const gateway = gatewayDouble();
     gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
 
-    await useFileUpload(gateway).upload(AUDIO_FILE, 'es');
+    await useFileUpload(gateway).upload(AUDIO_FILE);
 
     expect(gateway.uploads[0]?.url).toBe(INTENT.upload.url);
     expect(gateway.uploads[0]?.fields).toEqual(PRESIGNED_FIELDS);
@@ -623,7 +619,7 @@ describe('useFileUpload', () => {
     };
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(seen).toEqual([40, 100]);
   });
@@ -646,7 +642,7 @@ describe('useFileUpload', () => {
     gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('completed');
     expect(controller.transcription.value?.textPreview).toBe('El paciente refiere…');
@@ -659,7 +655,7 @@ describe('useFileUpload', () => {
     gateway.pushOnOpen = [transcriptionWith('FAILED')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('failed');
     expect(controller.failure.value?.code).toBe('TRANSCRIPTION_FAILED');
@@ -670,7 +666,7 @@ describe('useFileUpload', () => {
     gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     // A socket left open belongs to an upload that has finished, and the
     // browser would hold it until API Gateway's two-hour ceiling.
@@ -690,7 +686,7 @@ describe('useFileUpload', () => {
     gateway.records = [transcriptionWith('PROCESSING')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     // It fell through to the fallback, which is what "ignored" means here: had
     // it acted on the foreign record it would have settled as completed.
@@ -709,7 +705,7 @@ describe('useFileUpload', () => {
     gateway.records = [transcriptionWith('PROCESSING'), transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('completed');
     // One record by id, never the history, and spaced out rather than every
@@ -724,7 +720,7 @@ describe('useFileUpload', () => {
     gateway.records = [transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('completed');
     expect(gateway.transcriptionRequests).toEqual(['t-1']);
@@ -742,7 +738,7 @@ describe('useFileUpload', () => {
     gateway.records = [transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('completed');
     // Five minutes on the socket, then the polling schedule.
@@ -760,7 +756,7 @@ describe('useFileUpload', () => {
     gateway.records = [transcriptionWith('PROCESSING')];
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('stillProcessing');
     expect(controller.failure.value).toBeNull();
@@ -786,7 +782,7 @@ describe('useFileUpload', () => {
     };
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('completed');
   });
@@ -807,7 +803,7 @@ describe('useFileUpload', () => {
     };
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('completed');
   });
@@ -816,7 +812,7 @@ describe('useFileUpload', () => {
     const gateway = gatewayDouble();
     const controller = useFileUpload(gateway);
 
-    await controller.upload(fileOf('informe.pdf', 'application/pdf', 2048), 'es');
+    await controller.upload(fileOf('informe.pdf', 'application/pdf', 2048));
 
     expect(controller.phase.value).toBe('failed');
     expect(controller.failure.value?.code).toBe('UNSUPPORTED_FORMAT');
@@ -827,7 +823,7 @@ describe('useFileUpload', () => {
     const gateway = gatewayDouble();
     const controller = useFileUpload(gateway);
 
-    await controller.upload(fileOf('grabacion', '', 2048), 'es');
+    await controller.upload(fileOf('grabacion', '', 2048));
 
     expect(controller.failure.value?.code).toBe('UNSUPPORTED_FORMAT');
     expect(gateway.intentRequests).toHaveLength(0);
@@ -844,7 +840,7 @@ describe('useFileUpload', () => {
       Promise.reject(httpError(status));
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.phase.value).toBe('failed');
     expect(controller.failure.value?.code).toBe(code);
@@ -858,7 +854,7 @@ describe('useFileUpload', () => {
       Promise.reject(new TypeError('Failed to fetch'));
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.failure.value?.code).toBe('NETWORK_FAILED');
   });
@@ -874,7 +870,7 @@ describe('useFileUpload', () => {
       Promise.reject(new StorageUploadError('REFUSED', { key: 'failure.upload.storageRefused' }));
     const controller = useFileUpload(gateway);
 
-    await controller.upload(fileOf('larga.wav', 'audio/wav', MAX_AUDIO_FILE_SIZE_BYTES + 1), 'es');
+    await controller.upload(fileOf('larga.wav', 'audio/wav', MAX_AUDIO_FILE_SIZE_BYTES + 1));
 
     expect(controller.phase.value).toBe('failed');
     expect(controller.failure.value?.code).toBe('STORAGE_REFUSED');
@@ -889,7 +885,7 @@ describe('useFileUpload', () => {
       );
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.failure.value?.code).toBe('NETWORK_FAILED');
   });
@@ -899,7 +895,7 @@ describe('useFileUpload', () => {
     gateway.onUpload = (): Promise<void> => Promise.reject(new Error('boom'));
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.failure.value?.code).toBe('NETWORK_FAILED');
     expect(controller.failure.value?.message).not.toContain('boom');
@@ -919,7 +915,7 @@ describe('useFileUpload', () => {
     };
     const controller = useFileUpload(gateway);
 
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(seen).toEqual([true, true]);
     expect(controller.isBusy.value).toBe(false);
@@ -930,12 +926,12 @@ describe('useFileUpload', () => {
     gateway.onCreateIntent = (): Promise<CreateUploadIntentResponse> =>
       Promise.reject(httpError(500));
     const controller = useFileUpload(gateway);
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
     expect(controller.failure.value).not.toBeNull();
 
     gateway.onCreateIntent = (): Promise<CreateUploadIntentResponse> => Promise.resolve(INTENT);
     gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     expect(controller.failure.value).toBeNull();
     expect(controller.phase.value).toBe('completed');
@@ -945,7 +941,7 @@ describe('useFileUpload', () => {
     const gateway = gatewayDouble();
     gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
     const controller = useFileUpload(gateway);
-    await controller.upload(AUDIO_FILE, 'es');
+    await controller.upload(AUDIO_FILE);
 
     controller.reset();
 

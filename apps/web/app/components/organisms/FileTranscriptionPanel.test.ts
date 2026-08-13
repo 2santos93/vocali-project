@@ -1,5 +1,5 @@
 import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts';
-import type { Transcription, TranscriptionLanguage } from '@vocali/contracts';
+import type { Transcription } from '@vocali/contracts';
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import FileTranscriptionPanel from './FileTranscriptionPanel.vue';
@@ -40,11 +40,8 @@ function drop(wrapper: VueWrapper, file: File): Promise<void> {
     .trigger('drop', { dataTransfer: { files: [file] } });
 }
 
-function submittedFrom(
-  wrapper: VueWrapper,
-): { file: File; language: TranscriptionLanguage } | undefined {
-  return wrapper.emitted('submit')?.[0]?.[0] as
-    { file: File; language: TranscriptionLanguage } | undefined;
+function submittedFrom(wrapper: VueWrapper): File | undefined {
+  return wrapper.emitted('submit')?.[0]?.[0] as File | undefined;
 }
 
 describe('FileTranscriptionPanel', () => {
@@ -64,13 +61,13 @@ describe('FileTranscriptionPanel', () => {
     );
   });
 
-  it('submits the chosen file with the default language', async () => {
+  it('submits the chosen file, and nothing else', async () => {
     const wrapper = panel();
     await drop(wrapper, AUDIO_FILE);
 
     await wrapper.find('[data-testid="submit-button"]').trigger('click');
 
-    expect(submittedFrom(wrapper)).toEqual({ file: AUDIO_FILE, language: 'es' });
+    expect(submittedFrom(wrapper)).toBe(AUDIO_FILE);
   });
 
   it('shows the name of the file that was chosen', async () => {
@@ -83,39 +80,46 @@ describe('FileTranscriptionPanel', () => {
     );
   });
 
-  it('submits the language the user picked instead of the default', async () => {
+  /*
+   * The question this screen used to ask. It was answered by a dropdown
+   * defaulted to Spanish, by somebody who may not have made the recording and
+   * had no way to check — an English file filed as Spanish, silently. The
+   * provider identifies the language from the audio, so the screen states that
+   * instead of asking.
+   */
+  it('asks nothing about the language, and says so', () => {
     const wrapper = panel();
-    await drop(wrapper, AUDIO_FILE);
 
-    await wrapper.find('select').setValue('ca');
-    await wrapper.find('[data-testid="submit-button"]').trigger('click');
-
-    expect(submittedFrom(wrapper)?.language).toBe('ca');
+    expect(wrapper.find('select').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="automatic-language-note"]').text()).toContain(
+      'Detectamos el idioma',
+    );
   });
 
-  it('offers every language the contract supports, in Spanish', () => {
-    const options = panel()
-      .findAll('option')
-      .map((option) => option.text());
+  it('names the language the provider identified, beside the finished record', () => {
+    const wrapper = panel({
+      phase: 'completed',
+      transcription: { ...COMPLETED, language: 'en' },
+    });
 
-    expect(options).toEqual(['Español', 'Inglés', 'Catalán', 'Euskera', 'Gallego']);
+    expect(wrapper.find('[data-testid="detected-language"]').text()).toBe(
+      'Idioma detectado: Inglés',
+    );
   });
 
   /*
-   * `BaseSelect` speaks in strings because a DOM select does. A value that is
-   * not one the contract names must not reach the request, so it is dropped
-   * rather than asserted into the union.
+   * Silence rather than "unknown": a recording too short to identify still
+   * produced a transcript, and giving that non-event a line of its own would
+   * make the reader wonder what went wrong.
    */
-  it('ignores a language value the contract does not name', async () => {
-    const wrapper = panel();
-    await drop(wrapper, AUDIO_FILE);
+  it('says nothing when the provider identified no language', () => {
+    const wrapper = panel({
+      phase: 'completed',
+      transcription: { ...COMPLETED, language: null },
+    });
 
-    const select = wrapper.find('select');
-    Object.defineProperty(select.element, 'value', { value: 'de', configurable: true });
-    await select.trigger('change');
-    await wrapper.find('[data-testid="submit-button"]').trigger('click');
-
-    expect(submittedFrom(wrapper)?.language).toBe('es');
+    expect(wrapper.find('[data-testid="detected-language"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="transcription-result"]').exists()).toBe(true);
   });
 
   it('stops asking for a file once one has been chosen', async () => {
@@ -177,7 +181,6 @@ describe('FileTranscriptionPanel', () => {
       await drop(wrapper, AUDIO_FILE);
 
       expect(wrapper.find('[data-testid="submit-button"]').attributes('disabled')).toBeDefined();
-      expect(wrapper.find('select').attributes('disabled')).toBeDefined();
       expect(wrapper.find('[data-testid="file-input"]').attributes('disabled')).toBeDefined();
     },
   );
@@ -284,50 +287,41 @@ describe('FileTranscriptionPanel', () => {
     expect(wrapper.find('[data-testid="selected-file-name"]').exists()).toBe(false);
   });
 
-  it('joins the language control to its label and its hint', () => {
-    const wrapper = panel();
-
-    const select = wrapper.find('select');
-    expect(wrapper.find('label').attributes('for')).toBe('audio-language');
-    expect(select.attributes('id')).toBe('audio-language');
-    expect(select.attributes('aria-describedby')).toBe('audio-language-hint');
-  });
-
   /*
-   * The distinction this whole feature turns on.
+   * The distinction this feature turns on, in the one place it still applies
+   * to this screen.
    *
    * `language` on a transcription is the language of the *audio*. The
    * interface language is a different fact about a different thing, and
    * neither may drive the other: a clinician reading these screens in English
-   * still dictates in Spanish, and one reading in Spanish may well be
-   * transcribing an English consultation. Wiring the two together would force
-   * them to give one of the two up.
+   * may well have uploaded a Spanish consultation. The screen no longer asks
+   * for the first, but it still reports it — and reporting it in the reader's
+   * own language is not the same as letting one decide the other.
    */
   describe('the language of the audio, which is not the language of the screen', () => {
-    it('names the audio languages in the language the reader chose', () => {
-      const spanish = panel().findAll('#audio-language option');
-      expect(spanish.map((option) => option.text())).toEqual([
-        'Español',
-        'Inglés',
-        'Catalán',
-        'Euskera',
-        'Gallego',
-      ]);
+    it('names the identified language in the language the reader chose', () => {
+      const spanish = panel({
+        phase: 'completed',
+        transcription: { ...COMPLETED, language: 'ca' },
+      });
+      expect(spanish.find('[data-testid="detected-language"]').text()).toBe(
+        'Idioma detectado: Catalán',
+      );
 
       const english = mount(FileTranscriptionPanel, {
         global: withTranslations('en'),
-        props: { phase: 'idle', progress: 0 },
-      }).findAll('#audio-language option');
-      expect(english.map((option) => option.text())).toEqual([
-        'Spanish',
-        'English',
-        'Catalan',
-        'Basque',
-        'Galician',
-      ]);
+        props: {
+          phase: 'completed',
+          progress: 100,
+          transcription: { ...COMPLETED, language: 'ca' },
+        },
+      });
+      expect(english.find('[data-testid="detected-language"]').text()).toBe(
+        'Detected language: Catalan',
+      );
     });
 
-    it('still submits Spanish audio when the interface is in English', async () => {
+    it('uploads the same way whichever language the interface is read in', async () => {
       const wrapper = mount(FileTranscriptionPanel, {
         global: withTranslations('en'),
         props: { phase: 'idle', progress: 0 },
@@ -336,27 +330,18 @@ describe('FileTranscriptionPanel', () => {
       await drop(wrapper, AUDIO_FILE);
       await wrapper.find('[data-testid="submit-button"]').trigger('click');
 
-      const submitted = wrapper.emitted('submit')?.[0]?.[0] as {
-        language: TranscriptionLanguage;
-      };
-      expect(submitted.language).toBe('es');
+      expect(wrapper.emitted('submit')?.[0]?.[0]).toBe(AUDIO_FILE);
       // And the screen it was submitted from is still English.
       expect(wrapper.text()).toContain('Transcribe an audio file');
     });
 
-    it('leaves the interface alone when the audio language changes', async () => {
-      const wrapper = panel();
+    // A Catalan recording does not turn the application into Catalan.
+    it('leaves the interface alone when the identified language is not the reader’s', () => {
+      const wrapper = panel({
+        phase: 'completed',
+        transcription: { ...COMPLETED, language: 'en' },
+      });
 
-      await wrapper.find('#audio-language').setValue('en');
-      await drop(wrapper, AUDIO_FILE);
-      await wrapper.find('[data-testid="submit-button"]').trigger('click');
-
-      const submitted = wrapper.emitted('submit')?.[0]?.[0] as {
-        language: TranscriptionLanguage;
-      };
-      expect(submitted.language).toBe('en');
-      // Choosing English audio is not a request to read the application in
-      // English, and the screen has not become one.
       expect(wrapper.text()).toContain('Transcribir un archivo de audio');
       expect(wrapper.text()).not.toContain('Transcribe an audio file');
     });

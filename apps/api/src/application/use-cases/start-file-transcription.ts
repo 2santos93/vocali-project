@@ -96,7 +96,6 @@ export class StartFileTranscription {
 
     const job = await this.provider.submitFileJob({
       audioUrl,
-      language: primitives.language,
       callbackUrl: buildProviderCallbackUrl(this.config.callbackBaseUrl, {
         userId: primitives.userId,
         transcriptionId: primitives.id,

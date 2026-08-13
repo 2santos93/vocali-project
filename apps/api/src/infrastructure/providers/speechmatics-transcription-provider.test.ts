@@ -240,7 +240,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       const job = await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -254,7 +253,16 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(submittedConfig(request)).toEqual({
         type: 'transcription',
         fetch_data: { url: AUDIO_URL },
-        transcription_config: { language: 'es', operating_point: 'enhanced' },
+        // `auto`, with the platform's five languages as the only candidates
+        // and Spanish as the fallback: a file short enough to defeat
+        // identification is transcribed as Spanish rather than refused, which
+        // is exactly what happened when the screen asked and defaulted.
+        transcription_config: { language: 'auto', operating_point: 'enhanced' },
+        language_identification_config: {
+          expected_languages: ['es', 'en', 'ca', 'eu', 'gl'],
+          low_confidence_action: 'use_default_language',
+          default_language: 'es',
+        },
         notification_config: [
           {
             url: CALLBACK_URL,
@@ -271,7 +279,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -292,7 +299,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider, delays } = buildProvider();
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
@@ -307,7 +314,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider } = buildProvider();
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       expect(error.message).not.toMatch(/403|Forbidden/);
@@ -325,7 +332,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       const job = await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -347,7 +353,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -363,7 +368,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -390,7 +394,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       );
 
       await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       // An undici socket stays checked out of the pool until its body is read
@@ -406,7 +410,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider, delays } = buildProvider({}, { fetch: countingFetch(attempts) });
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       // This endpoint creates a resource and the provider documents no
@@ -429,7 +433,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider, delays, logger } = buildProvider({}, { fetch: countingFetch(attempts) });
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       // A request that produced no response may still have been received. The
@@ -456,7 +460,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -475,7 +478,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -488,7 +490,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider, delays, logger } = buildProvider();
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
@@ -520,7 +522,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       await provider.submitFileJob({
         audioUrl: AUDIO_URL,
-        language: 'es',
         callbackUrl: CALLBACK_URL,
       });
 
@@ -534,7 +535,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider, logger } = buildProvider({ maxAttempts: 1, requestTimeoutMs: 40 });
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
@@ -548,7 +549,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider } = buildProvider();
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
@@ -563,7 +564,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider } = buildProvider();
 
       const error = await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       // A 201 whose body cannot be read is not a submitted job. Treating it as
@@ -578,7 +579,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const { provider, logger } = buildProvider();
 
       await expectProviderError(
-        provider.submitFileJob({ audioUrl: AUDIO_URL, language: 'es', callbackUrl: CALLBACK_URL }),
+        provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
       // Both a retry line and a rejection line were written, so there is real
@@ -728,6 +729,7 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         externalJobId: 'job-1',
         text: 'hola',
         durationSeconds: 12,
+        language: null,
       });
     });
 

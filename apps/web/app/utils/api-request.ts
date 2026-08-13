@@ -8,9 +8,11 @@
  *
  * The page passes `$fetch` in through this shape. Naming it here rather than
  * reaching for ofetch's own type is what keeps every layer below the page free
- * of Nuxt — which is not stylistic: ts-jest compiles the composables against a
- * tsconfig that carries no Nuxt types, and a bare `$fetch` anywhere in their
- * source fails to compile under test whether or not a test reaches it.
+ * of Nuxt. That freedom is a convention rather than a guarantee: ts-jest type
+ * checks nothing in this configuration, and `tsconfig.app.json` gives the
+ * composables the Nuxt types deliberately, since composables are allowed the
+ * runtime. What this type buys is a collaborator a test hands over as a plain
+ * function, with no runtime to boot.
  *
  * Written once because it was previously written twice, identically, in
  * `useFileUpload` and in `useTranscriptionUpdates`, with nothing keeping the

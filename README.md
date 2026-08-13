@@ -6,14 +6,14 @@ Targets AWS Lambda, DynamoDB, S3 and Cognito, defined end to end in Terraform, w
 
 ## Status
 
-Every capability the brief asks for is implemented and tested. Nothing has been deployed yet.
+Every capability the brief asks for is implemented and tested, and the `dev` environment is applied to AWS.
 
-| Stage    | Contents                                                     | State                                   |
-| -------- | ------------------------------------------------------------ | --------------------------------------- |
-| Phase 1  | Shared contracts, domain model, every use case               | **Complete**                            |
-| Phase 2A | AWS and provider adapters, Lambda handlers, composition root | **Complete**                            |
-| Phase 2B | Terraform, CI/CD                                             | **Written and validated**, not deployed |
-| Phase 3  | Nuxt front end                                               | **Complete**                            |
+| Stage    | Contents                                                     | State                               |
+| -------- | ------------------------------------------------------------ | ----------------------------------- |
+| Phase 1  | Shared contracts, domain model, every use case               | **Complete**                        |
+| Phase 2A | AWS and provider adapters, Lambda handlers, composition root | **Complete**                        |
+| Phase 2B | Terraform, CI                                                | **Applied**, except the public edge |
+| Phase 3  | Nuxt front end                                               | **Complete**                        |
 
 **What you can run today:**
 
@@ -23,16 +23,21 @@ pnpm typecheck
 pnpm test
 ```
 
-955 tests across the API, the front end and the shared contracts, none of which
-touch the network or an AWS account. There is nothing to configure.
+1,356 tests across the API, the front end and the shared contracts, none of
+which touch the network or an AWS account. There is nothing to configure.
 
-**What you cannot do yet:** use it. Signing in calls Cognito, and no
-infrastructure exists, so the screens render but the first real action has
-nothing behind it. `infra/` is validated offline — `terraform fmt`, `init
--backend=false` and `validate` pass in every module and environment — and the
-function bundles have been built and imported to confirm each exports a handler
-and refuses to boot without its configuration. None of that is the same as
-applied.
+**What is not there yet:** the public front door. AWS refuses CloudFront on an
+account it has not verified, and refuses public access to a Lambda function URL
+on the same grounds, so the renderer has no address of its own. Everything
+behind it is applied and answering: run the front end locally against the
+deployed environment and the whole platform works, from registration through an
+upload to a downloaded transcript.
+
+Deploying is what found the defects no test could. The submission function could
+read the provider API key but not the webhook secret, so every upload stopped at
+`PENDING_UPLOAD` in silence — a grant that does not match what the code reads is
+invisible until it runs against IAM, because the suite doubles the secrets
+provider and sees a read that always succeeds.
 
 The work was staged so that each layer was finished and tested before the next
 depended on it. The ports are the hard part: once the domain and the use cases
@@ -69,7 +74,8 @@ The interface language is deliberately not the same thing as a transcription's l
 
 ## Architecture
 
-Everything below is written and validated. None of it has been applied to an AWS account.
+Twelve functions, all applied. CloudFront is the one box below that is
+configured and not created, for the account reason given above.
 
 ```mermaid
 graph TB
@@ -77,13 +83,22 @@ graph TB
     CF[CloudFront]
     WEB[Nuxt SSR on Lambda]
     API[API Gateway HTTP<br/>Cognito JWT authorizer]
-    subgraph Functions
+    WS[API Gateway WebSocket<br/>connection-ticket authorizer]
+    subgraph HttpFunctions[Behind the HTTP API]
       L1[createUploadIntent]
-      L2[startTranscriptionJob]
-      L3[handleProviderCallback]
-      L4[listTranscriptions]
-      L5[getDownloadUrl]
+      L2[listTranscriptions]
+      L3[getTranscription]
+      L4[getDownloadUrl]
+      L5[saveRealtimeTranscription]
       L6[createRealtimeSession]
+      L7[createConnectionTicket]
+      L8[handleProviderCallback]
+    end
+    JOB[startTranscriptionJob<br/>invoked by S3]
+    subgraph WsFunctions[Behind the WebSocket API]
+      W1[authorizeConnection]
+      W2[handleConnectionOpened]
+      W3[handleConnectionClosed]
     end
     DDB[(DynamoDB)]
     S3A[(S3 · audio)]
@@ -94,12 +109,17 @@ graph TB
     B --> CF --> WEB --> API
     WEB -->|httpOnly cookies| COG
     B -.->|presigned POST| S3A
-    B -.->|WebSocket, short-lived token| P
-    API --> L1 & L4 & L5 & L6
-    S3A -->|ObjectCreated| L2 --> P
-    P -->|signed callback| L3
-    L1 & L2 & L3 & L4 & L5 --> DDB
-    L3 & L5 --> S3T
+    B -.->|audio stream, short-lived token| P
+    B -.->|ticket in the query string| WS
+    API --> L1 & L2 & L3 & L4 & L5 & L6 & L7 & L8
+    WS --> W1 & W2 & W3
+    S3A -->|ObjectCreated| JOB --> P
+    P -->|signed callback| L8
+    L8 -->|completion| WS
+    WS -.->|push| B
+    L1 & L2 & L3 & L4 & L5 & L7 & L8 & JOB --> DDB
+    W1 & W2 & W3 --> DDB
+    L4 & L5 & L8 --> S3T
 ```
 
 **Uploading a file.** The browser asks for an upload intent, receives a presigned POST, and sends the file straight to S3. An `ObjectCreated` event starts a transcription job, passing the provider a short-lived signed URL to fetch the audio itself. When the job finishes the provider calls back, the transcript is written to S3 and the record is marked complete.
@@ -170,7 +190,7 @@ Running the front end against real infrastructure needs the values in `.env.exam
 | Domain and use cases | Jest                         | Entities, value objects, every use case, against in-memory doubles | Complete |
 | Adapters             | Jest + `aws-sdk-client-mock` | DynamoDB, S3 and provider adapters, offline                        | Complete |
 | Components           | Jest + Vue Test Utils        | Presentational components in isolation                             | Complete |
-| End to end           | Cypress                      | The seven user journeys, in a browser against a built front end    | Complete |
+| End to end           | Cypress                      | Nine user journeys, in a browser against a built front end         | Complete |
 
 The end-to-end suite answers every call to `/api/**` in the browser, and replaces the two capabilities that have no HTTP boundary — the microphone, through `getUserMedia`, and the provider's transcription stream, through the `WebSocket` constructor. It therefore proves what the browser does: the guarded routes and where a redirect lands, the multipart body the browser assembles for the presigned upload, the cursor the history pages by, and the signed URL asked for at click time. It proves nothing about AWS, which takes no part in it.
 
@@ -180,13 +200,13 @@ One standard is applied throughout: **a test that still passes when the behaviou
 
 ## Deployment
 
-Everything is defined in Terraform, under `infra/`: the remote state bootstrap, the Cognito user pool, the DynamoDB table, both buckets with their CORS and lifecycle rules, the eight functions with an execution role and a log group each, the HTTP API and its Cognito authorizer, the CloudFront distribution in front of the renderer, the alarms, and a deployment role assumed through OIDC so no long-lived AWS credential exists anywhere.
+Everything is defined in Terraform, under `infra/`: the remote state bootstrap, the Cognito user pool, the DynamoDB table, both buckets with their CORS and lifecycle rules, the twelve functions with an execution role and a log group each, the HTTP API and its Cognito authorizer, the WebSocket API that carries completions to the browser, the CloudFront distribution in front of the renderer, four alarms, and a deployment role assumed through OIDC so no long-lived AWS credential exists anywhere.
 
-None of it has been applied. The gate it passes is offline: `terraform fmt`, `terraform init -backend=false` and `terraform validate` in every module and environment, plus a build of the eight function bundles to confirm each exports a handler and refuses to start without its configuration.
+The `dev` environment is applied. What is not is the public edge: a module variable publishes the renderer without a distribution while AWS has the account under verification, so the deviation lives in the repository rather than in somebody's console history, and clearing it restores the distribution, the IAM-signed origin and the bucket grant in one apply. `infra/README.md` covers how it is composed and what it decides.
 
-Nothing has been deployed. Every module and environment passes `terraform fmt -check`, `terraform init -backend=false` and `terraform validate` offline; `plan` is the first command that needs an AWS account. `infra/README.md` covers how it is composed and what it decides.
+Four constraints appeared only at apply, and none of them could have been found offline: a WebSocket stage refuses to exist until an account-wide CloudWatch role is set; a metric-math alarm takes ten elements, so one term per function put a ceiling on how many functions the platform could have; API Gateway rejects an authorizer cache lifetime on a WebSocket API outright; and a fresh account is capped at 512 MB per function.
 
-CI will run linting, formatting, type checking, unit tests with coverage, Cypress, and static analysis of the Terraform. Deployment authenticates to AWS through OIDC, so no long-lived AWS credentials are stored anywhere.
+CI runs formatting — Prettier for the workspace, `terraform fmt` for the HCL, which Prettier has no authority over — then linting, type checking, and the unit suites with their coverage thresholds. The Cypress journeys run as a separate job, because they need a built application and a running server and a browser failure should report on its own line. A dependency audit runs in a third job so that a new upstream advisory cannot mask a genuine test failure, and commit messages are linted on pull requests. There is no deploy job yet; the OIDC role is what one would assume when there is.
 
 ## Decisions
 

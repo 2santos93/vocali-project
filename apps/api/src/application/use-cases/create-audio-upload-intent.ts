@@ -1,4 +1,3 @@
-import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import type { CreateUploadIntentResponse } from '@vocali/contracts';
 import { MAX_AUDIO_FILE_SIZE_BYTES } from '@vocali/contracts';
 import { Transcription } from '../../domain/entities/transcription.js';
@@ -22,7 +21,6 @@ interface CreateAudioUploadIntentInput {
   readonly fileName: string;
   readonly contentType: string;
   readonly sizeBytes: number;
-  readonly language: TranscriptionLanguage;
 }
 
 type CreateAudioUploadIntentError =
@@ -77,7 +75,6 @@ export class CreateAudioUploadIntent {
       userId: input.userId,
       audioFile: audioFileResult.value,
       audioObjectKey,
-      language: input.language,
       createdAt: this.clock.now(),
     });
 

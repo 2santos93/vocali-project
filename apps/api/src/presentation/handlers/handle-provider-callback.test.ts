@@ -44,6 +44,7 @@ function completed(overrides: Partial<Omit<CompletedOutcome, 'kind'>> = {}): Pro
     externalJobId: 'job-1',
     text: TRANSCRIPT_TEXT,
     durationSeconds: 42,
+    language: null,
     ...overrides,
   };
 }
@@ -148,7 +149,6 @@ function buildPendingUpload(): Transcription {
     userId: 'user-1',
     audioFile: audioFile.value,
     audioObjectKey: 'audio/user-1/01ID001/visit.mp3',
-    language: 'es',
     createdAt: NOW,
   });
 }

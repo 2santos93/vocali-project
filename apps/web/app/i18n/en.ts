@@ -138,8 +138,9 @@ export const ENGLISH_MESSAGES: Record<MessageKey, string> = {
     'The text will appear here as soon as the transcription finishes. It is saved to your history too.',
   'file.chooseFirst': 'Choose an audio file first, then we can transcribe it.',
   'file.failureTitle': 'We could not transcribe it',
-  'file.language': 'Language of the audio',
-  'file.languageHint': 'Choose the language spoken in the recording.',
+  'file.automaticLanguage':
+    'We detect the language of the recording automatically. We support Spanish, English, Catalan, Basque and Galician.',
+  'file.detectedLanguage': 'Detected language: {language}',
   'file.submit': 'Transcribe',
   'file.submitting': 'Transcribing',
   'file.again': 'Transcribe another file',

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { TranscriptionLanguage } from '@vocali/contracts';
 import { computed } from 'vue';
 import { useTranslations } from '../i18n/translations';
 
@@ -55,8 +54,8 @@ const gateway: FileUploadGateway = {
 
 const { phase, progress, failure, transcription, upload, reset } = useFileUpload(gateway);
 
-function onSubmit(request: { file: File; language: TranscriptionLanguage }): void {
-  void upload(request.file, request.language);
+function onSubmit(file: File): void {
+  void upload(file);
 }
 </script>
 

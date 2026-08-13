@@ -25,7 +25,12 @@ export interface TranscriptionPrimitives {
   readonly fileName: string;
   readonly source: TranscriptionSource;
   readonly status: TranscriptionStatus;
-  readonly language: TranscriptionLanguage;
+  /**
+   * The language of the audio, once it is known. Null on an uploaded file
+   * until the provider identifies it and the completion webhook records it; a
+   * dictation carries the speaker's choice from the moment it is created.
+   */
+  readonly language: TranscriptionLanguage | null;
   readonly sizeBytes: number | null;
   readonly durationSeconds: number | null;
   readonly audioObjectKey: string | null;
@@ -42,7 +47,6 @@ interface FileUploadInput {
   readonly userId: string;
   readonly audioFile: AudioFile;
   readonly audioObjectKey: string;
-  readonly language: TranscriptionLanguage;
   readonly createdAt: Date;
 }
 
@@ -60,6 +64,12 @@ interface CompletionInput {
   readonly transcriptObjectKey: string;
   readonly text: string;
   readonly durationSeconds: number;
+  /**
+   * The language the provider identified, where it could. Null leaves whatever
+   * the record already held: a completion that failed to identify anything
+   * must not erase a language, and on an upload there was none to erase.
+   */
+  readonly language: TranscriptionLanguage | null;
   readonly at: Date;
 }
 
@@ -76,7 +86,8 @@ export class Transcription {
       fileName: input.audioFile.fileName,
       source: 'FILE',
       status: 'PENDING_UPLOAD',
-      language: input.language,
+      // Unknown until the provider says so. See `CompletionInput`.
+      language: null,
       sizeBytes: input.audioFile.sizeBytes,
       durationSeconds: null,
       audioObjectKey: input.audioObjectKey,
@@ -132,6 +143,7 @@ export class Transcription {
     return this.transitionTo('COMPLETED', input.at, {
       transcriptObjectKey: input.transcriptObjectKey,
       durationSeconds: input.durationSeconds,
+      language: input.language ?? this.state.language,
       textPreview: buildPreview(input.text),
       // A late success following a recorded FAILED status (see
       // `transcription-status.ts`) must not leave the earlier failure text

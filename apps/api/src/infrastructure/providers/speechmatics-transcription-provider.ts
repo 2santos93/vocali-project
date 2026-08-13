@@ -1,3 +1,7 @@
+import {
+  DEFAULT_TRANSCRIPTION_LANGUAGE,
+  SUPPORTED_TRANSCRIPTION_LANGUAGES,
+} from '@vocali/contracts/constants';
 import { TranscriptionProviderError } from '../../domain/errors/domain-error.js';
 import type { Clock } from '../../domain/ports/clock.js';
 import type { Logger } from '../../domain/ports/logger.js';
@@ -10,7 +14,9 @@ import type {
   TranscriptionProvider,
 } from '../../domain/ports/transcription-provider.js';
 import {
+  AUTOMATIC_LANGUAGE,
   BATCH_JOBS_URL,
+  LANGUAGE_IDENTIFICATION_LOW_CONFIDENCE_ACTION,
   MAX_REALTIME_KEY_TTL_SECONDS,
   MIN_REALTIME_KEY_TTL_SECONDS,
   OPERATING_POINT,
@@ -105,11 +111,7 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
    * rather than a signature in the query string, so the shared secret never
    * lands in an access log or a proxy's URL history.
    */
-  async submitFileJob(input: {
-    audioUrl: string;
-    language: string;
-    callbackUrl: string;
-  }): Promise<SubmittedJob> {
+  async submitFileJob(input: { audioUrl: string; callbackUrl: string }): Promise<SubmittedJob> {
     const [apiKey, webhookSecret] = await Promise.all([
       this.secrets.getSecret(this.options.apiKeySecretName),
       this.secrets.getSecret(this.options.webhookSecretName),
@@ -121,7 +123,12 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       JSON.stringify({
         type: 'transcription',
         fetch_data: { url: input.audioUrl },
-        transcription_config: { language: input.language, operating_point: OPERATING_POINT },
+        transcription_config: { language: AUTOMATIC_LANGUAGE, operating_point: OPERATING_POINT },
+        language_identification_config: {
+          expected_languages: SUPPORTED_TRANSCRIPTION_LANGUAGES,
+          low_confidence_action: LANGUAGE_IDENTIFICATION_LOW_CONFIDENCE_ACTION,
+          default_language: DEFAULT_TRANSCRIPTION_LANGUAGE,
+        },
         notification_config: [
           {
             url: input.callbackUrl,

@@ -186,8 +186,14 @@ export const SPANISH_MESSAGES = {
     'El texto aparecerá aquí en cuanto termine la transcripción. También quedará guardado en tu historial.',
   'file.chooseFirst': 'Elige primero un archivo de audio para transcribirlo.',
   'file.failureTitle': 'No se ha podido transcribir',
-  'file.language': 'Idioma del audio',
-  'file.languageHint': 'Elige el idioma que se habla en la grabación.',
+  /*
+   * The upload screen reports the language instead of asking for it. Both
+   * sentences are about the same fact, before and after: what we are going to
+   * do, and what we found.
+   */
+  'file.automaticLanguage':
+    'Detectamos el idioma de la grabación automáticamente. Admitimos español, inglés, catalán, euskera y gallego.',
+  'file.detectedLanguage': 'Idioma detectado: {language}',
   'file.submit': 'Transcribir',
   'file.submitting': 'Transcribiendo',
   'file.again': 'Transcribir otro archivo',

@@ -2,7 +2,7 @@ import { SUPPORTED_TRANSCRIPTION_LANGUAGES } from '@vocali/contracts';
 import type { TranscriptionLanguage } from '@vocali/contracts';
 import type { MessageKey } from '../i18n/translate';
 import type { Translate } from '../i18n/translations';
-import type { SelectOption } from './types';
+import type { SelectOption } from './component-vocabulary';
 
 /**
  * The name of every language the platform **transcribes**, and the select
@@ -16,14 +16,15 @@ import type { SelectOption } from './types';
  * reader in Spanish sees "Catalán" — but the *choice* remains theirs and
  * remains per dictation.
  *
- * Both panels offer this choice, and two copies of the list is how one of them
- * ends up offering a language the other does not. The map is keyed by the
- * contract's union, so a language added to the platform stops this compiling
- * until someone has written the word a clinician will read, in every
- * catalogue — a plain `Record<string, string>` would silently render the code.
+ * The dictation screen offers this as a choice, because a live session has no
+ * audio to identify yet. The upload screen only ever *reports* one, because
+ * the provider identifies it from the file. The map is keyed by the contract's
+ * union, so a language added to the platform stops this compiling until
+ * someone has written the word a clinician will read, in every catalogue — a
+ * plain `Record<string, string>` would silently render the code.
  *
  * Beside `types.ts` rather than inside `organisms/`, which holds components:
- * this is a list and a narrowing function, shared by two of them.
+ * this is a list and two small functions, shared by both of them.
  */
 const AUDIO_LANGUAGE_KEYS: Record<TranscriptionLanguage, MessageKey> = {
   es: 'audioLanguage.es',
@@ -43,6 +44,16 @@ export function transcriptionLanguageOptions(t: Translate): readonly SelectOptio
     value: code,
     label: t(AUDIO_LANGUAGE_KEYS[code]),
   }));
+}
+
+/**
+ * The name of one language, for a screen that reports rather than asks.
+ *
+ * Same map as the options above, so the word a reader is shown for a detected
+ * Catalan file is the same word the dictation screen offers them.
+ */
+export function transcriptionLanguageName(t: Translate, code: TranscriptionLanguage): string {
+  return t(AUDIO_LANGUAGE_KEYS[code]);
 }
 
 /**
