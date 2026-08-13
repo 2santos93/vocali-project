@@ -1,18 +1,6 @@
 import type { Logger } from '../../domain/ports/logger.js';
 import type { DomainErrorCode } from '@vocali/contracts/constants';
 
-/**
- * Only the parts of an HTTP API v2 event this layer reads. Narrowing loses no
- * compatibility check: the HTTP entry points in `src/lambda/` each declare
- * their export as one of AWS's own handler types, so a declaration below that
- * stops matching the real event shape stops those modules compiling.
- *
- * `authorizer` is optional here where AWS's type has it required, and that
- * difference is the point: at runtime the field is absent whenever a route is
- * reached without an authorizer, and declaring it required would turn a
- * missing claim into a `TypeError` deep in a handler rather than the 401 it
- * has to be.
- */
 export interface ApiGatewayRequestEvent {
   readonly requestContext: {
     readonly requestId: string;
@@ -48,11 +36,6 @@ export interface HttpRequest {
   readonly logger: Logger;
 }
 
-/**
- * Exists so "authenticated" is something a handler receives rather than
- * something it remembers to check: `withAuthenticatedUser` is the only thing
- * in this layer that constructs the shape.
- */
 export interface AuthenticatedHttpRequest extends HttpRequest {
   readonly userId: string;
 }

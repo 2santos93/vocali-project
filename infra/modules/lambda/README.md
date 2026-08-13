@@ -23,7 +23,7 @@ cd infra/environments/prod && terraform plan
 The script runs `esbuild` over each entry point in `apps/api/src/lambda` and
 writes one self-contained `index.mjs` per function. Terraform zips those and
 uploads them. If a bundle is missing the plan stops on that function by name
-with the command to run — it does not deploy an empty package, and there is no
+with the command to run, it does not deploy an empty package, and there is no
 flag that makes it skip a function instead.
 
 Why a separate step rather than a provisioner: Terraform resolves the archive
@@ -49,7 +49,7 @@ Building first and planning second is the only order that cannot be wrong.
 | `handle-connection-closed`       | 512 MB |    10 s | `$disconnect` on the websocket API               |
 
 Memory is CPU: Lambda scales the two together, so 512 MB is not generosity for
-a handler that initialises three AWS SDK clients — it is the point below which
+a handler that initialises three AWS SDK clients, it is the point below which
 the slower cold start costs more in billed milliseconds than the memory does.
 The two functions that parse or build a whole transcript get a full vCPU.
 
@@ -67,7 +67,7 @@ the seconds after that are billed to a caller who already has a 504.
 
 `start-transcription-job` is the exception at 60 seconds. Nobody is waiting on
 it, and the provider submission it makes is retried three times at ten seconds
-each with backoff — a worst case around thirty-one seconds, which a 30-second
+each with backoff, a worst case around thirty-one seconds, which a 30-second
 timeout would cut off mid-attempt.
 
 ## The webhook route has no authorizer
@@ -88,9 +88,9 @@ callback and no transcription would ever complete.
 What authenticates it is a shared secret: generated out of band, stored in
 Parameter Store as a `SecureString`, handed to the provider with the job and
 echoed back in the `Authorization` header. The handler compares it in constant
-time — hashing both sides first, so the comparison examines thirty-two bytes
+time (hashing both sides first, so the comparison examines thirty-two bytes
 whatever was presented and leaks neither the secret's length nor how close a
-guess came — and it does so before reading the query string, before parsing
+guess came), and it does so before reading the query string, before parsing
 the body and before touching a use case.
 
 That check is the whole boundary between the open internet and a write into a

@@ -13,13 +13,6 @@ import type { TranslatableMessage } from '../../i18n/types';
 import { useTranslations } from '../../i18n/translations';
 import { transcriptionLanguageName } from '../transcription-languages';
 
-/**
- * This screen deliberately does not ask which language the recording is in.
- * The provider identifies that from the audio, which is the one party here
- * that has heard it — whoever uploads a file may not have made the recording,
- * and a dropdown defaulted to Spanish was answered wrongly in silence.
- */
-
 interface Props {
   phase: FileUploadPhase;
   /** A percentage; `ProgressBar` clamps whatever arrives. */
@@ -49,11 +42,6 @@ const selectedFile = ref<File | null>(null);
  */
 const warning = ref<TranslatableMessage | null>(null);
 
-/**
- * Null covers both "no record yet" and "the provider could not identify it",
- * because the screen says nothing in either case: "language unknown" beside a
- * finished transcript gives a non-event a headline.
- */
 const detectedLanguage = computed<string | null>(() => {
   const code = props.transcription?.language ?? null;
   return code === null ? null : transcriptionLanguageName(t, code);
@@ -82,11 +70,6 @@ function onReject(refusal: FileRejection): void {
   selectedFile.value = null;
 }
 
-/**
- * The button stays operable with no file chosen and says why it cannot
- * proceed: a disabled control explains nothing to someone who has not noticed
- * that the drop zone rejected their file.
- */
 function onSubmit(): void {
   const file = selectedFile.value;
   if (file === null) {

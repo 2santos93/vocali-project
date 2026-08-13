@@ -30,11 +30,6 @@ function nameOf(error: unknown): string | null {
   return typeof candidate === 'string' ? candidate : null;
 }
 
-/**
- * The distinction that matters is "you said no" versus "there is nothing to
- * say yes with": the first is fixed in the address bar, the second by plugging
- * something in. One message for both sends the user to the wrong place.
- */
 function toMicrophoneError(error: unknown): MicrophoneError {
   const name = nameOf(error);
 
@@ -51,15 +46,6 @@ function toMicrophoneError(error: unknown): MicrophoneError {
   return new MicrophoneError('CAPTURE_FAILED', { key: 'failure.microphone.busy' });
 }
 
-/**
- * An `AudioWorklet` rather than `ScriptProcessorNode`, which runs on the main
- * thread and drops samples exactly when the page is busy rendering the
- * transcript growing beneath it.
- *
- * The `AudioContext` is constructed at the provider's sample rate rather than
- * resampled afterwards: resampling in JavaScript costs quality and main-thread
- * time for something the browser does properly if simply asked.
- */
 export function createWorkletAudioCapture(
   dependencies: AudioCaptureDependencies = {
     requestMicrophone: (constraints: MediaStreamConstraints): Promise<MediaStream> =>
@@ -114,11 +100,6 @@ export function createWorkletAudioCapture(
 
       context.createMediaStreamSource(stream).connect(node);
 
-      /*
-       * Keeps the graph rendering: a node with no path to the output is not
-       * guaranteed to be pulled, and the symptom is a worklet whose `process`
-       * is never called. No feedback — the worklet emits silence.
-       */
       node.connect(context.destination);
     } catch (error: unknown) {
       await stop();

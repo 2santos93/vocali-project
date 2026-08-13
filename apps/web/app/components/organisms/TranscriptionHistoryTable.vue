@@ -112,11 +112,6 @@ function onErrorAction(): void {
   emit('retry');
 }
 
-/*
- * An empty later page means the history ran out between one cursor and the
- * next. Telling someone with a hundred transcriptions that they have none
- * would be a lie, so the two say different things.
- */
 const isFirstPage = computed<boolean>(() => props.pageNumber <= 1);
 
 const emptyTitle = computed<string>(() =>
@@ -243,9 +238,6 @@ const showsPagination = computed<boolean>(
               {{ dateCell(transcription.createdAt) }}
             </td>
             <td class="px-4 py-3">
-              <!-- A button, not a link: the signed URL is short-lived and is
-                   asked for on press, so an address rendered with the page
-                   would be stale before most users reached it. -->
               <BaseButton
                 v-if="isDownloadable(transcription)"
                 variant="secondary"

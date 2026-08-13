@@ -3,12 +3,6 @@ import { useTranslations } from '../../i18n/translations';
 import BaseButton from '../atoms/BaseButton.vue';
 
 interface Props {
-  /**
-   * No total and no page list on purpose: the API paginates by an opaque
-   * DynamoDB cursor, so "page 7" is not expressible without walking pages one
-   * to six first. Previous is served from a client-side stack of cursors
-   * already visited, never by asking the server for a page backwards.
-   */
   pageNumber: number;
   hasPrevious: boolean;
   hasNext: boolean;

@@ -10,16 +10,6 @@ import type {
   UpdateStreamOpener,
 } from './types/settlement';
 
-/**
- * The request function and the socket constructor are both injected, so the
- * failure paths can be driven rather than stubbed. A convention only: ts-jest
- * type checks nothing here, and composables are granted the Nuxt types, so a
- * Nuxt global written here would fail only at run time.
- *
- * Why a socket at all when a Lambda cannot hold one: API Gateway holds this
- * connection, not a function. See `docs/adr/0011`.
- */
-
 /** The query parameter the `$connect` authorizer reads the ticket from. */
 const TICKET_QUERY_PARAMETER = 'ticket';
 
@@ -35,16 +25,6 @@ function defaultSocketFactory(url: string): SocketLike {
   return new WebSocket(url);
 }
 
-/**
- * **The ticket, never the access token.** A browser cannot set a header on a
- * `WebSocket`, so the credential travels in the query string, which API
- * Gateway writes into its access log verbatim. The ticket lives thirty seconds
- * and can be spent once, so a leaked log line holds something already dead.
- *
- * The returned promise settles on the handshake, not on the request: resolving
- * early would have the caller wait out its whole budget on a socket that was
- * constructed but refused.
- */
 export function createUpdateStreamOpener(
   request: ApiRequester,
   createSocket: SocketFactory = defaultSocketFactory,

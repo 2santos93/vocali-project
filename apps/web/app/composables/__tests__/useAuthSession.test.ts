@@ -4,15 +4,6 @@ import { SIGN_IN_ROUTE } from '../../utils/route-access';
 import { readFailure, useAuthSession } from '../useAuthSession';
 import type { AuthenticatedUser } from '../types/session';
 
-/*
- * Auto-imports are plain global bindings once the module is compiled, so the
- * Nuxt runtime is stood in for by installing globals of the same names.
- *
- * `useState` is reproduced faithfully rather than approximated: one ref per
- * key, shared by every caller. A fake handing each caller its own ref would
- * let the header and the middleware disagree about who is signed in, and no
- * test could see it.
- */
 const sharedState = new Map<string, Ref<unknown>>();
 
 function fakeUseState<T>(key: string, initialise: () => T): Ref<T> {
@@ -70,9 +61,6 @@ function installRuntime(): Runtime {
       return Promise.resolve();
     },
 
-    // The real value, because the composable reads it as an auto-import. The
-    // assertions below still spell `/login` out, so changing the route takes
-    // two deliberate edits rather than one silent one.
     SIGN_IN_ROUTE,
   });
 
@@ -108,12 +96,6 @@ describe('useAuthSession', () => {
     expect(session.user.value).toEqual(SIGNED_IN);
   });
 
-  /*
-   * During server rendering `$fetch` carries none of the incoming request's
-   * headers, including the session cookie, so every first render would
-   * redirect to sign-in. Nothing else in the suite can tell the two fetchers
-   * apart, so they are recorded separately and the ambient one asserted unused.
-   */
   it('asks for the session through the fetcher that forwards the request headers', async () => {
     const session = useAuthSession();
 
@@ -123,11 +105,6 @@ describe('useAuthSession', () => {
     expect(runtime.ambient).toEqual([]);
   });
 
-  /*
-   * The route answers 200 with a null user when nobody is signed in, so a
-   * rejection means the request failed. Signed out is the safe reading: the
-   * alternative shows chrome and a name to an unidentified visitor.
-   */
   it('treats a session request that failed outright as signed out', async () => {
     runtime.sessionAnswer = (): Promise<unknown> => Promise.resolve({ user: SIGNED_IN });
     const session = useAuthSession();
@@ -204,23 +181,12 @@ describe('useAuthSession', () => {
     expect(runtime.navigations).toEqual(['/login']);
   });
 
-  /*
-   * The logout route only fails after it has cleared this browser's cookies —
-   * it fails to report that the *other* sessions are still open. This
-   * browser's session is over either way.
-   */
   it('ends the session in the browser without rejecting when the logout route fails', async () => {
     runtime.logoutAnswer = (): Promise<unknown> =>
       Promise.reject(new Error('one of the other sessions survived'));
     const session = useAuthSession();
     session.adopt(SIGNED_IN);
 
-    /*
-     * That it resolves is the assertion, not a formality. `signOut` is reached
-     * from a template handler that catches nothing, so a re-thrown rejection
-     * arrives as an unhandled one in the console. Restore the bare `finally`
-     * and this line fails.
-     */
     await expect(session.signOut()).resolves.toBeUndefined();
 
     // This browser's session is over either way, so nothing is left claiming
@@ -245,11 +211,6 @@ describe('useAuthSession', () => {
   });
 });
 
-/*
- * Every case below is a way the `{ code, message }` body can fail to arrive,
- * and each has to end as null rather than as `undefined` rendered into a
- * sentence a clinician is reading.
- */
 describe('readFailure', () => {
   it('reads the code and the message the API sent', () => {
     const failure = readFailure({
@@ -262,12 +223,6 @@ describe('readFailure', () => {
     });
   });
 
-  /*
-   * A rejected `$fetch` is not obliged to be a `FetchError` at all — a
-   * connection that never opened rejects with a `TypeError`, and a browser
-   * extension can reject with a string. Casting the rejection would put
-   * `undefined` where the page is about to render a sentence.
-   */
   it.each([
     ['a rejection that is not an object', 'connection refused'],
     ['a rejection that is null', null],

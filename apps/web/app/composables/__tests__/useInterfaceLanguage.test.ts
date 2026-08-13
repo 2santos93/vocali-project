@@ -2,13 +2,6 @@ import { ref } from 'vue';
 import type { Ref } from 'vue';
 import { useInterfaceLanguage } from '../useInterfaceLanguage';
 
-/*
- * The Nuxt runtime stood in for by globals, as in `useAuthSession.test.ts`.
- *
- * Each `useCookie` call really does return its own ref, so the double does
- * too: that difference is exactly why `useState` sits on top of the cookie
- * here, and a double sharing the cookie ref would hide it.
- */
 const sharedState = new Map<string, Ref<unknown>>();
 const cookieValues = new Map<string, unknown>();
 const cookieOptions = new Map<string, Record<string, unknown>>();
@@ -69,11 +62,6 @@ describe('useInterfaceLanguage', () => {
     expect(language.locale.value).toBe('en-GB');
   });
 
-  /*
-   * A cookie is set by whoever has the browser. An unrecognised value reaching
-   * the catalogue finds nothing, and the missing-key handler throws rather
-   * than rendering a key — so a forged cookie would be a blank screen.
-   */
   it.each([
     ['a language the product has no words for', 'fr'],
     ['an empty value', ''],
@@ -84,11 +72,6 @@ describe('useInterfaceLanguage', () => {
     expect(useInterfaceLanguage().current.value).toBe('es');
   });
 
-  /*
-   * Written through to the cookie: the server renders the first paint, and a
-   * preference it cannot read is a page rendered in Spanish and rewritten in
-   * English once JavaScript catches up.
-   */
   it('records a chosen language where the server will read it', () => {
     const language = useInterfaceLanguage();
 

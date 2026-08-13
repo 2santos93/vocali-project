@@ -3,8 +3,8 @@
 The two buckets: `audio`, which the browser uploads to directly, and
 `transcripts`, which holds the finished text.
 
-They are one module because they are one story — a file arrives in the first,
-and what the platform makes of it lands in the second — and because the
+They are one module because they are one story (a file arrives in the first,
+and what the platform makes of it lands in the second), and because the
 settings they share are the ones that must not diverge: no public access, ACLs
 disabled, encryption at rest, versioning, TLS-only, and lifecycle rules that
 stop either from growing without bound.
@@ -14,7 +14,7 @@ stop either from growing without bound.
 |                  | `audio`                                | `transcripts`                                            |
 | ---------------- | -------------------------------------- | -------------------------------------------------------- |
 | CORS             | Yes, `POST` from the front-end origins | None; a download is a navigation, not a scripted request |
-| Current versions | Expire after `audio_retention_days`    | Kept — the history has to keep resolving                 |
+| Current versions | Expire after `audio_retention_days`    | Kept, the history has to keep resolving                  |
 | Written by       | The browser, with a presigned POST     | The functions, server side                               |
 
 ## The CORS rule
@@ -58,7 +58,7 @@ job, is configured by the `lambda` module rather than here: a notification has
 to name the function it invokes, and that function is created there.
 
 It filters on the `audio/` prefix, which is also what stops it feeding itself
-— anything the platform writes back into this bucket under another prefix
+anything the platform writes back into this bucket under another prefix
 creates an object too.
 
 ## A disagreement that has been resolved
@@ -67,7 +67,7 @@ The application did not always write to the transcripts bucket. Its
 composition root built one `S3FileStorage` over `AUDIO_BUCKET_NAME` and used
 it for both, so a finished transcript went to `transcripts/…` inside the
 **audio** bucket, while the execution roles granted that write on this
-module's transcripts bucket — and the write was denied.
+module's transcripts bucket, and the write was denied.
 
 `composition-root.ts` now builds a second `S3FileStorage` over
 `TRANSCRIPTS_BUCKET_NAME`, which `modules/lambda` sets on every function and

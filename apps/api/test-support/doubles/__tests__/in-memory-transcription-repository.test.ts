@@ -120,9 +120,6 @@ describe('InMemoryTranscriptionRepository', () => {
     const first = await repository.findById('a', 'b#c');
     const second = await repository.findById('a#b', 'c');
 
-    // A flat `${userId}#${id}` key maps both saves to "a#b#c", so the second
-    // silently overwrites the first and both lookups below still return a
-    // non-null — but wrong — record. Asserting identity is what catches that.
     expect(first?.toPrimitives()).toMatchObject({ id: 'b#c', userId: 'a' });
     expect(second?.toPrimitives()).toMatchObject({ id: 'c', userId: 'a#b' });
     expect(await repository.findById('a#b', 'b#c')).toBeNull();
@@ -146,10 +143,6 @@ describe('InMemoryTranscriptionRepository', () => {
     const repository = new InMemoryTranscriptionRepository();
     const transcription = buildTranscription({ id: '01A', userId: 'user-1' });
 
-    // The same entity saved twice: the first write advances the revision, so
-    // the second is derived from a read that is now stale — the shape of the
-    // defect where a completion webhook writes COMPLETED and another in-flight
-    // path puts the record back to PROCESSING.
     await expect(repository.save(transcription)).resolves.toEqual({
       success: true,
       value: undefined,
@@ -167,9 +160,6 @@ describe('InMemoryTranscriptionRepository', () => {
     const repository = new InMemoryTranscriptionRepository();
     await repository.save(buildTranscription({ id: '01A', userId: 'user-1' }));
 
-    // Re-read, so the entity carries the current revision rather than the one
-    // it was constructed with. Without this the rejection above could be
-    // satisfied by a double that refuses every second write.
     const reread = await repository.findById('user-1', '01A');
     expect(reread).not.toBeNull();
 
@@ -189,9 +179,6 @@ describe('InMemoryTranscriptionRepository', () => {
     });
 
     expect(result.success).toBe(false);
-    // Refused as a whole, like the transaction the adapter sends: a double
-    // that stored the record and only skipped the claim would let a use-case
-    // test pass while production left nothing behind at all.
     expect(await repository.findById('user-1', '01B')).toBeNull();
     expect((await repository.findByClientSession('user-1', 'session-abc'))?.toPrimitives().id).toBe(
       '01A',

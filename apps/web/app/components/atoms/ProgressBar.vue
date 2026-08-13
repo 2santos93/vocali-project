@@ -11,11 +11,6 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), { hideValueText: false });
 
-/*
- * The value arrives as `loaded / total * 100` from an XMLHttpRequest progress
- * event, where `total` is 0 until the request has a Content-Length — so the
- * first event of every upload is NaN and rounding can push the last past 100.
- */
 const percentage = computed<number>(() => {
   if (!Number.isFinite(props.value)) {
     return 0;

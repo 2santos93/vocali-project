@@ -1,12 +1,6 @@
 import type { RealtimeSessionResponse, TranscriptionLanguage } from '@vocali/contracts';
 import type { ProviderFrame } from './types/recording';
 
-/**
- * The socket is a trust boundary: frames arrive from a third party, so every
- * field is read as `unknown` and checked. Asserting a type onto them would
- * turn a protocol change into a crash in the middle of a dictation.
- */
-
 /** Higher accuracy at the cost of latency, which a dictation can afford. */
 const OPERATING_POINT = 'enhanced';
 
@@ -54,11 +48,6 @@ export function errorTypeOf(payload: unknown): string | null {
   return stringPropertyOf(payload, 'type');
 }
 
-/**
- * The audio format comes from the session the API minted rather than being
- * restated here: the provider rejects a mismatch, but only once the socket is
- * open and the user has already started speaking.
- */
 export function buildStartRecognition(
   audioFormat: RealtimeSessionResponse['audioFormat'],
   language: TranscriptionLanguage,

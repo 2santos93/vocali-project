@@ -1,8 +1,3 @@
-# Prettier reads .gitignore as well as this file, so everything ignored there
-# is already excluded. The entries below are the ones .gitignore does not
-# cover, plus the generated directories restated so this file stands on its
-# own if .gitignore ever changes.
-
 # Written by their own tool, byte for byte. Reformatting a lockfile produces a
 # diff that says nothing and a checksum that no longer matches.
 pnpm-lock.yaml
@@ -14,7 +9,4 @@ dist/
 .nuxt/
 .output/
 
-# Other checkouts of this repository. These are not covered by .gitignore, and
-# without this line `prettier --check .` walks into every local worktree and
-# reports another branch's files as failures of this one.
 worktrees/

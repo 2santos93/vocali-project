@@ -2,14 +2,6 @@ import { err, ok } from '../result.js';
 import { TranscriptionNotFoundError } from '../../errors/domain-error.js';
 import type { Result } from '../../types/result.js';
 
-/**
- * Not redundant. `ok()`/`err()` return `Success<T>`/`Failure<E>` and
- * control-flow analysis keeps that literal type through a `const` even under
- * an explicit annotation, so `if (result.success)` would check a literal
- * `true`. A call's return type is not narrowed that way, so routing through
- * this identity function is what produces the wide `Result<T, E>` real callers
- * see.
- */
 function asResult<T, E>(result: Result<T, E>): Result<T, E> {
   return result;
 }

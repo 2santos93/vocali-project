@@ -96,11 +96,6 @@ describe('decodeS3ObjectKey', () => {
 });
 
 describe('startTranscriptionJobHandler', () => {
-  /**
-   * The test the decoding step exists for. Without it the lookup misses and
-   * the upload sits at PENDING_UPLOAD for ever with no error anywhere — and on
-   * a Spanish medical product, accents and spaces are the ordinary case.
-   */
   it('submits a job for a file whose name carries a space and an accent', async () => {
     const { handler, repository, provider } = buildSubject();
     const audioObjectKey = await savePendingUpload(repository, FILE_NAME);
@@ -154,11 +149,6 @@ describe('startTranscriptionJobHandler', () => {
     expect(provider.submissions).toHaveLength(2);
   });
 
-  /**
-   * S3 delivers at least once. A redelivery must not spend provider quota
-   * twice, and must not raise — a throw sends the notification round the retry
-   * loop and eventually to a dead-letter queue, for an event already handled.
-   */
   it('acknowledges a redelivered event without submitting a second job', async () => {
     const { handler, repository, provider } = buildSubject();
     await savePendingUpload(repository, FILE_NAME);
@@ -193,11 +183,6 @@ describe('startTranscriptionJobHandler', () => {
     expect(provider.submissions).toHaveLength(1);
   });
 
-  /**
-   * Infrastructure failures are the one thing that must propagate, so Lambda
-   * retries the notification. That is safe precisely because the redelivery
-   * test above holds.
-   */
   it('lets an infrastructure failure propagate so the notification is retried', async () => {
     const { handler, repository } = buildSubject();
     await savePendingUpload(repository, FILE_NAME);

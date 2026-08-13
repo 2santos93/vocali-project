@@ -9,16 +9,11 @@ variable "github_repository" {
 }
 
 variable "front_end_origins" {
-  description = "Origins the browser uploads audio from beyond the distribution's own domain, which is now added automatically. It stays a variable because a custom domain is served by the same distribution under a different name, and the bucket has to be told about it separately — and because development is local against this same bucket, so http://localhost:3000 is passed here rather than written into the composition."
+  description = "Origins the browser uploads audio from beyond the distribution's own domain, which is now added automatically. It stays a variable because a custom domain is served by the same distribution under a different name, and the bucket has to be told about it separately, and because development is local against this same bucket, so http://localhost:3000 is passed here rather than written into the composition."
   type        = list(string)
   default     = []
 
   validation {
-    # `http://localhost` is the one exception, and a narrow one: a browser
-    # treats it as a secure context, nothing leaves the machine, and it is the
-    # only way to exercise the direct-to-S3 upload while the front end has no
-    # public origin of its own. Every other origin must be https, because a
-    # presigned upload policy travelling over plain HTTP is readable in transit.
     condition = alltrue([
       for origin in var.front_end_origins :
       startswith(origin, "https://") || can(regex("^http://localhost(:[0-9]+)?$", origin))

@@ -33,9 +33,6 @@ variable "subject_claims" {
   }
 
   validation {
-    # A claim of `repo:owner/name:*` trusts every branch, every tag and every
-    # pull request from every fork, which is how a deployment role ends up
-    # assumable by a stranger's pull request.
     condition     = alltrue([for claim in var.subject_claims : !strcontains(claim, "*")])
     error_message = "A subject claim must not contain a wildcard. Name the branch, tag or environment: repo:owner/name:ref:refs/heads/main, or repo:owner/name:environment:production."
   }

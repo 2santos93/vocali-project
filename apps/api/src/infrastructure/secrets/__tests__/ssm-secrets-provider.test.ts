@@ -5,11 +5,6 @@ import { SsmSecretsProvider } from '../ssm-secrets-provider.js';
 const API_KEY_PARAMETER = '/vocali/speechmatics/api-key';
 const WEBHOOK_SECRET_PARAMETER = '/vocali/speechmatics/webhook-secret';
 
-/**
- * Read only by the module-scope test, which is the one test that must use the
- * shared cache and therefore cannot empty it afterwards. A name of its own
- * keeps that entry out of every other test's way.
- */
 const SHARED_CACHE_PARAMETER = '/vocali/speechmatics/shared-cache-probe';
 
 const ssmMock = mockClient(SSMClient);
@@ -60,9 +55,6 @@ describe('SsmSecretsProvider', () => {
     ssmMock.on(GetParameterCommand).resolves({ Parameter: { Value: 'the-provider-key' } });
     const client = buildClient();
 
-    // Built without a cache, as the composition root does, so both providers
-    // share the module-scope map. An instance field would pass every other
-    // test in this file and still re-fetch on each invocation.
     await new SsmSecretsProvider(client).getSecret(SHARED_CACHE_PARAMETER);
     await new SsmSecretsProvider(client).getSecret(SHARED_CACHE_PARAMETER);
 
@@ -100,9 +92,6 @@ describe('SsmSecretsProvider', () => {
   ])('reports a parameter that %s', async (_case, value) => {
     ssmMock.on(GetParameterCommand).resolves({ Parameter: { Value: value } });
 
-    // An empty parameter is the shape a half-finished deployment leaves
-    // behind. Handed onwards as the api key it produces a 401 with nothing to
-    // explain it, where SECRET_NOT_FOUND names the parameter that is empty.
     await expect(buildProvider().getSecret(API_KEY_PARAMETER)).rejects.toMatchObject({
       code: 'SECRET_NOT_FOUND',
     });

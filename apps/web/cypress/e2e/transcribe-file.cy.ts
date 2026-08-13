@@ -2,30 +2,11 @@ import { readPartNames } from '../support/multipart';
 import { signInOnTheWayTo } from '../support/session';
 import { buildTranscription } from '../support/transcriptions';
 
-/**
- * Journey 4: transcribing an audio file.
- *
- * S3 is not reached — the presigned POST is answered by the interceptor, which
- * is what makes the *shape* of that request assertable, and the shape is what
- * goes wrong silently in production.
- *
- * **The ticket is refused here on purpose**, so what this spec exercises is
- * the polling fallback rather than the push. That is the right half to pin
- * from a browser, which has no API Gateway to hold a socket open: the push is
- * the API's to prove, and the fallback is the path that has to work when the
- * push silently does not.
- */
-
 const AUDIO_CONTENT = 'RIFF----WAVEfmt consulta de cardiologia';
 const FILE_NAME = 'consulta-cardiologia.wav';
 
 const UPLOAD_URL = 'https://almacenamiento.example.test/vocali-audio';
 
-/**
- * The order matters and the names do not: these are the fields a presigned
- * POST policy carries, and every one of them has to reach S3 before the file
- * part or it is ignored.
- */
 const PRESIGNED_FIELDS = {
   key: 'audio/4b1f0c3a/tr-consulta-01.wav',
   'Content-Type': 'audio/wav',
@@ -66,11 +47,6 @@ describe('Transcribing an audio file', () => {
      */
     cy.intercept('POST', '/api/connection-tickets', { statusCode: 503, body: {} }).as('ticket');
 
-    /*
-     * A glob of `/api/transcriptions*` does not match this path — `*` does not
-     * cross a `/` — so the fallback's request would go unstubbed and the
-     * record would never be seen to settle.
-     */
     cy.intercept('GET', `/api/transcriptions/${TRANSCRIPTION_ID}`, {
       statusCode: 200,
       body: buildTranscription({
@@ -106,22 +82,11 @@ describe('Transcribing an audio file', () => {
     cy.wait('@storageUpload').then((interception): void => {
       const partNames = readPartNames(interception.request.body);
 
-      /*
-       * S3 stops collecting form fields at the file part, so every policy
-       * field has to precede it. A body that gets this wrong fails with a
-       * policy error naming none of the fields it never saw, at the end of
-       * however long the upload took.
-       */
       expect(partNames).to.deep.equal([...Object.keys(PRESIGNED_FIELDS), 'file']);
     });
 
     cy.get('[data-testid=processing-notice]').should('be.visible');
 
-    /*
-     * The one assertion that has to outwait a real timer. The budget must
-     * clear the fallback's interval rather than merely match it: a timeout
-     * equal to it fails whenever the machine is a little busy.
-     */
     cy.wait('@record', { timeout: 25_000 });
     cy.get('[data-testid=transcription-result]', { timeout: 25_000 }).should('contain', FILE_NAME);
     cy.get('[data-testid=transcription-preview]').should(
@@ -146,11 +111,6 @@ describe('Transcribing an audio file', () => {
       { force: true },
     );
 
-    /*
-     * The client check is a courtesy and the presigned POST policy is the
-     * control, but the courtesy is a sentence now rather than a failed upload
-     * after twenty megabytes have been sent.
-     */
     cy.get('[data-testid=rejection-alert]').should(
       'contain',
       '«sesion-larga.wav» ocupa 21 MB y el límite es 20 MB.',

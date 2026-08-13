@@ -1,33 +1,3 @@
-/*
- * The design tokens, and the only place any of them is defined.
- *
- * Tailwind v4 builds its utilities from these custom properties, so a colour
- * that is not declared here cannot be written in a template: `bg-brand-600`
- * exists because `--color-brand-600` does. That is the mechanism that keeps
- * arbitrary values (`bg-[#2b76a8]`) out of the components — there is never a
- * reason to reach for one.
- *
- * Names are semantic rather than literal. A badge asks for `success`, not for
- * `green`, so the palette can be retuned without editing a single component.
- *
- * Every colour carries both themes, as `light-dark(light, dark)`. Which half
- * applies is decided by the `color-scheme` of the document, which `main.css`
- * sets from the class the server puts on `<html>`. Two consequences worth
- * stating, because they are why the whole dark theme is thirty lines of CSS
- * and no component changes:
- *
- *   - a utility already written in a template — `bg-surface`, `text-ink` —
- *     follows the theme without a `dark:` twin beside it, so there is no
- *     second set of classes that can be forgotten on the twelfth component;
- *   - the two palettes sit on the same line, so a colour cannot be retuned in
- *     one theme and left behind in the other.
- *
- * The dark values are not the light ones inverted. Contrast was checked
- * against the surface each is used on, because this is a clinical product read
- * for a whole shift: body text sits at 14:1 on its panel and the quietest
- * muted text at 8:1, where WCAG AA asks for 4.5:1.
- */
-
 @theme {
   /* Spacing. Tailwind v4 derives the whole scale from this one step, so
      `p-2` is 0.5rem, `p-4` is 1rem, and no component invents a value. */
@@ -40,15 +10,6 @@
   --radius-control: 0.5rem;
   --radius-panel: 0.75rem;
 
-  /*
-   * Brand. A desaturated clinical blue: it has to sit behind clinical text for
-   * a whole shift without competing with it.
-   *
-   * The scale reverses between the themes because its rungs are used for
-   * roles, not for shades: the high numbers are text on a surface and the low
-   * numbers are tints behind it, and both of those have to move when the
-   * surface does.
-   */
   --color-brand-50: light-dark(#eef6fb, #14252f);
   --color-brand-100: light-dark(#d6e9f5, #17303e);
   --color-brand-200: light-dark(#aed3ea, #1e4256);
@@ -60,17 +21,6 @@
   --color-brand-800: light-dark(#163c57, #c2e1f2);
   --color-brand-900: light-dark(#12303f, #dcf0fb);
 
-  /*
-   * The filled brand control, named for its role rather than taken from the
-   * scale above.
-   *
-   * A primary button is the one place the brand is a background with white on
-   * top, and the rung that suits that in a light theme is the rung that reads
-   * as a link in a dark one. Pinning it to `brand-600` made those two demands
-   * the same value, and one of them had to lose. In light mode these are
-   * exactly the old `brand-600` and `brand-700`, so nothing about the light
-   * theme moved.
-   */
   --color-brand-solid: light-dark(#1f5d88, #256994);
   --color-brand-solid-hover: light-dark(#1a4a6c, #2b76a8);
 
@@ -86,14 +36,6 @@
      below stays dark enough to carry it. */
   --color-ink-inverse: #ffffff;
 
-  /*
-   * Semantic states. Each carries the same four roles so a component can pick
-   * a state and use the roles without knowing which state it got:
-   *   soft  — a tinted background
-   *   line  — the border that goes with it
-   *   ink   — text on the soft background, contrast checked against it
-   *   solid — a filled background, paired with --color-ink-inverse
-   */
   --color-muted-soft: light-dark(#eef2f5, #1b262f);
   --color-muted-line: light-dark(#d3dce2, #33424e);
   --color-muted-ink: light-dark(#44545f, #b9c6d0);

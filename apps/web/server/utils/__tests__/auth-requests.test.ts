@@ -32,9 +32,6 @@ describe('credentials', () => {
     ['a non-string password', { email: 'ana@example.com', password: 12345678 }],
     ['a null body', null],
   ])('rejects %s', (_name, body) => {
-    // A body is the definition of a value crossing a trust boundary. Casting
-    // it would put `undefined.trim()` inside a Cognito call whose failure is
-    // reported to the user as "vuelve a intentarlo en unos minutos".
     expect(parseRequest(credentialsSchema, body)).toBeNull();
   });
 

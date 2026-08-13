@@ -7,11 +7,6 @@ export const TEST_USER_ID = 'user-1';
 
 interface EventOverrides {
   readonly requestId?: string;
-  /**
-   * `null` builds an event with no `authorizer` key at all, which is what a
-   * route reached without an authorizer actually produces — the case the 401
-   * exists for. Leaving it out gives a valid `sub`.
-   */
   readonly authorizer?: Authorizer | null;
   readonly headers?: Record<string, string | undefined>;
   readonly pathParameters?: Record<string, string | undefined> | null;

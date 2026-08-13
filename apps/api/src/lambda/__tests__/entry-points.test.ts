@@ -32,12 +32,6 @@ const ENTRY_POINTS = [
   'handle-connection-closed',
 ];
 
-/**
- * A wiring check, not a behaviour check. These modules build the graph at
- * import time and hand a use case to a handler factory; handing over the wrong
- * one, or one the container never exposed, is a mistake nothing else in the
- * suite can see and that fails as a cold-start crash after a deploy.
- */
 describe('lambda entry points', () => {
   const originalEnvironment = process.env;
 

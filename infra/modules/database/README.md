@@ -11,7 +11,7 @@ The table holds four kinds of item, in three kinds of partition.
 | `USER#<sub>`      | `TRANS#<ULID>`   | A transcription. Chronological by construction, so newest-first is a descending query              |
 | `USER#<sub>`      | `IDEM#<id>`      | An idempotency claim on a realtime save, which is why the history query needs a `begins_with` term |
 | `TICKET#<digest>` | `TICKET`         | An unspent connection ticket, filed under a SHA-256 digest of itself rather than under its value   |
-| `CONN#<sub>`      | `<connectionId>` | An open websocket connection. One user has several — two tabs is normal                            |
+| `CONN#<sub>`      | `<connectionId>` | An open websocket connection. One user has several, two tabs is normal                             |
 
 Connections and tickets have partitions of their own **because of the IAM
 policy, not the query**. Filing them under `USER#<sub>` answers every query
@@ -42,7 +42,7 @@ between submitting a job and receiving its callback, and the retry loop
 written to survive that race.
 
 The `externalJobId` attribute still exists and is still compared against the
-callback — it is the check that stops a callback with a guessed identity
+callback, it is the check that stops a callback with a guessed identity
 writing into a record it does not own. It is simply no longer a lookup key.
 
 If the reconciler for stale jobs is built it will need to find records by
@@ -55,7 +55,7 @@ Encryption at rest is always on in DynamoDB; what this module chooses is the
 key. `server_side_encryption { enabled = true }` moves the table off the
 invisible AWS-owned key onto one that appears in the account and whose use is
 logged. Passing `kms_key_arn` goes further, to a key with a policy of our own
-— in which case the function roles need `kms:Decrypt` and
+in which case the function roles need `kms:Decrypt` and
 `kms:GenerateDataKey` on it, which the `functions` module takes as
 `kms_key_arns`.
 
@@ -69,8 +69,8 @@ one. A transcription history that quietly deleted itself would be the opposite
 of what this product promises, and raw audio expiry is still a bucket
 lifecycle rule, which is where the bytes actually are.
 
-It is a sweeper rather than a clock — DynamoDB deletes within a couple of days
-of the expiry, not at it — so both readers compare the stored expiry
+It is a sweeper rather than a clock (DynamoDB deletes within a couple of days
+of the expiry, not at it), so both readers compare the stored expiry
 themselves. A thirty-second ticket honoured for two more days is exactly the
 bug that would follow from trusting the TTL alone. What it is for is the
 residue: a browser that vanishes without a close frame never produces a

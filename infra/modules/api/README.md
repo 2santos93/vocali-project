@@ -23,7 +23,7 @@ reader looks for it anyway.
 `JWT`, pointed at the user pool's issuer, with the app client id as the
 audience. API Gateway fetches the pool's signing keys itself and checks the
 signature, the issuer, the audience and the expiry before a function is
-invoked — a request with a bad token costs no invocation and reaches no code
+invoked, a request with a bad token costs no invocation and reaches no code
 of ours.
 
 Cognito puts the audience in `aud` on an id token and in `client_id` on an
@@ -56,7 +56,7 @@ be a second step whose only failure mode is being forgotten.
 
 `throttling_rate_limit` defaults to 50 requests a second with a burst of 100;
 `environments/prod` raises them to 100 and 200. Either way it is not a
-capacity estimate — it is a ceiling. The account default is ten thousand a
+capacity estimate, it is a ceiling. The account default is ten thousand a
 second, which is the number of Lambda invocations a loop in a client can bill
 before anybody notices.
 

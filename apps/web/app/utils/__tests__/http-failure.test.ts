@@ -9,9 +9,6 @@ describe('readStatusCode', () => {
   });
 
   it('reports nothing for a rejection that carries no status', () => {
-    // A connection that never opened rejects with a TypeError, which has no
-    // status at all. Reading one off it would invent a fact about a request
-    // that never reached a server.
     expect(readStatusCode(new TypeError('Failed to fetch'))).toBeNull();
   });
 
@@ -34,10 +31,6 @@ describe('readStatusCode', () => {
 
 describe('isSessionExpired', () => {
   it('recognises the status that means the session is over', () => {
-    // Hardcoded rather than imported from HTTP_UNAUTHORIZED: importing the
-    // constant this function compares against would assert that a constant
-    // equals itself, and would stay green if the comparison were changed to
-    // any other status.
     expect(isSessionExpired({ statusCode: 401 })).toBe(true);
   });
 

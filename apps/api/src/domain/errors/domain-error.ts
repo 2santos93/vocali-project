@@ -35,11 +35,6 @@ export class AudioFileTooLargeError extends DomainError {
   }
 }
 
-/**
- * Carries the reason rather than the rejected name: the name is client-supplied
- * and may be long or full of control characters, neither of which belongs in a
- * log line or an HTTP response.
- */
 export class InvalidAudioFileNameError extends DomainError {
   readonly code = 'INVALID_AUDIO_FILE_NAME';
 
@@ -72,11 +67,6 @@ export class TranscriptionNotReadyError extends DomainError {
   }
 }
 
-/**
- * The reason deliberately carries no HTTP status, no response body and no
- * request detail: repeating a third party's numbering invites the frontend to
- * branch on it. One code, one remedy — the transcription did not start.
- */
 export class TranscriptionProviderError extends DomainError {
   readonly code = 'TRANSCRIPTION_PROVIDER_FAILED';
 
@@ -85,11 +75,6 @@ export class TranscriptionProviderError extends DomainError {
   }
 }
 
-/**
- * A malformed or foreign cursor is attacker-controlled input arriving over
- * HTTP, so it is an expected failure the caller must handle rather than an
- * exceptional condition.
- */
 export class InvalidCursorError extends DomainError {
   readonly code = 'INVALID_CURSOR';
 
@@ -98,12 +83,6 @@ export class InvalidCursorError extends DomainError {
   }
 }
 
-/**
- * Deliberately not a `DomainError`: `DomainErrorCode` is the closed union the
- * front end branches on, and no client ever sees this. Every caller absorbs it
- * — by acknowledging the delivery it lost, or by treating it as an impossible
- * id collision.
- */
 export class ConcurrentModificationError extends Error {
   readonly code = 'CONCURRENT_MODIFICATION';
 

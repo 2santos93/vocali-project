@@ -8,12 +8,6 @@ import type { AudioFile } from '../value-objects/audio-file.js';
 export interface TranscriptionPrimitives {
   readonly id: string;
   readonly userId: string;
-  /**
-   * The revision this entity was read at; `0` means never stored, so the first
-   * write is an insert. Mutating the entity deliberately does not touch it —
-   * the write must match what the store held at read time, not the number of
-   * changes made since.
-   */
   readonly version: number;
   readonly fileName: string;
   readonly source: TranscriptionSource;

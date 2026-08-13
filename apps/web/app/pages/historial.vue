@@ -5,17 +5,6 @@ import { useTranslations } from '../i18n/translations';
 
 const { t } = useTranslations();
 
-/*
- * The only file on this screen that touches the Nuxt runtime, and it supplies
- * `$fetch` and nothing else.
- *
- * Both calls go to `/api/*` on this origin, where the BFF proxy attaches the
- * bearer token from the httpOnly cookie. Nothing here holds a token, and
- * nothing here knows the API's address — or, now, which paths it serves: the
- * requests are built in `createHistoryRequests`, so the paths and the response
- * validation are exercised by the test suite rather than living in a page Jest
- * never mounts.
- */
 const requests = createHistoryRequests((path: string, query: Record<string, string>) =>
   $fetch<unknown>(path, { query }),
 );
@@ -24,12 +13,6 @@ const history = useTranscriptionHistory(requests.listTranscriptions);
 
 const download = useTranscriptionDownload(requests.requestDownloadUrl);
 
-/*
- * Loaded on mount rather than during render, so the history is fetched in the
- * browser with the user's own session and never rendered into the server's
- * HTML. A clinician's list of patients' recordings does not belong in a
- * cacheable server response.
- */
 onMounted(() => {
   void history.loadFirstPage();
 });

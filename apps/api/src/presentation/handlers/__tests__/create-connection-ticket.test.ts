@@ -56,11 +56,6 @@ describe('createConnectionTicketHandler', () => {
     expect(tickets.calls.issued[0]?.userId).toBe(TEST_USER_ID);
   });
 
-  /*
-   * `sub` is the only identity this codebase accepts. A body or a query naming
-   * a different user must not reach the use case, or anyone with a valid token
-   * of their own could open a socket receiving another user's transcriptions.
-   */
   it('ignores a user named in the request', async () => {
     const { handler, tickets } = buildHandler();
 

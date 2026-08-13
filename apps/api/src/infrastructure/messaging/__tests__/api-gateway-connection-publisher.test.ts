@@ -35,11 +35,6 @@ describe('ApiGatewayConnectionPublisher', () => {
     );
   });
 
-  /*
-   * A browser that closed its laptop lid leaves a connection API Gateway
-   * answers 410 for. That is the expected end of a connection nobody closed
-   * politely, not a failure, and it is the signal the caller cleans up on.
-   */
   it('reports a departed connection as gone rather than raising', async () => {
     management
       .on(PostToConnectionCommand)
@@ -48,11 +43,6 @@ describe('ApiGatewayConnectionPublisher', () => {
     expect(await buildPublisher().publish({ connectionId: 'departed', payload: {} })).toBe('gone');
   });
 
-  /*
-   * The mirror case, and the one that matters more. A throttle reported as
-   * `gone` would have the caller delete a connection that is still open, and
-   * nothing re-registers it until the browser reconnects.
-   */
   it('lets a failure that is not a departed connection propagate', async () => {
     management.on(PostToConnectionCommand).rejects(new Error('rate exceeded'));
 

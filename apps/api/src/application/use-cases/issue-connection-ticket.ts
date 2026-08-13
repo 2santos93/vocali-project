@@ -5,15 +5,6 @@ import type { TokenGenerator } from '../../domain/ports/token-generator.js';
 import { CONNECTION_TICKET_TTL_SECONDS } from '../constants.js';
 import type { IssueConnectionTicketInput } from '../types/connection-inputs.js';
 
-/**
- * Turns the proven identity behind the JWT authorizer into something safe to
- * put in a query string. API Gateway writes a `$connect` query string into the
- * access log, and an access token in a log is a session anyone reading it can
- * assume; a ticket in that log is expired, already spent, or both.
- *
- * No request body, deliberately: the lifetime is a security decision this
- * layer makes, not a preference a client states.
- */
 export class IssueConnectionTicket {
   constructor(
     private readonly tickets: ConnectionTicketStore,

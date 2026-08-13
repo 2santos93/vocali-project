@@ -1,12 +1,3 @@
 {
-  // The Nitro server: the BFF proxy, the authentication routes and their
-  // helpers. Separate from the application project because the two run in
-  // different places — `document` exists in one and `process.env` in the
-  // other — and a single project would offer both to both.
-  //
-  // No `include` of its own. The generated config already includes
-  // `../server/**/*` together with the Nitro ambient types, resolved against
-  // `.nuxt/`, and restating it here would only create a second copy to keep in
-  // step with whatever Nuxt generates next.
   "extends": "./.nuxt/tsconfig.server.json"
 }

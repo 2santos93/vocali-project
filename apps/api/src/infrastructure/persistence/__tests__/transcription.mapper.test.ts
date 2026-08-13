@@ -53,9 +53,6 @@ describe('transcription mapper', () => {
   });
 
   describe('round trip', () => {
-    // Asserted field by field rather than with one deep equality: a single
-    // `toEqual` against a fixture passes just as happily when the mapper and
-    // the fixture are both missing a field the entity has gained.
     it('preserves every field of a populated record', () => {
       const restored = toTranscriptionPrimitives(toTranscriptionItem(COMPLETED_FILE_UPLOAD));
 
@@ -128,9 +125,6 @@ describe('transcription mapper', () => {
       (field) => {
         const drifted = { ...toTranscriptionItem(COMPLETED_FILE_UPLOAD), [field]: 'yesterday' };
 
-        // These two travel out to the client unchanged, so accepting any
-        // string lets a value like this surface as a history row the front end
-        // cannot sort or format.
         expect(() => toTranscriptionPrimitives(drifted)).toThrow(MalformedTranscriptionRecordError);
       },
     );

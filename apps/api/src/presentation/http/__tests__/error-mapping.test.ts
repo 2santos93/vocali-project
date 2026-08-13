@@ -53,9 +53,6 @@ describe('toErrorResponse', () => {
       message: 'The request could not be completed',
       requestId: REQUEST_ID,
     });
-    // The whole serialised response, not just the message field: a leak that
-    // arrived through a header or a nested field would pass a field-by-field
-    // check and fail this one.
     expect(response.body).not.toContain('DynamoDB');
     expect(response.body).not.toContain('vocali-transcriptions');
     expect(JSON.stringify(response)).not.toContain('at Object');
@@ -73,9 +70,6 @@ describe('toErrorResponse', () => {
   });
 
   it('answers a domain-shaped error whose code is not a known domain code with a 500', () => {
-    // The shape of a schema-drift failure from the persistence mapper: a real
-    // `code`, deliberately outside the closed domain union, whose message
-    // names stored attributes.
     const error = Object.assign(new Error('Stored transcription record is malformed: language'), {
       code: 'MALFORMED_PERSISTED_RECORD',
     });
@@ -100,9 +94,6 @@ describe('toErrorResponse', () => {
   });
 
   it('recognises a domain error by its code alone, with no class and no name', () => {
-    // The shape a minified bundle produces: esbuild mangles class names, so
-    // `name` may be a single letter and `instanceof` may compare against a
-    // different copy of the constructor. Only `code` survives that.
     const minified = { code: 'TRANSCRIPTION_NOT_FOUND', message: 'Transcription "01A" not found' };
 
     const response = toErrorResponse(minified, REQUEST_ID);
@@ -138,9 +129,6 @@ describe('withErrorMapping', () => {
     const response = await handler(buildApiGatewayEvent({ requestId: 'request-xyz' }));
 
     expect(parseResponseBody(response.body).seen).toBe('request-xyz');
-    // A successful response carries the correlation id too: a user reporting
-    // an empty page needs the same handle into the logs as one reporting an
-    // error, and only the error body has a field for it.
     expect(response.headers['x-request-id']).toBe('request-xyz');
     expect(response.headers['cache-control']).toBe('no-store');
   });
@@ -164,9 +152,6 @@ describe('withErrorMapping', () => {
 
   it('survives a handler that threw something other than an error object', async () => {
     const logger = new CapturingLogger();
-    // A dependency that rejects with a bare string is the case that breaks a
-    // catch block reading `cause.message` — the type says otherwise, which is
-    // exactly why the cast is needed to reproduce it.
     const bareString = 'a bare string from a library' as unknown as Error;
     const handler = withErrorMapping(logger, () => Promise.reject(bareString));
 

@@ -14,12 +14,6 @@ import type { Result } from '../types/result.js';
 
 const MAX_FILE_NAME_LENGTH = 255;
 
-/**
- * The private `brand` field is never read; its only purpose is to make this
- * class nominal. Without it, a private *constructor* alone does not stop a
- * structurally matching plain object — a naive DynamoDB-row mapper, say —
- * being assigned to the `AudioFile` type, bypassing every check below.
- */
 export class AudioFile {
   private readonly brand = Symbol('AudioFile');
 
@@ -55,15 +49,6 @@ function isSupportedContentType(contentType: string): boolean {
   return SUPPORTED_AUDIO_CONTENT_TYPES.some((supported) => supported === contentType);
 }
 
-/**
- * Deliberately duplicates `SafeFileNameSchema` from `@vocali/contracts` rather
- * than reusing it: the two rules must agree, but the domain layer cannot
- * import a validation library, and this name is interpolated into the object
- * key an upload is signed for whether or not presentation code ran first.
- *
- * Spanish clinical file names are the norm here, so spaces and accented
- * characters must stay allowed — `\p{C}` matches neither.
- */
 function findFileNameProblem(fileName: string): string | null {
   if (fileName.length === 0) {
     return 'it must not be empty';

@@ -7,13 +7,6 @@ import {
   NOTHING_TO_SAVE,
 } from '../recording-failures';
 
-/*
- * Tested directly rather than through the recorder that raises these, because
- * driving each value through the recorder exercises some and leaves the rest
- * to be read rather than run — which is how the two device failures came to
- * share a branch that nothing entered.
- */
-
 function httpError(statusCode: number): Error & { statusCode: number } {
   return Object.assign(new Error('request failed'), { statusCode });
 }
@@ -92,12 +85,6 @@ describe('describeMicrophoneFailure', () => {
     });
   });
 
-  /*
-   * `capture.start` is typed as rejecting with a `MicrophoneError`, but a type
-   * is not a guarantee about a rejection: a failed worklet fetch or a browser
-   * with no `AudioWorklet` rejects with something else, and without this the
-   * screen renders `undefined` where the message should be.
-   */
   it.each([
     ['a plain error', new Error('AudioContext is not defined')],
     ['a DOM exception this file knows nothing about', new TypeError('not a function')],

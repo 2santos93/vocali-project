@@ -56,9 +56,6 @@ describe('SaveRealtimeTranscription', () => {
 
     await useCase.execute(validInput);
 
-    // GetTranscriptionDownloadUrl derives the object key from the requested
-    // format alone, so a record that wrote only `.txt` would still return a
-    // signed URL for a `.json` that does not exist.
     expect(storage.objects.get('transcripts/user-1/01ID001.txt')).toBe(
       'the patient reports mild pain',
     );
@@ -151,9 +148,6 @@ describe('SaveRealtimeTranscription', () => {
 
       const transcription = await useCase.execute(retried);
 
-      // Deriving the id from the session id is the obvious shortcut and it
-      // breaks the history: ids are ULIDs precisely so that sort-key order is
-      // chronological order, and a client-chosen id orders arbitrarily.
       expect(transcription.id).toBe('01ID001');
       expect(await repository.findById('user-1', 'session-abc')).toBeNull();
     });
@@ -170,9 +164,6 @@ describe('SaveRealtimeTranscription', () => {
     it('stores a separate transcription each time when no session id is given', async () => {
       const { useCase, repository } = buildUseCase();
 
-      // Two identical dictations are two dictations. Without a key from the
-      // client there is nothing that says otherwise, and collapsing them on
-      // their content would silently discard a genuine second recording.
       await useCase.execute(validInput);
       await useCase.execute(validInput);
 
@@ -202,9 +193,6 @@ describe('SaveRealtimeTranscription', () => {
       );
 
       const first = await useCase.execute(retried);
-      // The second attempt reads before the first commits, so it gets as far
-      // as the write and loses there. Only the transaction can decide this;
-      // the read ahead of it is an optimisation, not the control.
       repository.hideNextClaim();
       const second = await useCase.execute(retried);
 
@@ -216,11 +204,6 @@ describe('SaveRealtimeTranscription', () => {
   });
 });
 
-/**
- * Models the window the transaction exists to close: a retry whose lookup runs
- * before the first attempt commits sees no claim, and has to be stopped by the
- * conditional write rather than by that lookup.
- */
 class LateClaimVisibilityRepository extends InMemoryTranscriptionRepository {
   private hideNext = false;
 

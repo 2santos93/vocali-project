@@ -36,39 +36,18 @@ import type {
   RecordingPhase,
 } from './types/recording';
 
-/**
- * Nothing here opens a connection of its own: the session request, the socket
- * and the save are all collaborators the page supplies, which is what lets
- * Jest drive a socket that drops halfway through a sentence.
- */
-
 const MILLISECONDS_PER_SECOND = 1000;
 
 const WEBSOCKET_OPEN = 1;
 
-/**
- * How long to wait for the provider to flush its last words after
- * `EndOfStream`. Bounded, so a provider that never answers cannot leave the
- * interface stuck on "finalizando" holding text the user cannot save.
- */
 const DRAIN_TIMEOUT_MS = 5000;
 
-/**
- * Separated from the page for the same reason as `createUploadRequests`: a
- * page is the one layer Jest never mounts, so a path living only in a page is
- * a path nothing asserts until it 404s on a deployed environment.
- */
 export function createRealtimeRequests(
   request: ApiRequester,
 ): Pick<AudioRecorderDependencies, 'createSession' | 'saveTranscription'> {
   return {
     async createSession(): Promise<RealtimeSessionResponse> {
       const response = await request(REALTIME_SESSIONS_PATH, { method: 'POST' });
-      /*
-       * This response carries the sample rate the capture is built from, and a
-       * wrong rate does not fail — it transcribes noise, convincingly enough
-       * that nothing downstream can tell.
-       */
       return RealtimeSessionResponseSchema.parse(response);
     },
 
@@ -198,7 +177,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
       // Concatenated rather than joined with a space: the provider's confirmed
       // text already carries its spacing, and joining doubles every gap.
       finalText.value += confirmed;
-      // Cleared only now — the partial is the provisional version of exactly
+      // Cleared only now: the partial is the provisional version of exactly
       // this text, so dropping it earlier makes the tail flicker.
       partialText.value = '';
       return;
@@ -223,12 +202,6 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
   async function beginCapture(): Promise<void> {
     try {
       await dependencies.capture.start({
-        /*
-         * The contract's rate, never a copy: the `AudioContext` is constructed
-         * at it rather than resampled afterwards, and it is needed before a
-         * session exists, so it cannot be read off the session response. A
-         * drifted copy would not fail — it would transcribe noise.
-         */
         sampleRate: REALTIME_AUDIO_FORMAT.sampleRate,
         onFrame: (frame: ArrayBuffer) => {
           if (socket === null || socket.readyState !== WEBSOCKET_OPEN) {
@@ -265,11 +238,6 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     closingDeliberately = false;
     framesSent = 0;
 
-    /*
-     * The credential travels as a query parameter because a browser WebSocket
-     * cannot set an Authorization header. Built through `URL` so a
-     * websocketUrl already carrying a query string gets no second `?`.
-     */
     const url = new URL(session.websocketUrl);
     url.searchParams.set('jwt', session.token);
 
@@ -310,9 +278,6 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     phase.value = 'finishing';
     endedAtMs = dependencies.now();
 
-    // Armed before anything is awaited: releasing the microphone takes a turn
-    // of the event loop, and a frame arriving during it would leave the drain
-    // waiting for a message that has already been and gone.
     const drained = new Promise<void>((resolve) => {
       onDrained = resolve;
     });
@@ -336,11 +301,6 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     await persist();
   }
 
-  /**
-   * Releases the microphone as well as the socket, because a page calls this
-   * on unmount: navigating away mid-dictation must not leave the tab holding
-   * the device with the browser's recording indicator lit.
-   */
   async function discard(): Promise<void> {
     onDrained = null;
     await teardown();

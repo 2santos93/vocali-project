@@ -27,9 +27,6 @@ describe('reading claims', () => {
   });
 
   it('decodes base64url, not base64', () => {
-    // Cognito's payloads routinely contain characters that encode to - and _.
-    // A plain base64 decode mangles them, so the subject comes back wrong
-    // rather than absent.
     const subject = 'subject-????-with-padding';
     const token = tokenWithPayload({ sub: subject, exp: 1, extra: '<<<???>>>' });
 

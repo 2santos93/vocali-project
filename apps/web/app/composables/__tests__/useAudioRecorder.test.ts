@@ -49,11 +49,6 @@ function httpError(statusCode: number): Error & { statusCode: number } {
   return Object.assign(new Error('request failed'), { statusCode });
 }
 
-/**
- * A DOMException-shaped rejection without jsdom's constructor: an `Error`
- * carrying a `name`, because rejecting with a bare object would be a shape no
- * browser produces.
- */
 class FakeMediaError extends Error {
   constructor(name: string) {
     super(name);
@@ -227,11 +222,6 @@ function harness(): RecorderHarness {
     now(): number {
       return dependencies.clock;
     },
-    /*
-     * Never resolves unless a test asks it to: a `wait` that resolved
-     * immediately would make every test take the timeout branch and none
-     * exercise the path a real provider takes.
-     */
     wait(): Promise<void> {
       return new Promise<void>((resolve) => {
         releaseWait = resolve;
@@ -287,11 +277,6 @@ function requesterReturning(response: unknown): {
   };
 }
 
-/*
- * These cannot prove the API serves the paths — the routes live only as prose
- * on the Lambda entry points — but they catch a path, method or body being
- * changed, which nothing else would until a deployment answered 404.
- */
 describe('createRealtimeRequests', () => {
   it('mints a session at POST /api/realtime-sessions, with no body', async () => {
     const { request, calls } = requesterReturning(SESSION);
@@ -332,8 +317,8 @@ describe('createRealtimeRequests', () => {
   });
 
   /*
-   * A wrong sample rate does not fail — it transcribes noise convincingly
-   * enough that nothing downstream can tell — so it is checked, not assumed.
+   * A wrong sample rate does not fail: it transcribes noise convincingly
+   * enough that nothing downstream can tell, so it is checked, not assumed.
    */
   it('refuses a session whose audio format is not what the contract promises', async () => {
     const { request } = requesterReturning({
@@ -454,11 +439,6 @@ describe('createWorkletAudioCapture', () => {
     return deps;
   }
 
-  /*
-   * The context is constructed at the provider's 16 kHz rather than resampled
-   * afterwards: resampling in JavaScript costs quality and main-thread time
-   * for something the browser does properly if asked.
-   */
   it('constructs the audio context at the rate it was given, not at the device default', async () => {
     const deps = captureHarness();
 
@@ -557,11 +537,6 @@ describe('createWorkletAudioCapture', () => {
     expect(deps.contextClosed).toBe(1);
   });
 
-  /*
-   * The catch around the graph turns anything unrecognised into "this browser
-   * cannot record", which is right for a missing `AudioWorklet`. A
-   * `MicrophoneError` already knows better and keeps its own words.
-   */
   it('keeps a device failure raised while building the graph, rather than blaming the browser', async () => {
     const deps = captureHarness();
     const known = new MicrophoneError('NO_MICROPHONE', { key: 'failure.microphone.missing' });
@@ -607,11 +582,6 @@ describe('createWorkletAudioCapture', () => {
     await expect(createWorkletAudioCapture(captureHarness()).stop()).resolves.toBeUndefined();
   });
 
-  /*
-   * A shimmed or extension-wrapped `getUserMedia` can reject with a string.
-   * Read carelessly that is a `TypeError` thrown inside the failure handler,
-   * which is a blank screen instead of an explanation.
-   */
   it.each([
     ['a string', 'the device fell over'],
     ['nothing', undefined],
@@ -634,11 +604,6 @@ describe('createWorkletAudioCapture', () => {
     },
   );
 
-  /*
-   * The default dependencies: everything above drives the capture through
-   * injected collaborators, so without this block the adapter production
-   * actually runs is the one part of the file no test enters.
-   */
   describe('with no dependencies supplied', () => {
     interface BrowserDouble {
       readonly constraints: MediaStreamConstraints[];
@@ -751,11 +716,6 @@ describe('useAudioRecorder', () => {
     expect(controller.hasRecoverableText.value).toBe(false);
   });
 
-  /*
-   * A browser WebSocket cannot set an Authorization header, so the credential
-   * travels as a query parameter. Built through `URL` so a websocketUrl
-   * already carrying a query string does not get a second question mark.
-   */
   it('opens the socket with the session credential attached to the url', async () => {
     const deps = harness();
 
@@ -1067,12 +1027,6 @@ describe('useAudioRecorder', () => {
       expect(controller.hasRecoverableText.value).toBe(true);
     });
 
-    /*
-     * `stop` accepts the connecting phase, where the socket is still
-     * CONNECTING. `send` on an unopened socket throws `InvalidStateError`,
-     * which would escape past the teardown and leave the recording indicator
-     * lit on a dictation the user had already ended.
-     */
     it('sends nothing down a socket that has not finished opening', async () => {
       const deps = harness();
       const controller = useAudioRecorder(deps);
@@ -1096,12 +1050,6 @@ describe('useAudioRecorder', () => {
       expect(controller.failure.value?.code).toBe('NOTHING_TO_SAVE');
     });
 
-    /*
-     * Nothing in the protocol forbids a provider sending its first words ahead
-     * of `RecognitionStarted`, and the duration is measured from the moment
-     * capture started. Without the guard the arithmetic runs against a null
-     * start and files a sixteen-minute consultation for one sentence.
-     */
     it('saves a dictation that never started recording with no duration rather than the epoch', async () => {
       const deps = harness();
       const controller = useAudioRecorder(deps);
@@ -1204,12 +1152,6 @@ describe('useAudioRecorder', () => {
       expect(controller.hasRecoverableText.value).toBe(true);
     });
 
-    /*
-     * The provider spells a refused credential two ways, `not_authorised` and
-     * `invalid_token`, which mean the same to the person holding the
-     * microphone. Reporting the second as a generic provider fault says the
-     * service is broken when the session has simply run out.
-     */
     it.each(['not_authorised', 'invalid_token'])(
       'reports an Error frame of type %s as the credential having expired',
       async (type) => {
@@ -1253,11 +1195,6 @@ describe('useAudioRecorder', () => {
       },
     );
 
-    /*
-     * The `error` event carries no detail and is always followed by a close.
-     * Acting on it too publishes a vague failure that overwrites the specific
-     * one the close code affords.
-     */
     it('waits for the close code rather than failing on the detail-free error event', async () => {
       const { controller, socket } = await recordingHarness();
       socket.receive({ message: 'AddTranscript', metadata: { transcript: 'Ya dicho.' } });

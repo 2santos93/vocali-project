@@ -1,24 +1,9 @@
-/**
- * `cy.intercept` works at the network boundary and neither of these crosses
- * it: a microphone is a device, and the provider's stream is a websocket. Both
- * are replaced at the boundary the application uses, so everything above them
- * is real — the `AudioContext`, the worklet, the state machine, the screen.
- *
- * What this does not prove: no audio is transcribed and no provider is
- * contacted. Under test is the application's half of the protocol.
- */
-
 type SocketListener = (event: unknown) => void;
 
 const CONNECTING = 0;
 const OPEN = 1;
 const CLOSED = 3;
 
-/**
- * Written by hand rather than as an `EventTarget` subclass, so nothing depends
- * on dispatching an event across the boundary between the spec's realm and the
- * application's.
- */
 export class ProviderSocket {
   /** Every socket the application has opened since the last page load. */
   public static readonly opened: ProviderSocket[] = [];
@@ -90,12 +75,6 @@ export class ProviderSocket {
   }
 }
 
-/**
- * The microphone is a **real** `MediaStream` carrying silence, not a bare
- * object, because the application feeds it to a real `AudioContext`: a
- * substitute with no audio track fails inside `createMediaStreamSource`, which
- * is the test failing at its own scaffolding rather than at the screen.
- */
 export function useSilentMicrophoneAndProviderSocket(win: Cypress.AUTWindow): void {
   ProviderSocket.opened.length = 0;
 

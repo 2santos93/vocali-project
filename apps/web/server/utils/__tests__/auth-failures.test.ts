@@ -55,11 +55,6 @@ describe('no provider vocabulary reaches the browser', () => {
 });
 
 describe('registration does not enumerate users', () => {
-  /*
-   * A visitor typing an address into the sign-up form must not learn from the
-   * answer whether it already has an account. `null` means "answer as though
-   * it had succeeded", so the route's reply is identical in both cases.
-   */
   it('reports an address that already has an account as a success', () => {
     expect(describeRegistrationFailure(cognitoError('UsernameExistsException'))).toBeNull();
   });
@@ -102,9 +97,6 @@ describe('resending does not enumerate users', () => {
   it.each(['UserNotFoundException', 'InvalidParameterException', 'NotAuthorizedException'])(
     'answers as a success for %s',
     (name) => {
-      // Unknown address, already confirmed, and code genuinely sent all have to
-      // look the same, or the resend control becomes the enumeration endpoint
-      // the sign-up form deliberately is not.
       expect(describeResendFailure(cognitoError(name))).toBeNull();
     },
   );
@@ -178,9 +170,6 @@ describe('confirming an address', () => {
     'NotAuthorizedException',
     'AliasExistsException',
   ])('gives %s one indistinguishable failure', (name) => {
-    // A wrong code, an address with no account, and an account that is already
-    // confirmed must read identically, or a stranger learns which of the three
-    // they are looking at.
     expect(describeConfirmationFailure(cognitoError(name))).toStrictEqual(
       describeConfirmationFailure(cognitoError('CodeMismatchException')),
     );

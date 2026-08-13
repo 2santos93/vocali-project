@@ -7,11 +7,6 @@ import { formatMegabytes } from '../format';
 import type { FileRejection } from '../types/files';
 
 interface Props {
-  /**
-   * Defaults come from @vocali/contracts, so the browser's courtesy check and
-   * the policy S3 enforces are the same numbers. A second copy here is how a
-   * client starts refusing files the server would have accepted.
-   */
   accept?: readonly string[];
   maxSizeBytes?: number;
   disabled?: boolean;
@@ -53,9 +48,6 @@ const acceptAttribute = computed<string>(() => props.accept.join(','));
 
 const acceptedFormatsText = computed<string>(() => {
   const labels = props.accept.map((type) => EXTENSION_LABELS[type] ?? type.toUpperCase());
-  // Array.from rather than a spread: @vue/vue3-jest forces an ES5 target when
-  // it transpiles an SFC, so `[...set]` compiles to `set.slice()`, which a Set
-  // does not have. It breaks only under test.
   return Array.from(new Set(labels)).join(', ');
 });
 

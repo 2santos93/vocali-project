@@ -17,13 +17,6 @@ import type { SecretsProvider } from '../domain/ports/secrets-provider.js';
 import type { TranscriptionProvider } from '../domain/ports/transcription-provider.js';
 import type { AppConfig } from '../infrastructure/types/config.js';
 
-/**
- * Everything a handler is allowed to reach for, declared as ports. That is what
- * keeps this list from becoming a way in for adapters: a handler that could see
- * `S3Client` would eventually use it, and naming
- * `SpeechmaticsTranscriptionProvider` here would put one vendor back inside the
- * HTTP layer.
- */
 export interface Container {
   readonly config: AppConfig;
   readonly logger: Logger;

@@ -6,16 +6,6 @@ import { useTranslations } from '../../i18n/translations';
 import FlagIcon from '../atoms/FlagIcon.vue';
 import { useDropdown } from '../dropdown';
 
-/**
- * The language the **interface** is written in, never the language of a
- * recording. That one is chosen per dictation and sent to the transcription
- * service; this one never leaves the browser, and the two must not be wired
- * together — a clinician reading in English still dictates in Catalan.
- *
- * A hand-built listbox rather than a `<select>` because a native select
- * always shows the selected option's own text, and closed this must be a flag
- * and a chevron to fit the header. The keyboard behaviour below is that cost.
- */
 interface Props {
   language: InterfaceLanguage;
   id?: string;
@@ -36,11 +26,6 @@ const OPTION_KEYS: Record<InterfaceLanguage, MessageKey> = {
   en: 'preferences.language.en',
 };
 
-/*
- * Destructured rather than kept as one object: a static `ref="container"` is
- * matched against a setup binding by name, and `ref="dropdown.container"`
- * would look for a binding with a dot in it and silently find nothing.
- */
 const { open, container, trigger, toggle, show, dismiss } = useDropdown();
 
 const listId = computed<string>(() => `${props.id}-list`);
@@ -85,11 +70,6 @@ function move(delta: number): void {
   activeIndex.value = (activeIndex.value + delta + count) % count;
 }
 
-/**
- * The focus never leaves the trigger — the active row is pointed at by
- * `aria-activedescendant` — which is what keeps this to one handler rather
- * than a roving tabindex across the rows.
- */
 function onKeydown(event: KeyboardEvent): void {
   const { key } = event;
 
@@ -162,12 +142,6 @@ function onKeydown(event: KeyboardEvent): void {
       </svg>
     </button>
 
-    <!--
-      `@mousedown.prevent` on each row is load-bearing. A row is not focusable,
-      so pressing one blurs the button; `useDropdown` closes the panel on that
-      blur, unmounting the row between its own mousedown and its click, and the
-      press intermittently does nothing at all.
-    -->
     <ul
       v-if="open"
       :id="listId"

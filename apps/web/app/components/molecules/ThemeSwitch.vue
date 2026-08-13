@@ -3,15 +3,6 @@ import { useTranslations } from '../../i18n/translations';
 import type { ThemePreference } from '../../utils/types/theme';
 import ToggleSwitch from '../atoms/ToggleSwitch.vue';
 
-/**
- * A switch plus a separate control, because the preference has three values
- * and a switch has two positions. Dropping `system` is the tempting shortcut
- * and the wrong one: it is the default, so it would pin every reader who has
- * never touched this to light the first time anything wrote the cookie.
- *
- * The switch therefore answers "is it dark right now" — the resolved palette,
- * not the preference — and `Como el sistema` hands the decision back.
- */
 interface Props {
   preference: ThemePreference;
   /** The palette actually on screen, with `system` already resolved. */

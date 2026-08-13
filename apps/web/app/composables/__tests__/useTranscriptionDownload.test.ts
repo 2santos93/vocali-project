@@ -181,11 +181,6 @@ describe('buildTranscriptFileName', () => {
   });
 });
 
-/*
- * Every case above hands in a `followUrl`, which left the default — the one
- * the history table runs — untested. A default that stopped reaching the
- * browser is a download button that does nothing and reports no error.
- */
 describe('useTranscriptionDownload, with no follower supplied', () => {
   it('hands the signed URL to the browser itself', async () => {
     const clicked: { href: string; download: string }[] = [];

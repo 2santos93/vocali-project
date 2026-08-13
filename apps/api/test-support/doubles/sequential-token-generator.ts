@@ -12,9 +12,6 @@ export class SequentialTokenGenerator implements TokenGenerator {
   generate(): string {
     this.counter += 1;
 
-    // Padded for the same reason `SequentialIdGenerator` is: unpadded counters
-    // sort '10' before '2', and a test that happens to order tokens would
-    // freeze the wrong order as its expectation.
     return `${this.prefix}-${String(this.counter).padStart(3, '0')}`;
   }
 }

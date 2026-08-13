@@ -111,12 +111,6 @@ describe('PublishTranscriptionUpdate', () => {
     expect(harness.publisher.calls).toHaveLength(0);
   });
 
-  /*
-   * Asserting only that the publish did not throw would pin nothing — a use
-   * case that ignored the outcome entirely passes that. The assertion is that
-   * the entry is gone from the registry afterwards, because otherwise it
-   * survives until its expiry and every completion in between pays for it.
-   */
   it('deletes a connection that answers gone, and keeps the live one', async () => {
     const harness = buildHarness();
     await seedRecord(harness);
@@ -139,9 +133,6 @@ describe('PublishTranscriptionUpdate', () => {
 
     await harness.useCase.execute({ userId: 'user-1', transcriptionId: '01RECORD' });
 
-    // The mirror of the case above: a cleanup that ran on every outcome would
-    // leave the user with no connection after their first completion, and the
-    // next one would be silently undeliverable.
     expect(harness.connections.calls.removed).toEqual([]);
   });
 

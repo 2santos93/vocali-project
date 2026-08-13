@@ -71,11 +71,6 @@ describe('handleConnectionOpenedHandler', () => {
     expect(connections.calls.added).toEqual([]);
   });
 
-  /*
-   * A socket that is open but unrecorded receives nothing, for ever, and the
-   * browser cannot tell. Refusing the handshake is what sends the client to
-   * its polling fallback.
-   */
   it('refuses the handshake when the connection cannot be recorded', async () => {
     const connections = new InMemoryConnectionRegistry();
     connections.failNextWith = new Error('table unavailable');
@@ -107,11 +102,6 @@ describe('handleConnectionClosedHandler', () => {
     expect(await connections.listByUser('user-1')).toEqual([]);
   });
 
-  /*
-   * Nothing is listening on `$disconnect`: the connection is already gone, so
-   * a failure status changes nothing observable and only adds a Lambda error
-   * to the metrics. The undeleted entry is collected by its expiry.
-   */
   it('answers 200 even when the entry cannot be deleted', async () => {
     const connections = new InMemoryConnectionRegistry();
     connections.failNextWith = new Error('table unavailable');

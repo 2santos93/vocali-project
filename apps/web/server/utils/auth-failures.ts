@@ -1,21 +1,4 @@
 /**
- * Two rules govern every line below.
- *
- * **No provider code reaches the browser.** What crosses the boundary is a
- * stable application code for the interface to branch on, and a Spanish
- * sentence that says what to do next.
- *
- * **An error must not answer a question the caller has not earned.** A
- * visitor typing an address into the registration form must not learn whether
- * it already has an account: a sign-up form that says "ya está registrado" is
- * a user enumeration endpoint with a friendly face. The pool sets
- * `prevent_user_existence_errors`, which covers sign-in, but Cognito's
- * `SignUp` reveals existence regardless, so it is neutralised here.
- *
- * Where the rules leave a residue, it is named rather than papered over.
- */
-
-/**
  * The interface carries a `Record<AuthFailureCode, MessageKey>`, so adding a
  * case here without words for it stops the front end compiling.
  */
@@ -120,13 +103,6 @@ export const INVALID_INPUT: AuthFailure = {
 
 export { SESSION_EXPIRED };
 
-/**
- * `null` means "answer as though it had succeeded". The response to
- * registering an address that already has an account is byte for byte the
- * response to registering a new one, so `UsernameExistsException` is never
- * reported: it costs a confirmed user one wasted screen and an attacker the
- * entire enumeration.
- */
 export function describeRegistrationFailure(error: unknown): AuthFailure | null {
   switch (readErrorName(error)) {
     case 'UsernameExistsException':
@@ -145,16 +121,6 @@ export function describeRegistrationFailure(error: unknown): AuthFailure | null 
   }
 }
 
-/**
- * Everything except an expired code collapses into one message, so a wrong
- * code, an unknown address and an already-confirmed account are
- * indistinguishable.
- *
- * Expiry is a stated residue: Cognito returns `ExpiredCodeException` only for
- * an address that exists and is still unconfirmed, so a caller who sees it
- * learns that much. Accepted because folding it into the generic message
- * leaves a user re-entering a code that can never work.
- */
 export function describeConfirmationFailure(error: unknown): AuthFailure {
   switch (readErrorName(error)) {
     case 'ExpiredCodeException':
@@ -173,12 +139,6 @@ export function describeConfirmationFailure(error: unknown): AuthFailure {
   }
 }
 
-/**
- * `null` covers every outcome that depends on whether the address exists,
- * which is what stops the resend control becoming the enumeration endpoint the
- * sign-up form is not. Rate limiting is reported because it says nothing about
- * the address.
- */
 export function describeResendFailure(error: unknown): AuthFailure | null {
   switch (readErrorName(error)) {
     case 'TooManyRequestsException':
@@ -191,17 +151,6 @@ export function describeResendFailure(error: unknown): AuthFailure | null {
   }
 }
 
-/**
- * A wrong password and an address with no account produce the same 401 with
- * the same sentence. Mapping `UserNotFoundException` to the identical failure
- * means the property does not depend on `prevent_user_existence_errors`
- * staying switched on.
- *
- * `UserNotConfirmedException` is the deliberate exception: a user who
- * registered and came back has no route forward from "credenciales
- * incorrectas". It reveals that an unconfirmed account exists — the same
- * residue the confirmation flow carries, and no wider.
- */
 export function describeSignInFailure(error: unknown): AuthFailure {
   switch (readErrorName(error)) {
     case 'UserNotConfirmedException':
@@ -224,15 +173,6 @@ export function describeSignInFailure(error: unknown): AuthFailure {
   }
 }
 
-/**
- * `null` means the sign-out is complete: `NotAuthorizedException` on a
- * `GlobalSignOut` means the access token is already invalid, so there is no
- * live session left to end.
- *
- * Anything else is reported honestly. If Cognito could not be reached the
- * refresh token stays valid elsewhere for the rest of its eight hours, and
- * cleared browser cookies are not the same thing as having signed out.
- */
 export function describeSignOutFailure(error: unknown): AuthFailure | null {
   switch (readErrorName(error)) {
     case 'NotAuthorizedException':
@@ -248,20 +188,10 @@ export function describeSignOutFailure(error: unknown): AuthFailure | null {
   }
 }
 
-/**
- * Every failure is the same to the browser: the session is over and the
- * cookies are cleared. A revoked refresh token, which is what signing out
- * everywhere produces, is the expected end of a session rather than an error.
- */
 export function describeRefreshFailure(): AuthFailure {
   return SESSION_EXPIRED;
 }
 
-/**
- * The AWS SDK puts the modelled exception in `name`. Read defensively: a
- * network failure arriving here is an `Error` with an unrelated name, and a
- * rejected promise is not guaranteed to carry an `Error` at all.
- */
 function readErrorName(error: unknown): string | null {
   if (typeof error !== 'object' || error === null) return null;
 

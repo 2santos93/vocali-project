@@ -1,11 +1,3 @@
-/**
- * The source of truth for what a message key is: `MessageKey` is derived from
- * the keys of this object, so a key added here and forgotten in `en.ts` fails
- * to compile, and a key in `en.ts` that does not exist here fails too.
- *
- * When the two catalogues disagree about what a screen says, this one is
- * right. `{name}` marks a value supplied at the call site.
- */
 export const SPANISH_MESSAGES = {
   /* Words the whole interface shares. */
   'common.processing': 'Procesando',
@@ -16,11 +8,6 @@ export const SPANISH_MESSAGES = {
 
   /* The two preference controls. */
   'preferences.theme': 'Tema',
-  /*
-   * Named for what turning it on does, not for the value it holds: "Oscuro"
-   * beside a switch reads as a label on a state — is it the current one, or
-   * the one I would get?
-   */
   'preferences.theme.darkMode': 'Modo oscuro',
   // A third control rather than a third position, because a switch with three
   // states is not a switch.
@@ -47,11 +34,6 @@ export const SPANISH_MESSAGES = {
   // Carries the address because the button itself shows only an initial.
   'session.account': 'Cuenta de {email}',
 
-  /*
-   * The language spoken in a recording, not the language of the interface.
-   * Neither list decides the other: a clinician reading this application in
-   * English still dictates in Catalan.
-   */
   'audioLanguage.es': 'Español',
   'audioLanguage.en': 'Inglés',
   'audioLanguage.ca': 'Catalán',
@@ -66,11 +48,6 @@ export const SPANISH_MESSAGES = {
 
   /* Signing in, registering, confirming an address. */
   'auth.email': 'Correo electrónico',
-  /*
-   * `{'@'}` is an escaped at sign, not a placeholder: `vue-i18n` reads a bare
-   * `@` as the start of a link to another message and refuses the whole
-   * catalogue. What a reader sees is `nombre@centro.es`.
-   */
   'auth.emailPlaceholder': "nombre{'@'}centro.es",
   'auth.emailMissing': 'Introduce tu correo electrónico.',
   'auth.password': 'Contraseña',
@@ -111,12 +88,6 @@ export const SPANISH_MESSAGES = {
   'auth.confirm.startOver': '¿Prefieres empezar de nuevo?',
   'auth.confirm.createAnother': 'Crear otra cuenta',
 
-  /*
-   * Keyed by the stable code the routes carry, not the sentence they arrive
-   * with. The route's own sentence is the HTTP contract and stays there; what
-   * a reader sees is written here, because the server has no business knowing
-   * which language they chose.
-   */
   'authFailure.RATE_LIMITED':
     'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.',
   'authFailure.AUTH_UNAVAILABLE':
@@ -235,11 +206,6 @@ export const SPANISH_MESSAGES = {
   'history.next': 'Siguiente',
   'history.page': 'Página {number}',
 
-  /*
-   * The composables that decide which of these applies hold the key and not
-   * the sentence, so a failure raised in one language still reads correctly
-   * after the reader switches to the other.
-   */
   'failure.sessionExpired': 'Tu sesión ha caducado. Vuelve a iniciar sesión.',
   'failure.historyLoad':
     'No hemos podido cargar tu historial. Comprueba tu conexión y vuelve a intentarlo.',

@@ -10,11 +10,6 @@ import type {
   TranscriptionHistory,
 } from './types/transcriptions';
 
-/**
- * Separated from the page for the same reason as `createUploadRequests`: a
- * page is the one layer Jest never mounts, so a path that lives only in a page
- * is a path nothing asserts until it 404s on a deployed environment.
- */
 export function createHistoryRequests(request: QueryRequester): {
   listTranscriptions: ListTranscriptionsRequest;
   requestDownloadUrl: (transcriptionId: string, format: TranscriptFormat) => Promise<unknown>;
@@ -44,14 +39,6 @@ export function useTranscriptionHistory(
   const errorMessage = ref<TranslatableMessage | null>(null);
   const sessionExpired = ref<boolean>(false);
 
-  /*
-   * The cursors already spent, oldest first; the trail starts as `[null]` and
-   * its length is the page number.
-   *
-   * This is the whole of "Anterior". The API pages forwards over an opaque
-   * DynamoDB key and has no backwards page to ask for, so a client that does
-   * not remember where it has been cannot go back at all.
-   */
   const trail = ref<(string | null)[]>([null]);
 
   const currentCursor = computed<string | null>(() => trail.value.at(-1) ?? null);
@@ -63,11 +50,6 @@ export function useTranscriptionHistory(
     try {
       const page = ListTranscriptionsResponseSchema.parse(await requestPage(cursor));
 
-      /*
-       * Ten per page is a product requirement, not a rendering detail, and
-       * this is the same constant the API pages by. A longer list than the
-       * product defines is a worse answer than a failure the user can retry.
-       */
       if (page.items.length > TRANSCRIPTION_PAGE_SIZE) {
         throw new Error('The API returned more records than a page holds.');
       }

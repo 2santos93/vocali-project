@@ -114,7 +114,7 @@ describe('TranscriptionHistoryTable', () => {
   });
 
   // Any other status has no transcript object behind it, so the action could
-  // only 404 — which reads to a clinician as data loss.
+  // only 404, which reads to a clinician as data loss.
   it('offers a download only for a completed transcription', () => {
     const wrapper = mountTable({
       transcriptions: [
@@ -352,11 +352,6 @@ describe('TranscriptionHistoryTable', () => {
       expect(wrapper.find('[data-testid="empty-state"] button').text()).toBe('Transcribe a file');
     });
 
-    /*
-     * The formatting follows the interface, never the browser's own locale: a
-     * clinic machine set to `en-US` would put 08/12 next to Spanish prose that
-     * meant 12/08.
-     */
     it('writes dates and sizes the way the chosen language writes them', () => {
       const spanish = mountTable().text();
       const english = englishTable().text();

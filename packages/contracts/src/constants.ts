@@ -1,16 +1,3 @@
-/**
- * The Zod-free entry point, published separately as `@vocali/contracts/constants`.
- *
- * The domain layer imports from here and nowhere else in this package. The
- * package barrel re-exports every schema module, each of which imports Zod, so
- * a domain import of `@vocali/contracts` would pull Zod into the domain's
- * runtime module graph — quietly, since the ESLint rule can only ban the
- * literal specifier `'zod'`, which the domain never writes.
- *
- * Nothing in this file may import Zod. The schemas build their enums from
- * these arrays, so the two cannot drift apart.
- */
-
 export const MAX_AUDIO_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 
 export const TRANSCRIPTION_PAGE_SIZE = 10;
@@ -34,33 +21,12 @@ export const SUPPORTED_TRANSCRIPTION_LANGUAGES = ['es', 'en', 'ca', 'eu', 'gl'] 
 
 export type TranscriptionLanguage = (typeof SUPPORTED_TRANSCRIPTION_LANGUAGES)[number];
 
-/**
- * The audio a live dictation streams to the provider, in the provider's own
- * vocabulary.
- *
- * It is not negotiated per session and it is not a rendering detail: the
- * browser builds its `AudioContext` at this rate rather than resampling
- * afterwards, the API returns it in the session response, and the provider is
- * told it once the socket opens. A disagreement between any two of those three
- * does not fail — it transcribes noise, convincingly enough that nothing
- * downstream can tell. So the number is stated once, here, and the realtime
- * schema builds its literals from it exactly as the enums above are built.
- */
 export const REALTIME_AUDIO_FORMAT = {
   type: 'raw',
   encoding: 'pcm_s16le',
   sampleRate: 16_000,
 } as const;
 
-/**
- * The `type` discriminator on the only message the server pushes down the
- * websocket.
- *
- * Here rather than inline in the schema so the API's publisher and the
- * browser's reader are built from one string. A push whose type the client does
- * not recognise is silently ignored, which is the correct behaviour for an
- * unknown frame and exactly the wrong behaviour for a typo.
- */
 export const TRANSCRIPTION_UPDATE_EVENT = 'transcription.updated';
 
 export const TRANSCRIPTION_SOURCES = ['FILE', 'MICROPHONE'] as const;

@@ -10,16 +10,6 @@ import { UNAUTHORIZED } from './http-status.js';
 const UNAUTHENTICATED_CODE = 'UNAUTHENTICATED';
 const UNAUTHENTICATED_MESSAGE = 'This request requires a signed-in user';
 
-/**
- * `sub` is the only source of identity in this codebase. Not a path parameter,
- * not a query string, not a field in the body — every one of those is chosen
- * by the caller, and accepting any as a fallback would let anyone holding a
- * valid token read and write another user's records.
- *
- * That is also why a missing claim has no fallback: it means the route was
- * reached without an authorizer or with a misconfigured one, and the only safe
- * reading of "I could not tell who this is" is 401.
- */
 export function withAuthenticatedUser(
   handler: (request: AuthenticatedHttpRequest) => Promise<HttpResponse>,
 ): (request: HttpRequest) => Promise<HttpResponse> {

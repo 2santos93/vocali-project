@@ -33,9 +33,6 @@ describe('loadConfig', () => {
       transcriptsBucketName: 'vocali-transcripts',
       transcriptionsTableName: 'vocali-transcriptions',
       providerCallbackBaseUrl: 'https://api.vocali.test/webhooks/transcription-provider',
-      // Two endpoints for one API, not interchangeable: the browser dials
-      // `wss://`, the server posts to `https://`. Deriving one from the other
-      // puts a scheme rewrite between a completion and the browser.
       websocketUrl: 'wss://sockets.vocali.test/prod',
       websocketManagementEndpoint: 'https://sockets.vocali.test/prod',
       logLevel: 'debug',
@@ -92,9 +89,6 @@ describe('loadConfig', () => {
   });
 
   it('rejects a callback base that is not a url', () => {
-    // The transcription's identity is appended to this as query parameters,
-    // so a value `new URL()` cannot parse fails later, inside a job
-    // submission, rather than here.
     expect(() =>
       loadConfig({ ...COMPLETE_ENVIRONMENT, PROVIDER_CALLBACK_BASE_URL: 'api.vocali.test' }),
     ).toThrow(InvalidEnvironmentError);
@@ -118,9 +112,6 @@ describe('loadConfig', () => {
   });
 
   it('rejects a log level that would silence every line the system can write', () => {
-    // pino understands `fatal` perfectly well, which is why the schema used to
-    // take it. Nothing here emits above `error`, so setting it turns off all
-    // logging — including the lines recording a failed transcription.
     expect(() => loadConfig({ ...COMPLETE_ENVIRONMENT, LOG_LEVEL: 'fatal' })).toThrow(
       InvalidEnvironmentError,
     );

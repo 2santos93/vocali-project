@@ -63,13 +63,6 @@ describe('authorizeConnectionHandler', () => {
     expect(result.policyDocument.Statement[0]?.Resource).not.toContain('*');
   });
 
-  /*
-   * The ticket rides in a query string, which API Gateway writes into its
-   * access log verbatim, so anything replayable from that log is a session
-   * whoever reads it can assume. Asserting the first connect is allowed would
-   * pin nothing — an authorizer that never spent anything passes that — so the
-   * second attempt with the same ticket is the assertion.
-   */
   it('refuses a second connection presenting a ticket already spent', async () => {
     const harness = buildHarness();
     const { ticket } = await harness.issue.execute({ userId: 'user-1' });
@@ -128,12 +121,6 @@ describe('authorizeConnectionHandler', () => {
     expect(result.policyDocument.Statement[0]?.Effect).toBe('Deny');
   });
 
-  /*
-   * A rejected credential is still a credential until it expires, and this
-   * line is written on the one path an attacker can reach at will. Logging the
-   * presented value would put every real ticket that arrived a moment late
-   * into a log with a fourteen-day retention.
-   */
   it('never writes the presented ticket to a log, on any path', async () => {
     const harness = buildHarness();
     const { ticket } = await harness.issue.execute({ userId: 'user-1' });

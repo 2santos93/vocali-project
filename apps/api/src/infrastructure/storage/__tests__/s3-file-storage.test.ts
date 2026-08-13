@@ -68,9 +68,6 @@ describe('S3FileStorage', () => {
     it('caps the upload at the maximum size with a content-length-range condition', async () => {
       const { policy } = await presignUpload();
 
-      // The bound is asserted, not merely the presence of a url: this policy
-      // condition is the only thing S3 enforces the size cap with, since a
-      // client is free to misdeclare `sizeBytes` in the request body.
       expect(policy.conditions).toContainEqual([
         'content-length-range',
         1,
@@ -102,14 +99,8 @@ describe('S3FileStorage', () => {
       const requestedAt = Date.now();
       const { policy, expiresAt } = await presignUpload();
 
-      // Written out rather than derived from the 900 above: the two must
-      // agree, because a client that believes its link lasts fifteen minutes
-      // while the policy expires sooner uploads into a rejection.
       expect(expiresAt.toISOString()).toBe('2026-08-10T12:15:00.000Z');
 
-      // The signer stamps the policy from its own wall clock, which no port
-      // injects, so that half is pinned as an interval instead. The lower
-      // bound allows for the second precision the policy is written with.
       const policyLifetimeMs = Date.parse(policy.expiration) - requestedAt;
       expect(policyLifetimeMs).toBeGreaterThan(899_000);
       expect(policyLifetimeMs).toBeLessThan(901_000);
@@ -154,10 +145,6 @@ describe('S3FileStorage', () => {
       expect(new URL(url).searchParams.get('X-Amz-Expires')).toBe('900');
     });
 
-    // S3 echoes this value back as a response header verbatim. Asserted on the
-    // name between the delimiting quotes rather than on the whole header,
-    // since an unsanitised name closes the quote early and still produces a
-    // string that looks well formed.
     it.each([
       // A quote closes the filename; a CRLF begins a header of the client's choosing.
       ['a quote and a line break', 're"po\r\nX-Injected: yes\nrt.txt', 'repoX-Injected: yesrt.txt'],
@@ -187,9 +174,6 @@ describe('S3FileStorage', () => {
         expiresInSeconds: 900,
       });
 
-      // Written out rather than derived from the constant the code uses: a
-      // bound asserted against its own definition agrees with itself whatever
-      // either becomes.
       const fileName = /^attachment; filename="(.*)"$/s.exec(dispositionOf(url))?.[1];
 
       expect(fileName).toBe('a'.repeat(200));

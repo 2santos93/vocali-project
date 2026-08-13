@@ -8,7 +8,7 @@ against.
 **Email is the username, and verifying it is mandatory.** The pool
 auto-verifies `email`, so an account cannot sign in until the code sent at
 sign-up has been entered. Account recovery goes to that same verified address
-and nowhere else — there is no SMS mechanism, which is the usual way an
+and nowhere else, there is no SMS mechanism, which is the usual way an
 account is taken over by porting a number.
 
 **The client is confidential.** It has a secret, so every call carries a

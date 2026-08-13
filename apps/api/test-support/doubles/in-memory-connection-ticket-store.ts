@@ -7,11 +7,6 @@ interface StoredTicket {
   readonly expiresAt: Date;
 }
 
-/**
- * Single use is modelled by deleting on redemption, which is what the adapter's
- * conditional delete does. A double that returned the ticket without spending
- * it would let a use case that forgot to burn anything pass its own test.
- */
 export class InMemoryConnectionTicketStore implements ConnectionTicketStore {
   readonly calls: { issued: IssueInput[]; redeemed: { ticket: string; now: Date }[] } = {
     issued: [],
@@ -40,9 +35,6 @@ export class InMemoryConnectionTicketStore implements ConnectionTicketStore {
     this.calls.redeemed.push({ ...input });
 
     const stored = this.tickets.get(input.ticket);
-    // Deleted whether or not it was still valid, exactly as the adapter's
-    // unconditional delete-then-inspect does. Leaving it behind would let a
-    // caller retry it until the store's own sweeper happened to run.
     this.tickets.delete(input.ticket);
 
     if (stored === undefined || stored.expiresAt.getTime() <= input.now.getTime()) {

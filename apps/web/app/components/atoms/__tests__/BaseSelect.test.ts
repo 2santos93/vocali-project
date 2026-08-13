@@ -40,11 +40,6 @@ describe('BaseSelect', () => {
     expect((mountSelect({ modelValue: 'ca' }).element as HTMLSelectElement).value).toBe('ca');
   });
 
-  /*
-   * Through `find('select')`, not the component wrapper: `VueWrapper.setValue`
-   * emits `update:modelValue` on the instance itself, so the assertion would
-   * hold even if the component ignored the change entirely.
-   */
   it('emits update:modelValue with the chosen value', async () => {
     const wrapper = mountSelect();
 

@@ -1,21 +1,4 @@
 <script setup lang="ts">
-/**
- * The chrome for the three screens that have no session yet.
- *
- * They used to render with `layout: false`, which was right when there was
- * nothing to put around them. There is now: the theme is a preference of the
- * person reading, not of the account, and somebody who works in a dark room
- * meets this application at the sign-in form. A control that only appears
- * after signing in is a control that arrives one screen too late.
- *
- * Deliberately not the application header. There is no session, so there is no
- * navigation, no address and no sign-out — showing that chrome greyed out
- * would suggest an account that exists.
- *
- * The two preference controls are therefore loose rather than behind an avatar:
- * the menu that holds them on the signed-in screens is an *account* menu, and
- * there is no account here to open one for.
- */
 const theme = useThemePreference();
 const language = useInterfaceLanguage();
 </script>

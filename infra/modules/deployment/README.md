@@ -32,7 +32,7 @@ and neither is worth having for a resource that is not there.
 
 It cannot apply Terraform. It cannot create a role, edit a policy, read the
 state file, or touch the table, the audio, the transcripts or the user pool.
-It cannot even change a function's memory, timeout, role or environment —
+It cannot even change a function's memory, timeout, role or environment,
 `lambda:UpdateFunctionConfiguration` is absent, because a pipeline that can
 change a function's role is a pipeline that can give a function a different
 one.
@@ -50,7 +50,7 @@ GitHub composes that claim from the repository and the ref, environment or
 workflow a run belongs to, and a workflow cannot set it.
 
 The variable refuses a wildcard. `repo:owner/name:*` trusts every branch,
-every tag and every pull request — including one opened from a fork by a
+every tag and every pull request, including one opened from a fork by a
 stranger, which is the ordinary way a deployment role ends up assumable by
 somebody who does not work here. Name what you mean:
 
@@ -66,9 +66,9 @@ own.
 
 ## The workflow that uses it
 
-There is not one yet. `.github/workflows/ci.yml` runs the gates — formatting,
+There is not one yet. `.github/workflows/ci.yml` runs the gates (formatting,
 lint, typecheck, coverage, the end-to-end journeys, a dependency audit and
-commitlint — and requests no AWS identity at all, so the role exists and
+commitlint), and requests no AWS identity at all, so the role exists and
 nothing assumes it. Deployment is still a person running the two commands
 below from a session of their own. What a workflow would add:
 

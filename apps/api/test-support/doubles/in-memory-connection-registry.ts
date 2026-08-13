@@ -3,13 +3,6 @@ import type { UserConnection } from '../../src/domain/types/connection.js';
 
 type AddInput = Parameters<ConnectionRegistry['add']>[0];
 
-/**
- * Nested by user, exactly as the real partition is, so a connection belonging
- * to one user cannot be reached through another's id. A flat map keyed
- * `${userId}#${connectionId}` is the shape that made the transcription double
- * strictly weaker than the store it modelled — see the note on
- * `InMemoryTranscriptionRepository`.
- */
 export class InMemoryConnectionRegistry implements ConnectionRegistry {
   readonly calls: {
     added: AddInput[];

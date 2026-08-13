@@ -44,11 +44,6 @@ function unauthorized(): Error & { statusCode: number } {
 }
 
 describe('useTranscriptionHistory', () => {
-  /*
-   * The screen renders before its `onMounted` load begins. Reporting "not
-   * loading" for that frame shows "todavía no tienes transcripciones" to a
-   * user with a hundred of them.
-   */
   it('reports itself as loading before the first page has been asked for', () => {
     const history = useTranscriptionHistory(jest.fn());
 
@@ -72,11 +67,6 @@ describe('useTranscriptionHistory', () => {
     expect(history.errorMessage.value).toBeNull();
   });
 
-  /*
-   * Ten per page is a stated product requirement, so the literal 10 is written
-   * out here on purpose. Asserting against TRANSCRIPTION_PAGE_SIZE alone would
-   * be the constant agreeing with itself; the literal is what pins the number.
-   */
   it('paginates at exactly ten per page', async () => {
     expect(TRANSCRIPTION_PAGE_SIZE).toBe(10);
 
@@ -132,11 +122,6 @@ describe('useTranscriptionHistory', () => {
     expect(history.pageNumber.value).toBe(1);
   });
 
-  /*
-   * There is no backwards page to ask the API for, so going back means
-   * replaying a spent cursor. The exact sequence is asserted because a version
-   * that re-requested the current page produces a different one.
-   */
   it('goes back by replaying the cursor it already used, never asking for a backwards page', async () => {
     const requestPage = jest
       .fn()
@@ -305,12 +290,6 @@ describe('useTranscriptionHistory', () => {
   });
 });
 
-/**
- * The paths are written out as literals rather than imported from
- * `utils/api-routes`: importing the constant under test would assert that it
- * equals itself and stay green through a path changing to one the API does not
- * serve. Written out, changing a path takes two deliberate edits.
- */
 describe('createHistoryRequests', () => {
   it('reads a page from GET /api/transcriptions', async () => {
     const request = jest.fn().mockResolvedValue({ items: [], nextCursor: null });

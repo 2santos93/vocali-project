@@ -21,11 +21,6 @@ describe('BaseInput', () => {
     expect((wrapper.element as HTMLInputElement).value).toBe('paciente@ejemplo.es');
   });
 
-  /*
-   * Through `find('input')`, not the component wrapper: `VueWrapper.setValue`
-   * emits `update:modelValue` on the instance itself, so the assertion would
-   * hold even if the component ignored the event entirely.
-   */
   it('emits update:modelValue with what was typed', async () => {
     const wrapper = mount(BaseInput, {
       global: withTranslations(),

@@ -21,12 +21,6 @@ describe('RedeemConnectionTicket', () => {
     expect(resolved).toEqual({ userId: 'user-1' });
   });
 
-  /*
-   * The ticket travels in a query string that lands in the access log, so
-   * anything replayable from that log is a session anyone reading it can take.
-   * The first redemption succeeding proves nothing — a store that burned
-   * nothing would pass that — so the second attempt is the real assertion.
-   */
   it('refuses a ticket that has already been spent', async () => {
     const tickets = new InMemoryConnectionTicketStore();
     await tickets.issue({

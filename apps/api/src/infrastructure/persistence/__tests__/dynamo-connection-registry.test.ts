@@ -37,20 +37,9 @@ describe('DynamoConnectionRegistry', () => {
     const input = dynamo.commandCalls(PutCommand)[0]?.args[0].input as PutCommandInput;
     expect(input.Item?.PK).toBe('CONN#user-1');
     expect(input.Item?.SK).toBe('connection-a');
-    // The partition a transcription would be in. Asserted explicitly because
-    // this is the whole reason for the layout: an item written under `USER#`
-    // would be covered by a grant that also reaches clinical records.
     expect(input.Item?.PK).not.toBe('USER#user-1');
   });
 
-  /*
-   * DynamoDB's TTL attribute is epoch *seconds*. A value in milliseconds is
-   * accepted without complaint and read as a date fifty thousand years out, so
-   * the item never expires and nothing reports a problem.
-   *
-   * Asserted as a literal rather than derived from the input: deriving it with
-   * the same `/ 1000` the adapter uses would assert the adapter against itself.
-   */
   it('writes the expiry in epoch seconds, not milliseconds', async () => {
     dynamo.on(PutCommand).resolves({});
 
@@ -64,12 +53,6 @@ describe('DynamoConnectionRegistry', () => {
     expect(input.Item?.ttlEpochSeconds).toBe(1786533300);
   });
 
-  /*
-   * No `begins_with` term is needed, because the partition holds nothing but
-   * this user's connections. Under the old layout it was load-bearing: the
-   * query returned every transcription and claim the user had, each then
-   * treated as a connection id and published to.
-   */
   it('reads one user connections from their own partition, consistently', async () => {
     dynamo.on(QueryCommand).resolves({ Items: [] });
 
@@ -118,19 +101,7 @@ describe('DynamoConnectionRegistry', () => {
   });
 });
 
-/*
- * The grant, from the side that can be run. The three IAM statements this
- * adapter needs each carry `dynamodb:LeadingKeys: ["CONN#*"]`, and nothing here
- * can evaluate an IAM policy, so what is checked is that every key the adapter
- * builds falls inside that prefix. A key outside it is denied by the table in
- * production, which is an upload that completes and is never announced.
- *
- * The prefix is a literal on purpose: it is the same literal that appears in
- * `infra/modules/functions/main.tf`, nothing compares the two, and importing
- * the constant here would assert `constant === constant` and leave the
- * Terraform unrepresented on both sides.
- */
-describe('DynamoConnectionRegistry — every key the narrowed grant has to permit', () => {
+describe('DynamoConnectionRegistry: every key the narrowed grant has to permit', () => {
   const ALLOWED_PARTITION_PREFIX = 'CONN#';
 
   it('builds every partition key inside the prefix the grant allows', async () => {
@@ -154,7 +125,7 @@ describe('DynamoConnectionRegistry — every key the narrowed grant has to permi
       (dynamo.commandCalls(DeleteCommand)[0]?.args[0].input as DeleteCommandInput).Key?.PK,
     ];
 
-    // Three operations, three keys — a count assertion as well, so an operation
+    // Three operations, three keys, plus a count assertion, so an operation
     // that stopped issuing a command would not pass by having nothing to check.
     expect(partitionKeys).toHaveLength(3);
     for (const partitionKey of partitionKeys) {

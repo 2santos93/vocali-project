@@ -5,14 +5,6 @@ import { SYSTEM_DARK_STATE_KEY } from '../useSystemColorScheme';
 import { THEME_STATE_KEY, useThemePreference } from '../useThemePreference';
 import type { ThemeControl } from '../types/preferences';
 
-/*
- * The Nuxt runtime stood in for by globals of the same names, as in
- * `useAuthSession.test.ts`.
- *
- * Mounted rather than called directly, because this composable reaches
- * `useSystemPrefersDark`, which reads the machine in `onMounted` and so needs
- * a component to be mounted into.
- */
 const sharedState = new Map<string, Ref<unknown>>();
 const cookieValues = new Map<string, unknown>();
 const cookieOptions = new Map<string, Record<string, unknown>>();
@@ -29,7 +21,7 @@ function fakeUseState<T>(key: string, initialise: () => T): Ref<T> {
 }
 
 /**
- * Each `useCookie` call really does return its own ref, so this does too —
+ * Each `useCookie` call really does return its own ref, so this does too,
  * which is the reason `useState` sits on top of the cookie at all.
  */
 function fakeUseCookie<T>(name: string, options: Record<string, unknown>): Ref<T | null> {
@@ -108,11 +100,6 @@ describe('useThemePreference', () => {
   beforeEach(() => {
     cookieValues.clear();
     cookieOptions.clear();
-    /*
-     * Only the theme's own key, never the whole map: `useSystemPrefersDark`
-     * registers its listener once for the life of the module, so clearing the
-     * key it writes leaves a fresh ref nothing will ever fill again.
-     */
     sharedState.delete(THEME_STATE_KEY);
     media.announce(false);
   });
@@ -168,11 +155,6 @@ describe('useThemePreference', () => {
     expect(cookieValues.get('vocali_theme')).toBe('dark');
   });
 
-  /*
-   * `system` must stay the *absence* of a class, because the stylesheet's
-   * `color-scheme: light dark` is what hands the choice to the machine. The
-   * switch, meanwhile, must show the palette actually on screen.
-   */
   it('leaves the root element unclassed on a dark machine while still reading as dark', () => {
     const theme = mountControl();
 
@@ -221,11 +203,6 @@ describe('useThemePreference', () => {
     expect(rootElement.rootClass.value).toBe('theme-dark');
   });
 
-  /*
-   * A year, because nothing about a theme expires with a session, and readable
-   * by both sides because the server needs it for the first paint. It carries
-   * no authority.
-   */
   it('keeps the preference for a year, in a cookie both sides can read', () => {
     mountControl();
 

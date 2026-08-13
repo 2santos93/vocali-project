@@ -2,16 +2,6 @@ import { ENGLISH_MESSAGES } from '../en';
 import { SPANISH_MESSAGES } from '../es';
 import type { MessageKey } from '../types';
 
-/**
- * The catalogues as data, checked for the mistakes a compiler cannot see.
- *
- * TypeScript already guarantees the two have the same key set: `MessageKey` is
- * derived from the Spanish object and the English one is a `Record` over it, so
- * a missing or extra key is a build failure. What is left is everything about
- * the *contents* — an entry left blank, a placeholder that survived translation
- * in one language and not the other, a sentence pasted across untranslated.
- */
-
 const KEYS = Object.keys(SPANISH_MESSAGES) as MessageKey[];
 
 function placeholdersOf(message: string): string[] {
@@ -30,13 +20,6 @@ describe('the message catalogues', () => {
     expect(blank).toEqual([]);
   });
 
-  /*
-   * A placeholder that survived one translation and not the other is invisible
-   * until the moment it matters: the Spanish sentence names the file that was
-   * refused and the English one refuses an unnamed file, or — worse in the
-   * other direction — the translator kept `{fileName}` as literal text and the
-   * reader is shown the braces.
-   */
   it('interpolates the same values in both languages', () => {
     const mismatched = KEYS.filter(
       (key) =>
@@ -47,15 +30,6 @@ describe('the message catalogues', () => {
     expect(mismatched).toEqual([]);
   });
 
-  /*
-   * The one mistake nothing else can catch: a key added to `es.ts` and copied
-   * verbatim into `en.ts` to make the build pass, which ships a Spanish
-   * sentence to a reader who asked for English and reports nothing.
-   *
-   * The exceptions are the entries that are meant to be identical, and they are
-   * listed one by one rather than pattern-matched, so adding to this list is a
-   * deliberate act.
-   */
   const IDENTICAL_ON_PURPOSE: MessageKey[] = [
     // Each language names itself, so that the reader who cannot read the
     // current interface can still find their own.

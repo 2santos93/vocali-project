@@ -23,21 +23,21 @@ environments/
 
 ## One environment, and why
 
-There is one deployable environment and it is `prod`. Development is local — the
-Nuxt dev server, Jest and Cypress against a local build — so a second AWS
+There is one deployable environment and it is `prod`. Development is local (the
+Nuxt dev server, Jest and Cypress against a local build), so a second AWS
 environment would describe a deployment nobody is going to create.
 
 An earlier round had `environments/dev/` beside this one. It was removed rather
 than kept as a specimen: two compositions and no deployment is a maintenance
 cost paid for a benefit nobody collects, and it did not even buy the thing it
-was supposed to. The proof of that is what it left behind — `prod` carried
+was supposed to. The proof of that is what it left behind, `prod` carried
 `http://localhost:3000` in its CORS list, hardcoded and marked temporary,
 because the browser develops against the only bucket that exists. A development
 environment that existed would have absorbed that origin; one that was only
 written down did not.
 
-What a second composition was there to demonstrate — that the modules are
-parameterised rather than holding literals — is demonstrated without it. Every
+What a second composition was there to demonstrate (that the modules are
+parameterised rather than holding literals) is demonstrated without it. Every
 module under `modules/` is initialised and validated standalone, as the root of
 its own run, which is why each carries its own `.terraform.lock.hcl`. The
 module boundary is checked by that, not by counting callers.
@@ -62,7 +62,7 @@ bucket, the renderer, and the deployment role assumed through OIDC.
 
 One thing is written here and not applied: **the public edge.** AWS has not
 verified this account, so `CreateDistribution` is refused, and the renderer's
-function URL opened to `NONE` answers 403 to every caller — the same gate
+function URL opened to `NONE` answers 403 to every caller, the same gate
 blocks the intended edge and the substitute for it. A support case is open.
 `expose_ssr_publicly` is set while it is outstanding, because it is the only
 value that lets the environment apply at all; setting it back to `false` and
@@ -142,7 +142,7 @@ Every directory here passes all three, and these are the checks CI runs, so
 they are the ones to run before committing. None of them contacts AWS:
 `validate` checks syntax, types, references and provider schemas without
 reading any remote state or resolving any data source. `plan` is the first
-command that needs credentials, which is why it is not a gate — a contributor
+command that needs credentials, which is why it is not a gate, a contributor
 without an account can still verify everything above.
 
 ## Conventions
@@ -158,8 +158,8 @@ written down.
 set only their own `Name` tag.
 
 **Pinning.** Terraform is bounded below at 1.10, where the S3 backend learned
-to lock on a lock file beside the state object — which is why no lock table
-exists — and above at the next major. The AWS provider is
+to lock on a lock file beside the state object (which is why no lock table
+exists), and above at the next major. The AWS provider is
 pinned to a major with the exact build recorded in each `.terraform.lock.hcl`.
 Those lock files carry checksums for both Linux and macOS, so a CI runner and
 a laptop resolve the same provider. Every directory has one, including the
@@ -174,7 +174,7 @@ error.
 
 **Environment values are literals in `locals`, not `.tfvars`.** The
 repository's `.gitignore` excludes `*.tfvars`, so values kept there would not
-survive a clone — and an environment directory is the value set. The exceptions
+survive a clone, and an environment directory is the value set. The exceptions
 are the three real variables: `github_repository`, which decides who may deploy;
 `front_end_origins`, which changes when the front end is deployed and carries
 the local development origin; and `alarm_email_addresses`, which is empty
@@ -196,7 +196,7 @@ because a subscription outlives the person committed to it.
 
 The state records every attribute of every resource, and one of them is a
 secret: `aws_cognito_user_pool_client.bff.client_secret`, which AWS generates.
-Nothing can keep it out — a confidential client has a secret by definition,
+Nothing can keep it out, a confidential client has a secret by definition,
 and Terraform records what it creates. Everything else the platform treats as
 sensitive is outside the state entirely: the transcription provider's API key
 and the webhook secret live in Parameter Store as `SecureString` values put
@@ -217,7 +217,7 @@ They agree now, and the disagreement is worth recording because of what it
 cost. `buildContainer` in `apps/api` used to construct a single
 `S3FileStorage` over `AUDIO_BUCKET_NAME` and write both audio and transcripts
 through it, so a finished transcript landed under `transcripts/` **inside the
-audio bucket** — while the execution roles granted `s3:PutObject` on the
+audio bucket**, while the execution roles granted `s3:PutObject` on the
 transcripts bucket. The two functions that write a transcript were denied at
 the moment they wrote.
 

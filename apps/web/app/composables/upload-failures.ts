@@ -7,17 +7,6 @@ import {
 import { StorageUploadError } from './presigned-post-upload';
 import type { FileUploadFailure } from './types/upload';
 
-/**
- * The counterpart of `recording-failures`, gathered here so the answer to
- * "what should the person try next" reads as a set rather than being
- * reconstructed from the four call sites that used to build these.
- */
-
-/**
- * The named statuses say something the user can act on. No status at all means
- * the request never arrived, which is a different problem with a different
- * remedy, so it does not collapse into the generic sentence.
- */
 export function describeIntentFailure(error: unknown): FileUploadFailure {
   const status = readStatusCode(error);
 

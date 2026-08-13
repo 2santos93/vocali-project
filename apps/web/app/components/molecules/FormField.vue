@@ -28,11 +28,6 @@ const errorId = computed<string>(() => `${props.id}-error`);
 const isInvalid = computed<boolean>(() => props.error !== null && props.error !== '');
 const hasHint = computed<boolean>(() => props.hint !== null && props.hint !== '');
 
-/*
- * A message rendered next to a control but not referenced by it is invisible
- * to a screen reader. The error goes last so it is announced last, and null
- * drops the attribute rather than emitting a dangling reference.
- */
 const describedBy = computed<string | null>(() => {
   const ids: string[] = [];
   if (hasHint.value) {

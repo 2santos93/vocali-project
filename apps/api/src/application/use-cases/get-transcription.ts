@@ -6,12 +6,6 @@ import type { Result } from '../../domain/types/result.js';
 import type { GetTranscriptionInput } from '../types/transcription-inputs.js';
 import { toPublicTranscription } from './public-transcription.js';
 
-/**
- * `findById` is scoped by `userId`, so another user's id addresses an item that
- * does not exist rather than one this use case must remember to filter. Absent
- * and not-yours give the same error: a distinguishable response is an oracle
- * for which transcription ids exist.
- */
 export class GetTranscription {
   constructor(private readonly repository: TranscriptionRepository) {}
 

@@ -10,11 +10,6 @@ import type { ClientSessionItem, TranscriptionItem } from '../types/dynamo-items
 /** `PK = USER#<userId>`, `SK = TRANS#<transcriptionId>`. */
 export const PARTITION_KEY_PREFIX = 'USER#';
 export const TRANSCRIPTION_SORT_KEY_PREFIX = 'TRANS#';
-/**
- * In the user's own partition, so claiming a key and writing the record it
- * belongs to are one transaction against one partition, and one user's session
- * ids cannot collide with another's.
- */
 export const CLIENT_SESSION_SORT_KEY_PREFIX = 'IDEM#';
 
 export function buildPartitionKey(userId: string): string {
@@ -58,12 +53,6 @@ export function toClaimedTranscriptionId(item: unknown): string {
   return transcriptionId;
 }
 
-/**
- * Deliberately not a `DomainError`: `DomainErrorCode` is the closed union the
- * front end branches on exhaustively, and no client can act on schema drift.
- * What matters is that it arrives with a stable `code` rather than as a
- * `TypeError` thrown deep inside the entity.
- */
 export class MalformedTranscriptionRecordError extends Error {
   readonly code = 'MALFORMED_PERSISTED_RECORD';
 
@@ -73,24 +62,13 @@ export class MalformedTranscriptionRecordError extends Error {
   }
 }
 
-/**
- * Annotated as `ZodType<TranscriptionPrimitives>` on purpose: if the entity
- * gains a field and this schema does not, the assignment stops compiling.
- * A mapper that silently drops a new field is the failure mode this guards.
- */
 const StoredTranscriptionSchema: z.ZodType<TranscriptionPrimitives> = z.object({
   id: z.string().min(1),
   userId: z.string().min(1),
-  // Required rather than defaulted: every conditional write compares against
-  // it, so defaulting to 0 would make those writes fail forever with no
-  // explanation. Failing the read names the problem where it can be seen.
   version: z.number().int().nonnegative(),
   fileName: z.string().min(1),
   source: z.enum(TRANSCRIPTION_SOURCES),
   status: z.enum(TRANSCRIPTION_STATUSES),
-  // Nullable since an upload stopped declaring one. The attribute is written
-  // on every record either way, so a record saved by the previous version
-  // still reads back and no migration is needed.
   language: z.enum(SUPPORTED_TRANSCRIPTION_LANGUAGES).nullable(),
   sizeBytes: z.number().nullable(),
   durationSeconds: z.number().nullable(),
@@ -103,11 +81,6 @@ const StoredTranscriptionSchema: z.ZodType<TranscriptionPrimitives> = z.object({
   updatedAt: z.string().datetime(),
 });
 
-/**
- * The keys are stored alongside the plain `userId` and `id` rather than parsed
- * back out of them on read: a parser would have to decide what a `#` inside a
- * user id means, and keeping both removes the question for a few bytes.
- */
 export function toTranscriptionItem(primitives: TranscriptionPrimitives): TranscriptionItem {
   return {
     PK: buildPartitionKey(primitives.userId),

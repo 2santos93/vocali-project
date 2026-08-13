@@ -27,22 +27,6 @@ import {
 } from './upload-failures';
 import { createUpdateStreamOpener } from './useTranscriptionUpdates';
 
-/**
- * Nothing here reaches the network itself: every call is a collaborator on
- * `FileUploadGateway`, supplied by the page, which is the only place `$fetch`
- * appears. Pinning a state machine with four failure exits means driving it,
- * not stubbing a global.
- *
- * Nothing enforces that. This file could name `$fetch` and both gates would
- * pass — ts-jest type checks nothing here, and `tsconfig.app.json` grants
- * composables the Nuxt types because composables are allowed the runtime.
- */
-
-/**
- * Separated from the page so the paths and the response validation are
- * exercised by the test suite. A path spelled wrong is a 404 that appears only
- * on a deployed environment, and a page is the one layer Jest never mounts.
- */
 export function createUploadRequests(
   request: ApiRequester,
   createSocket?: SocketFactory,
@@ -52,11 +36,6 @@ export function createUploadRequests(
       intent: CreateUploadIntentRequest,
     ): Promise<CreateUploadIntentResponse> {
       const response = await request(UPLOADS_PATH, { method: 'POST', body: { ...intent } });
-      /*
-       * Parsed, not asserted: a type argument on the request checks nothing at
-       * run time, so a shape the contract does not promise would surface as an
-       * undefined property inside the upload instead of here.
-       */
       return CreateUploadIntentResponseSchema.parse(response);
     },
 
@@ -73,11 +52,6 @@ export function createUploadRequests(
 
 type SupportedContentType = CreateUploadIntentRequest['contentType'];
 
-/**
- * A search rather than a cast: `File.type` is whatever the operating system
- * told the browser and can be empty, so asserting it into the contract's union
- * would push an invalid request to the API.
- */
 function supportedContentTypeOf(file: File): SupportedContentType | null {
   return SUPPORTED_AUDIO_CONTENT_TYPES.find((type) => type === file.type) ?? null;
 }
@@ -105,11 +79,6 @@ export function useFileUpload(gateway: FileUploadGateway): FileUploadController 
     transcription.value = null;
   }
 
-  /**
-   * One function for both the pushed record and the polled one: they are the
-   * same record by different routes, and two copies would drift over what
-   * "finished" means.
-   */
   function applySettled(record: Transcription): boolean {
     transcription.value = record;
 

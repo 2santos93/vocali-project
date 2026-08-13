@@ -4,24 +4,10 @@ import type { FileUploadGateway } from '../composables/types/upload';
 import { useTranslations } from '../i18n/translations';
 import type { ApiRequester } from '../utils/types/api';
 
-/**
- * Transcribing an audio file.
- *
- * The page is the wiring, and deliberately nothing else. It is the only layer
- * allowed to touch the Nuxt runtime, so it is where `$fetch` lives; the flow
- * itself is in `useFileUpload` and the interface is in
- * `FileTranscriptionPanel`, both of which Jest can drive without booting Nuxt.
- */
-
 const { t } = useTranslations();
 
 useHead({ title: computed<string>(() => t('file.title')) });
 
-/*
- * Held so it can be cancelled. Without this, navigating away mid-upload leaves
- * a timer that wakes a poll loop belonging to a component that no longer
- * exists — it would keep calling the API from a page the user has left.
- */
 let pendingPoll: ReturnType<typeof setTimeout> | null = null;
 
 onBeforeUnmount(() => {
@@ -30,19 +16,11 @@ onBeforeUnmount(() => {
   }
 });
 
-/*
- * The one place `$fetch` appears. Everything below the page takes this
- * function as an argument, which is what lets Jest exercise the paths, the
- * request bodies and the response validation without a Nuxt runtime.
- */
 const request: ApiRequester = (path, options) => $fetch(path, options);
 
 const gateway: FileUploadGateway = {
   ...createUploadRequests(request),
 
-  // Straight to S3, with the fields the intent returned. The BFF proxy is not
-  // involved: routing 20 MB of audio through a Nitro server that has nothing
-  // to add to it would only make the upload slower and the server larger.
   uploadToStorage(upload) {
     return uploadToPresignedPost(upload);
   },

@@ -3,11 +3,6 @@ import type { PublishOutcome } from '../../src/domain/types/connection.js';
 
 type PublishInput = Parameters<ConnectionPublisher['publish']>[0];
 
-/**
- * `goneConnectionIds` is what makes the 410 path testable at all. Without it
- * every publish succeeds, the cleanup branch is never entered, and a use case
- * that never deleted a stale connection would pass every test.
- */
 export class RecordingConnectionPublisher implements ConnectionPublisher {
   readonly calls: PublishInput[] = [];
 

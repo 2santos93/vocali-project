@@ -5,19 +5,12 @@ output "api_id" {
 
 output "browser_url" {
   description = "What the browser dials: wss://<api>.execute-api.<region>.amazonaws.com/<stage>. Returned to the client in the ticket response rather than configured into the front end, so the endpoint is written down once."
-  # Taken from the stage rather than the API, so it cannot be read before the
-  # stage exists. A websocket API has no $default stage, so unlike the HTTP
-  # API's endpoint this genuinely carries a stage segment.
-  value = trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")
+  value       = trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")
 }
 
 output "management_endpoint" {
   description = "What the server posts to. The same API over https, which is NOT the browser URL: sending a message to a wss:// endpoint fails inside the SDK."
-  # Built rather than derived from `browser_url` by string surgery. A scheme
-  # rewrite in HCL is a silent failure the day the invoke URL's shape changes,
-  # and this value sits between a finished transcription and the browser
-  # waiting for it.
-  value = "https://${aws_apigatewayv2_api.this.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/${aws_apigatewayv2_stage.default.name}"
+  value       = "https://${aws_apigatewayv2_api.this.id}.execute-api.${data.aws_region.current.region}.amazonaws.com/${aws_apigatewayv2_stage.default.name}"
 }
 
 output "api_execution_arn" {

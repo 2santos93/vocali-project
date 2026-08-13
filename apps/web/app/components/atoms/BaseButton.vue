@@ -36,9 +36,6 @@ const busyLabel = computed<string>(() => props.loadingLabel ?? t('common.process
 const emit = defineEmits<{ click: [event: MouseEvent] }>();
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  // `brand-solid` rather than a rung of the brand scale: the scale reverses
-  // between themes because its rungs are text on a surface, and a filled
-  // button is the one place the brand is the surface.
   primary: 'bg-brand-solid text-ink-inverse hover:bg-brand-solid-hover border border-transparent',
   secondary: 'bg-surface text-brand-700 border border-line hover:bg-brand-50',
   danger: 'bg-danger-solid text-ink-inverse hover:bg-danger-ink border border-transparent',

@@ -6,27 +6,12 @@ import {
 } from './session-cookie';
 import { readTokenClaims } from './token-claims';
 
-/**
- * A token with twenty seconds left is treated as expired: without a margin, a
- * request that passes this check and then spends its remaining life in a TLS
- * handshake reaches the API already expired, as an unreproducible 401.
- */
 export const EXPIRY_MARGIN_SECONDS = 20;
 
 export interface SessionRefresher {
-  /**
-   * Exchanges a refresh token for a new access token. Rejects when the
-   * refresh token has expired or been revoked, which is what a global sign-out
-   * elsewhere produces.
-   */
   refreshAccessToken(refreshToken: string, subject: string): Promise<string>;
 }
 
-/**
- * Costs no network call, so a browser with no cookies is answered without
- * building a Cognito client and therefore without a Parameter Store read. It
- * says nothing about validity; `resolveActiveSession` decides that.
- */
 export function hasSessionCookies(jar: CookieJar): boolean {
   return readSessionCookies(jar) !== null;
 }
@@ -53,9 +38,6 @@ export async function resolveActiveSession(
 
   const claims = readTokenClaims(stored.accessToken);
 
-  // Unreadable claims are treated like expiry rather than a hard failure: the
-  // refresh token may still be good, and the alternative signs a user out
-  // because a token format changed.
   const usable = claims !== null && claims.expiresAt - EXPIRY_MARGIN_SECONDS > nowSeconds;
 
   if (usable) {
@@ -73,11 +55,6 @@ export async function resolveActiveSession(
 
     return { accessToken, subject: stored.subject, email: stored.email };
   } catch {
-    /*
-     * A failed refresh means the session is over — expired, or revoked by a
-     * global sign-out elsewhere. Not distinguished from expiry, and the
-     * cookies are cleared: leaving them retries a dead session for eight hours.
-     */
     eraseSessionCookies(jar);
     return null;
   }

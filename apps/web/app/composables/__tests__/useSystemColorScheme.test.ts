@@ -3,14 +3,6 @@ import { defineComponent, h, ref } from 'vue';
 import type { ComputedRef, Ref, VNode } from 'vue';
 import { useSystemPrefersDark } from '../useSystemColorScheme';
 
-/*
- * The Nuxt runtime stood in for by globals, as in `useAuthSession.test.ts`.
- *
- * `sharedState` is never cleared and the module is imported once, mirroring
- * what is tested: one listener for the whole application, and state shared for
- * the life of the page. Reloading per case would also give the module a second
- * copy of Vue, whose `computed` cannot see a `ref` belonging to the first.
- */
 const sharedState = new Map<string, Ref<unknown>>();
 
 function fakeUseState<T>(key: string, initialise: () => T): Ref<T> {
@@ -107,11 +99,6 @@ describe('useSystemPrefersDark', () => {
     first = mountReading(useSystemPrefersDark);
   });
 
-  /*
-   * Read in `onMounted`, not during setup. The server renders `false`, so a
-   * client reading `matchMedia` synchronously would render `true` on a dark
-   * machine while hydrating against markup that said otherwise.
-   */
   it('reports light while rendering and the machine answer only once mounted', () => {
     expect(first.duringSetup).toBe(false);
     expect(first.now()).toBe(true);
@@ -133,11 +120,6 @@ describe('useSystemPrefersDark', () => {
     expect(first.now()).toBe(true);
   });
 
-  /*
-   * One listener for the whole application: the composable is reached from
-   * `app.vue` and both layouts, so a registration per caller would be three
-   * listeners writing the same value, each outliving its component.
-   */
   it('registers a single listener however many callers ask', () => {
     const second = mountReading(useSystemPrefersDark);
     const third = mountReading(useSystemPrefersDark);

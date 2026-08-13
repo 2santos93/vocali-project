@@ -26,7 +26,7 @@ It reads the service-wide `AWS/Lambda` metric rather than summing a
 per-function metric for each. The first version did sum them, and that put a
 ceiling on the platform: a metric-math alarm takes ten elements, and the
 twelfth function passed it. This account holds nothing but this application,
-so the aggregate is the same number without the arithmetic — and a function
+so the aggregate is the same number without the arithmetic, and a function
 added later is covered without anyone remembering to add it.
 
 **Throttles** is the failure with no log line. Nothing ran, so nothing was
@@ -35,7 +35,7 @@ dropped, and the recording is simply never transcribed.
 
 **The dead-letter queue** is the most valuable of the four. A message in it is
 one recording that was uploaded and will never be transcribed, and it is
-invisible from every other angle — the record sits at `PENDING_UPLOAD`, the
+invisible from every other angle, the record sits at `PENDING_UPLOAD`, the
 API returned 200 long ago, and the user is watching a spinner that will not
 resolve.
 
@@ -68,7 +68,7 @@ prefers it. Either way the address has to click the confirmation.
 CloudWatch publishes the alarm notification itself, so it is the CloudWatch
 service that encrypts under the key. The AWS-managed `alias/aws/sns` key does
 not admit the CloudWatch service principal, and an alarm pointed at a topic
-encrypted with it fails to publish — silently, which is the worst failure an
+encrypted with it fails to publish, silently, which is the worst failure an
 alarm has.
 
 So the key is customer-managed, with a policy granting CloudWatch

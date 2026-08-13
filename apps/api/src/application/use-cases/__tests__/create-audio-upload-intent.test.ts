@@ -72,18 +72,9 @@ describe('CreateAudioUploadIntent', () => {
     expect(storage.calls.presignedUploads[0]?.maxSizeBytes).toBe(MAX_AUDIO_FILE_SIZE_BYTES);
     expect(storage.calls.presignedUploads[0]?.objectKey).toBe('audio/user-1/01ID001/visit.mp3');
     expect(storage.calls.presignedUploads[0]?.contentType).toBe('audio/mpeg');
-    // Stays a literal even though UPLOAD_URL_TTL_SECONDS is one import away:
-    // importing it would make this `expect(constant).toBe(constant)`, which
-    // pins nothing. A change to the constant must be caught here.
     expect(storage.calls.presignedUploads[0]?.expiresInSeconds).toBe(900);
   });
 
-  /*
-   * The record starts with no language, and that is the point: nobody has
-   * heard the audio yet. Storing the old default — Spanish, from a dropdown
-   * the uploader may never have looked at — is what filed English recordings
-   * as Spanish. The language arrives later, in `CompleteTranscription`.
-   */
   it('records no language, because none has been identified yet', async () => {
     const { useCase, repository } = buildUseCase();
 
@@ -96,9 +87,6 @@ describe('CreateAudioUploadIntent', () => {
 
   it('treats a collision on a freshly generated id as an invariant violation, not a caller error', async () => {
     const { useCase, repository } = buildUseCase();
-    // Occupy the id the generator is about to hand out, so the insert loses
-    // the conditional write. Nothing in production can do this, which is why
-    // it throws rather than becoming an outcome every caller must handle.
     await repository.save(buildTranscription({ id: '01ID001', userId: 'user-1' }));
 
     await expect(useCase.execute(validInput)).rejects.toThrow('Invariant violated');
@@ -179,9 +167,6 @@ describe('CreateAudioUploadIntent', () => {
 
     await expect(useCase.execute(validInput)).rejects.toThrow('storage unavailable');
 
-    // Presigning happens before saving, so a storage outage leaves no row
-    // behind: the client gets a 5xx and retries, instead of accumulating a
-    // stranded PENDING_UPLOAD row per attempt.
     expect(await repository.findById('user-1', '01ID001')).toBeNull();
     const page = await repository.listByUser({ userId: 'user-1', limit: 10, cursor: null });
     expect(page.success).toBe(true);

@@ -1,10 +1,4 @@
-/**
- * Lambda entry point for `POST /webhooks/transcription-provider`, which alone
- * carries no JWT authorizer.
- *
- * The exported type is AWS's own, so this layer's narrowed event declarations
- * stay checked against the real shape.
- */
+// Lambda entry point for POST /webhooks/transcription-provider.
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { getContainer } from '../composition-root.js';
 import { handleProviderCallbackHandler } from '../presentation/handlers/handle-provider-callback.js';

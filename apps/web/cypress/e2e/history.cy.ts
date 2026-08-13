@@ -1,19 +1,6 @@
 import { signInOnTheWayTo } from '../support/session';
 import { buildTranscriptions } from '../support/transcriptions';
 
-/**
- * Journey 6: browsing the paginated history.
- *
- * **Ten per page**, asserted as the literal rather than the constant the
- * application computes it from, so the assertion fails when the page size
- * changes instead of agreeing with whatever the constant happens to say.
- *
- * **The cursor.** The API pages forwards over an opaque key and has no
- * backwards page to ask for, so "Anterior" is served from a trail the browser
- * remembers, and nothing below the running application holds it. No page
- * numbers are asserted: one is not expressible against an opaque cursor.
- */
-
 const SECOND_PAGE_CURSOR = 'eyJwayI6InVzZXIjNGIxZiIsInNrIjoiMDFKQlFY';
 
 describe('Browsing the transcription history', () => {

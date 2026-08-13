@@ -7,14 +7,7 @@ import { withValidatedPathParameters } from '../http/validation.js';
 import type { ApiGatewayRequestHandler } from '../types/http.js';
 import type { GetTranscriptionDependencies } from '../types/dependencies.js';
 
-/**
- * `GET /transcriptions/{transcriptionId}`.
- *
- * The id comes from the path and the owner from the token, and only one of
- * those is the caller's to choose: a path id belonging to somebody else
- * resolves to nothing, because the repository builds its partition key from
- * the authenticated user.
- */
+// GET /transcriptions/{transcriptionId}
 export function getTranscriptionHandler(
   dependencies: GetTranscriptionDependencies,
 ): ApiGatewayRequestHandler {

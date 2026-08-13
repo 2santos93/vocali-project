@@ -7,18 +7,6 @@ import type {
   WebSocketResponse,
 } from '../types/websocket.js';
 
-/**
- * `$disconnect` — forgets a socket the client closed.
- *
- * **Always answers 200, whatever happened.** The connection is already gone by
- * the time this runs, so a failure status changes nothing a client can observe
- * and only adds a Lambda error to the metrics. An entry it failed to delete is
- * not stranded: every entry carries an expiry, precisely because this route is
- * best-effort by API Gateway's own definition.
- *
- * The user comes from the `$connect` authorizer's context. When it is missing
- * there is no key to delete, and the expiry collects the entry.
- */
 export function handleConnectionClosedHandler(
   dependencies: HandleConnectionClosedDependencies,
 ): WebSocketHandler {

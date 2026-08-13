@@ -98,11 +98,6 @@ describe('attaching the session', () => {
 });
 
 describe('passing the upstream answer through', () => {
-  /*
-   * Flattening a refusal into 500 makes "this transcription is not ready" and
-   * "the service is broken" indistinguishable at exactly the point the
-   * difference decides what the user is told.
-   */
   it.each([200, 201, 204, 400, 401, 403, 404, 409, 413, 429, 500, 503])(
     'returns %i as %i rather than as its own status',
     async (status) => {
@@ -182,11 +177,6 @@ describe('building the upstream URL', () => {
     );
   });
 
-  /*
-   * Every path the API exposes, so a change here is reconciled against the
-   * real surface rather than one example. The proxy knows none of these
-   * routes, which is exactly why they are worth stating once.
-   */
   it.each([
     ['POST /uploads', 'uploads', 'https://api.example.com/uploads'],
     ['POST /realtime-sessions', 'realtime-sessions', 'https://api.example.com/realtime-sessions'],
@@ -216,11 +206,6 @@ describe('building the upstream URL', () => {
     );
   });
 
-  /*
-   * The path comes from the address bar. Without these checks
-   * `//evil.example/x` resolves as protocol-relative and the bearer token is
-   * delivered to somebody else's server.
-   */
   it.each([
     ['a protocol-relative path', '/evil.example/steal'],
     ['a path that climbs out', '../../admin'],

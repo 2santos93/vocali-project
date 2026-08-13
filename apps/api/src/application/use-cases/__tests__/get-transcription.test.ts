@@ -33,9 +33,6 @@ describe('GetTranscription', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    // The shared list rather than a few spot-checked absences: this fails both
-    // when an internal field leaks in and when a public one is dropped, and it
-    // is the same list the history path is held to.
     expect(Object.keys(result.value).sort()).toEqual(PUBLIC_TRANSCRIPTION_FIELDS);
   });
 

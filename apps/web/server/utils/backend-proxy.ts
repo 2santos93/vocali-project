@@ -1,14 +1,3 @@
-/**
- * The browser calls `/api/<path>` on its own origin and never learns where the
- * real API lives or what a token looks like.
- *
- * **Unaltered** is the part to defend: a proxy that catches an upstream 409
- * and answers 500 destroys the only information the screen had, since a
- * conflict is resolvable and a 500 is not. The upstream status passes through
- * and the body passes through as bytes rather than re-serialised. The only
- * status this file invents is for a failure that happened here.
- */
-
 export interface ProxyHttpResponse {
   readonly status: number;
   readonly headers: { get(name: string): string | null };
@@ -75,11 +64,6 @@ export async function forwardToBackend(
   const url = buildBackendUrl(dependencies.baseUrl, request.path, request.query);
   if (url === null) return INVALID_PATH;
 
-  /*
-   * An explicit timeout, because the default is none: a stalled connection
-   * otherwise holds a Nitro request open until the platform kills it, and the
-   * user watches a spinner that never stops.
-   */
   const controller = new AbortController();
   const timeout = setTimeout(() => {
     controller.abort();
@@ -123,13 +107,6 @@ function buildHeaders(accessToken: string, contentType: string | null): Record<s
   return headers;
 }
 
-/**
- * The path arrives from the URL bar, so concatenating it onto the base URL
- * unchecked is a server-side request forgery: `//evil.example/x` resolves as
- * protocol-relative and sends the bearer token to another host, and `../..`
- * climbs out of the API's path prefix. No legitimate call needs more than a
- * plain path segment.
- */
 export function buildBackendUrl(baseUrl: string, path: string, query: string): string | null {
   const segments = path.split('/');
 

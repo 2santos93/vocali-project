@@ -10,20 +10,9 @@ export const TICKET_QUERY_PARAMETER = 'ticket';
 /** Bounded before it reaches a key builder; a real ticket is 43 characters. */
 const MAX_TICKET_LENGTH = 256;
 
-/** Not an identity — nothing is authorised under it — but the field is required. */
+/** Not an identity (nothing is authorised under it), but the field is required. */
 const ANONYMOUS_PRINCIPAL = 'unauthorized';
 
-/**
- * **This is the boundary.** Everything past it treats `userId` as proven, and a
- * browser cannot present a header on a websocket handshake, so this is the one
- * place the platform decides whose socket is being opened.
- *
- * **The authorizer must not be cached.** API Gateway caches a REQUEST
- * authorizer's result against its identity source, which here is the ticket. A
- * cached allow answers a second connect without this function running, so the
- * ticket becomes spendable for as long as the cache lasts and the single-use
- * property exists only in the code. The Terraform sets that TTL to zero.
- */
 export function authorizeConnectionHandler(
   dependencies: AuthorizeConnectionDependencies,
 ): ConnectionAuthorizer {
@@ -53,15 +42,6 @@ export function authorizeConnectionHandler(
   };
 }
 
-/**
- * Denied with a policy rather than by throwing, because a returned policy is a
- * value a test can assert on where a thrown string is matched by a convention
- * inside the service.
- *
- * No `context` on a denial: a user id set on a refused request is a field
- * waiting to be read by something that assumes it means the connection was
- * allowed.
- */
 function deny(event: ConnectionAuthorizerEvent): ConnectionAuthorizerResult {
   return {
     principalId: ANONYMOUS_PRINCIPAL,

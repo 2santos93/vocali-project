@@ -51,9 +51,10 @@ Four things are worth reading off that table:
   no `Scan` in the codebase and no role that could perform one.
 - **Nothing deletes a transcription.** `s3:DeleteObject` appears nowhere at
   all; audio is removed by a bucket lifecycle rule, which is S3's own doing
-  and needs no permission of ours. `dynamodb:DeleteItem` does now exist —
-  websocket connections and connection tickets have to be spent and cleaned up
-  — but every grant of it is conditioned on `dynamodb:LeadingKeys` matching
+  and needs no permission of ours. `dynamodb:DeleteItem` does now exist,
+  because websocket connections and connection tickets have to be spent and
+  cleaned up, but every grant of it is conditioned on `dynamodb:LeadingKeys`
+  matching
   `TICKET#*` or `CONN#*`, so no role in the stack can reach a clinical record
   with it. That condition is why connections were given a partition of their
   own: IAM can condition on a partition key and not on a sort key. See
@@ -70,7 +71,7 @@ retries an asynchronous invocation twice and then discards it, so without a
 failure destination the visible symptom of a permanent failure is an upload
 that stays at `PENDING_UPLOAD` for ever, with the reason nowhere.
 
-The queue is that destination. Nothing consumes it — a message in it is one
+The queue is that destination. Nothing consumes it: a message in it is one
 recording that was never transcribed, and the alarm on its depth is the only
 thing that reads it automatically. The payload names the object, so an event
 can be replayed once whatever caused it is fixed.
@@ -82,7 +83,7 @@ the service's, so it is a permission and not merely a setting.
 ## Why one role per function
 
 A shared role is the union of every permission any function needs. Under one,
-`list-transcriptions` — the endpoint most exposed to ordinary traffic — would
+`list-transcriptions`, the endpoint most exposed to ordinary traffic, would
 also be able to write transcripts and read the provider's long-lived API key.
 The cost of one role each is a few more resources in a graph that Terraform
 manages anyway: twelve now, where the first version of this module had eight.
@@ -118,7 +119,7 @@ Reading a `SecureString` is authorised twice, once at Parameter Store and once
 at KMS, so each function that reads one also gets `kms:Decrypt` on the key
 that encrypts it. When `secrets_kms_key_arn` is null the module resolves
 `alias/aws/ssm` to a concrete key ARN rather than granting a wildcard, which
-is why the parameters should exist before the first apply — the alias appears
+is why the parameters should exist before the first apply: the alias appears
 with the account's first `SecureString`.
 
 The adapter must call `GetParameter`, singular. `GetParameters` is a different

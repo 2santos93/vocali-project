@@ -25,9 +25,6 @@ export class GetTranscriptionDownloadUrl {
   ): Promise<Result<DownloadUrlResponse, GetTranscriptionDownloadUrlError>> {
     const transcription = await this.repository.findById(input.userId, input.transcriptionId);
     if (transcription === null) {
-      // `findById` is scoped by userId, so this also covers another user's
-      // record. The same error for "absent" and "not yours" keeps the response
-      // from being usable to enumerate transcription ids.
       return err(new TranscriptionNotFoundError(input.transcriptionId));
     }
 

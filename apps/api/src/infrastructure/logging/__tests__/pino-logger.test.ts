@@ -37,9 +37,6 @@ describe('PinoLogger', () => {
       level: 'info',
       time: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) as unknown,
       msg: 'Started a transcription job',
-      // Flat fields, not a string. `msg` alone would still be readable and
-      // would make `transcriptionId = "01A"` unqueryable in Logs Insights,
-      // which is the only place these lines are ever actually read.
       transcriptionId: '01A',
       attempt: 2,
     });

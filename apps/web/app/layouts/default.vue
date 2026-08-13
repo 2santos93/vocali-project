@@ -3,27 +3,12 @@ import { computed, ref } from 'vue';
 import { useTranslations } from '../i18n/translations';
 import type { MessageKey } from '../i18n/types';
 
-/**
- * The application chrome every signed-in screen renders inside.
- *
- * It owns the header, the navigation, the signed-in address and the sign-out
- * control, and it owns the page container — the width, the padding and the
- * vertical rhythm — so that a screen starts at its own `<h1>` and never has to
- * agree with the other screens about margins. It does not render a page title:
- * each page names itself.
- */
-
 const session = useAuthSession();
 const theme = useThemePreference();
 const language = useInterfaceLanguage();
 const { t } = useTranslations();
 const signingOut = ref(false);
 
-/*
- * The routes are Spanish and stay Spanish — they are addresses, and an English
- * interface must not change where a saved link points. Only the words on the
- * links move.
- */
 const NAVIGATION: readonly { to: string; labelKey: MessageKey }[] = [
   { to: '/transcribir', labelKey: 'nav.transcribeFile' },
   { to: '/dictar', labelKey: 'nav.dictate' },
@@ -35,9 +20,6 @@ const navigation = computed(() =>
 );
 
 async function onSignOut(): Promise<void> {
-  // Guarded rather than merely visually disabled: a double click on a slow
-  // connection would otherwise send a second global sign-out with a token the
-  // first has already revoked.
   if (signingOut.value) return;
 
   signingOut.value = true;
@@ -75,19 +57,6 @@ async function onSignOut(): Promise<void> {
           </NuxtLink>
         </nav>
 
-        <!--
-          Two controls where there were four. The address, the theme and the
-          sign-out button all belong to the person signed in, and they now sit
-          behind one avatar: the header keeps a fixed width whatever the
-          address is, and the sign-out control can no longer be pushed off a
-          narrow screen by a long one.
-
-          The language stays outside the menu, on purpose. It is the one
-          preference somebody may need while unable to read the interface, and
-          burying it behind a button whose label they cannot read would put the
-          way out on the other side of the problem. Collapsed to its flag, it
-          costs the header less than the label it used to carry.
-        -->
         <div class="ml-auto flex items-center gap-2">
           <LanguageToggle
             :language="language.current.value"

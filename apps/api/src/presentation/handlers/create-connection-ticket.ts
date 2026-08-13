@@ -5,11 +5,7 @@ import { CREATED } from '../http/http-status.js';
 import type { ApiGatewayRequestHandler } from '../types/http.js';
 import type { CreateConnectionTicketDependencies } from '../types/dependencies.js';
 
-/**
- * `POST /connection-tickets` — exchanges a proven session for a credential
- * safe to put in a websocket's query string. No request body: the lifetime is
- * a decision this side makes.
- */
+// POST /connection-tickets
 export function createConnectionTicketHandler(
   dependencies: CreateConnectionTicketDependencies,
 ): ApiGatewayRequestHandler {

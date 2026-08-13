@@ -7,13 +7,7 @@ import { withValidatedBody } from '../http/validation.js';
 import type { ApiGatewayRequestHandler } from '../types/http.js';
 import type { SaveRealtimeTranscriptionDependencies } from '../types/dependencies.js';
 
-/**
- * `POST /transcriptions/realtime` — stores a finished microphone dictation.
- *
- * The use case returns a DTO rather than a `Result`: the transcript arrives
- * complete, so no domain rule is left to reject it and anything that goes
- * wrong is infrastructure the error mapper answers with a 500.
- */
+// POST /transcriptions/realtime
 export function saveRealtimeTranscriptionHandler(
   dependencies: SaveRealtimeTranscriptionDependencies,
 ): ApiGatewayRequestHandler {

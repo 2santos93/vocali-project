@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import type { InterfaceLanguage } from '../../i18n/types';
 
-/**
- * Drawn rather than the `🇪🇸` emoji: Windows ships no flag glyphs, so the emoji
- * renders as the letters `ES` in a box.
- *
- * `aria-hidden`, because a flag is a country and a language is not — `en` here
- * is `en-GB`. Every place that shows one names the language in text as well.
- */
 interface Props {
   language: InterfaceLanguage;
 }

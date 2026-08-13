@@ -4,28 +4,12 @@ import { computed } from 'vue';
 import { useTranslations } from '../i18n/translations';
 import type { ApiRequester } from '../utils/types/api';
 
-/**
- * Dictating by microphone.
- *
- * As with `transcribir.vue`, the page is the wiring: it is the only layer that
- * may use the Nuxt runtime, so `$fetch` lives here and nowhere below. The
- * session request and the save go through the BFF proxy; the websocket does
- * not, because the provider's short-lived credential is minted for the browser
- * to use directly and proxying binary audio through Nitro would add latency to
- * the one thing on this screen that cannot afford it.
- */
-
 const { t } = useTranslations();
 
 useHead({ title: computed<string>(() => t('dictation.title')) });
 
 let pendingWait: ReturnType<typeof setTimeout> | null = null;
 
-/*
- * The one place `$fetch` appears, as on the upload page. The session request
- * and the save go through the BFF proxy; the websocket does not, because the
- * provider's short-lived credential is minted for the browser to use directly.
- */
 const request: ApiRequester = (path, options) => $fetch(path, options);
 
 const recorder = useAudioRecorder({
@@ -64,14 +48,6 @@ function onDiscard(): void {
   void recorder.discard();
 }
 
-/*
- * Leaving the page must release the microphone.
- *
- * `discard` stops the capture and closes the socket. Without it, navigating
- * away mid-dictation leaves the tab holding the device with the browser's
- * recording indicator still lit — for a microphone in a consulting room that
- * is not a cosmetic difference.
- */
 onBeforeUnmount(() => {
   if (pendingWait !== null) {
     clearTimeout(pendingWait);

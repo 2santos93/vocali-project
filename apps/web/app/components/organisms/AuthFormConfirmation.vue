@@ -5,12 +5,6 @@ import BaseButton from '../atoms/BaseButton.vue';
 import BaseInput from '../atoms/BaseInput.vue';
 import FormField from '../molecules/FormField.vue';
 
-/**
- * A code expires while it sits in an inbox, so "the code no longer works" is
- * the ordinary path through this screen. Without the resend control the
- * account can never be used and the screen is a dead end.
- */
-
 interface Props {
   email: string;
   code: string;

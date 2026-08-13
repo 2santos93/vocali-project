@@ -113,11 +113,6 @@ function recordingHandlers(): UpdateStreamHandlers & {
 }
 
 describe('createUpdateStreamOpener', () => {
-  /*
-   * The path is asserted as a literal rather than imported from
-   * `utils/api-routes`, for the reason recorded there: a test that imports the
-   * constant it is checking asserts `constant === constant`.
-   */
   it('asks for a ticket at POST /api/connection-tickets', async () => {
     const harness = buildHarness();
     const opening = harness.open(recordingHandlers());
@@ -130,11 +125,6 @@ describe('createUpdateStreamOpener', () => {
     ]);
   });
 
-  /*
-   * A browser cannot set a header on a `WebSocket`, so the credential travels
-   * in the query string, which API Gateway writes into its access log
-   * verbatim. What goes there is the ticket: thirty seconds, single use.
-   */
   it('dials the endpoint the ticket named, carrying the ticket and nothing else', async () => {
     const harness = buildHarness();
     const opening = harness.open(recordingHandlers());
@@ -155,11 +145,6 @@ describe('createUpdateStreamOpener', () => {
     expect(harness.urls[0]).toBe('wss://sockets.test/live?ticket=a%2Bb%2Fc%3Dd%26e');
   });
 
-  /*
-   * Settled on the handshake, not on the ticket request. A socket that was
-   * constructed but refused is not a stream, and resolving early would have
-   * the caller wait out its whole budget on a connection that never opened.
-   */
   it('does not resolve until the socket has actually opened', async () => {
     const harness = buildHarness();
     let resolved = false;
@@ -195,11 +180,6 @@ describe('createUpdateStreamOpener', () => {
     await expect(opening).rejects.toBeInstanceOf(UpdateStreamError);
   });
 
-  /*
-   * A failed handshake emits `error` and then `close`. Without the guard the
-   * caller would be told a stream it never received had dropped — a report it
-   * has nothing to correlate with.
-   */
   it('does not report a close for a stream the caller never got', async () => {
     const harness = buildHarness();
     const handlers = recordingHandlers();
@@ -261,11 +241,6 @@ describe('createUpdateStreamOpener', () => {
     expect(harness.socket.closes).toBe(1);
   });
 
-  /*
-   * A client treating the first unfamiliar frame as an error breaks on the
-   * next thing the API adds, and one throwing inside a listener takes the
-   * whole connection down with it.
-   */
   it.each([
     ['a frame that is not a string', { some: 'object' }],
     ['a frame that is not JSON', 'not json at all'],
@@ -292,12 +267,6 @@ describe('createUpdateStreamOpener', () => {
     expect(handlers.received).toEqual([]);
   });
 
-  /*
-   * Every case above injects a socket factory, which left the default — the
-   * line deciding what the browser dials — untested. A URL that stopped
-   * carrying the ticket would be refused by the `$connect` authorizer and the
-   * only symptom would be a transcription arriving two minutes late.
-   */
   it('dials the browser socket at the ticket URL when no factory is supplied', async () => {
     const dialled: string[] = [];
     const constructed: SocketDouble[] = [];

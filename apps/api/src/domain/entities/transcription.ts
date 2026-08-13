@@ -116,11 +116,6 @@ function buildPreview(text: string): string {
   return text.slice(0, TEXT_PREVIEW_LENGTH);
 }
 
-/**
- * Formatted rather than the raw ISO string: that contains colons, which are
- * invalid in filenames on Windows, and this name is what the user sees and
- * downloads. `microphone-YYYYMMDD-HHmmss` still sorts in recording order.
- */
 function buildRealtimeFileName(at: Date): string {
   const pad = (value: number): string => String(value).padStart(2, '0');
 

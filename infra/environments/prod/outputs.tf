@@ -1,7 +1,3 @@
-# What the application and the next round of infrastructure read. Everything
-# here is configuration rather than secrets, apart from the one output that is
-# marked as such.
-
 output "cognito_user_pool_id" {
   description = "User pool the BFF authenticates against."
   value       = module.auth.user_pool_id

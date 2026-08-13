@@ -11,13 +11,6 @@ describe('CreateUploadIntentRequestSchema', () => {
     expect(CreateUploadIntentRequestSchema.parse(validRequest)).toEqual(validRequest);
   });
 
-  /*
-   * An upload no longer declares a language — the provider identifies it from
-   * the audio. A client still sending one is not refused, because refusing
-   * would break the previous version of the web app mid-deploy for no gain,
-   * but the value goes nowhere: it is stripped here rather than reaching a
-   * record that would then claim a language nobody verified.
-   */
   it('ignores a language a caller still sends', () => {
     const parsed = CreateUploadIntentRequestSchema.parse({ ...validRequest, language: 'en' });
 

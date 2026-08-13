@@ -3,20 +3,6 @@ import { chooseInterfaceLanguage, expectInterfaceLanguage } from '../support/pre
 import { SIGNED_IN_EMAIL, SIGN_IN_PASSWORD, stubSignIn } from '../support/session';
 import { buildTranscriptions } from '../support/transcriptions';
 
-/**
- * Journey 9: reading the application in Spanish or in English.
- *
- * The catalogues and the translator are covered by unit tests. What only a
- * browser shows is the part around them: that the choice survives a reload,
- * that the *server* renders the first frame in the right language, that the
- * URL does not change, and that switching redraws the screen on display.
- */
-
-/**
- * Reaching each field by its label rather than its id, so this also fails if a
- * translated label stops naming the field it sits above — an accessibility
- * defect no visual check would find.
- */
 function signInReadingEnglish(path: string): void {
   stubSignIn();
 
@@ -58,11 +44,6 @@ describe('Choosing the interface language', () => {
     cy.getCookie('vocali_interface_language').should('have.property', 'value', 'en');
   });
 
-  /*
-   * Read before a line of JavaScript has run: the alternative is a Spanish
-   * first frame rewritten into English on every page load, which is what a
-   * language kept in local storage looks like.
-   */
   it('is already in the HTML the server sends', () => {
     cy.visit('/login');
     chooseInterfaceLanguage('en');
@@ -74,11 +55,6 @@ describe('Choosing the interface language', () => {
     });
   });
 
-  /*
-   * No `/en/` anywhere. The address of a screen is not a property of the
-   * language somebody reads it in, and prefixing every route would break every
-   * saved link and give one screen two addresses.
-   */
   it('leaves every address exactly as it was', () => {
     cy.visit('/login');
     chooseInterfaceLanguage('en');
@@ -113,14 +89,6 @@ describe('Choosing the interface language', () => {
     cy.get('html').should('have.attr', 'lang', 'es-ES');
   });
 
-  /*
-   * The distinction the whole feature turns on, driven end to end.
-   *
-   * The language of the interface and the language of the audio are different
-   * facts about different things. A clinician reading in English still dictates
-   * in Spanish, and choosing Catalan audio is not a request to read the
-   * application in Catalan — which the interface does not even offer.
-   */
   it('keeps the language of the audio apart from the language of the screen', () => {
     cy.visit('/login');
     chooseInterfaceLanguage('en');
@@ -161,11 +129,6 @@ describe('Choosing the interface language', () => {
 
     cy.wait('@signIn');
 
-    /*
-     * The server answered in Spanish, because its sentence is the HTTP
-     * contract and it is not told which language anybody reads in. The screen
-     * shows the English one for the same code.
-     */
     cy.contains('That email address or password is not correct.').should('be.visible');
     cy.contains('El correo electrónico o la contraseña no son correctos.').should('not.exist');
   });

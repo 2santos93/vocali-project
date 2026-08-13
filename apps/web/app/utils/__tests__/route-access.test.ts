@@ -9,12 +9,6 @@ import {
 const PROTECTED_ROUTES = ['/historial', '/transcribir', '/dictar'];
 
 describe('a visitor with no session', () => {
-  /*
-   * The redirect the brief asks to be pinned. A protected screen shown to
-   * somebody with no session is an application shell whose every request will
-   * answer 401, which reads as the product being broken rather than as needing
-   * to sign in.
-   */
   it.each(PROTECTED_ROUTES)('is sent from %s to the sign-in page', (path) => {
     expect(decideRouteAccess(path, path, false)?.path).toBe(SIGN_IN_ROUTE);
   });
@@ -51,9 +45,6 @@ describe('a visitor with a session', () => {
   });
 
   it.each(ANONYMOUS_ROUTES)('is sent away from %s to the home screen', (path) => {
-    // A sign-in form shown to somebody already signed in reads as the session
-    // having been lost, and the obvious response is a second authentication
-    // for no reason.
     expect(decideRouteAccess(path, path, true)).toStrictEqual({ path: HOME_ROUTE });
   });
 
@@ -89,13 +80,6 @@ describe('the destination a sign-in may forward to', () => {
     ['a javascript URL', 'javascript:alert(1)'],
     ['a backslash path some browsers normalise to a slash', '/\\evil.example'],
   ])('refuses %s', (_description, target) => {
-    /*
-     * Each of these delivers a user who has just typed their password to
-     * somewhere that is not this application, from a genuine form on the
-     * genuine domain — which is the whole of the phishing primitive an open
-     * redirect provides. They are refused rather than sanitised: there is no
-     * repair that turns another origin into this one.
-     */
     expect(safeRedirectTarget(target)).toBeNull();
   });
 
@@ -104,9 +88,6 @@ describe('the destination a sign-in may forward to', () => {
     ['empty', ''],
     ['repeated, so the router reports an array', ['/historial', '/dictar']],
   ])('reports no destination when the parameter is %s', (_description, value) => {
-    // A query value is whatever was in the URL: repeating `?redirect=` makes
-    // it an array, and asserting a string onto it would put an array where a
-    // path is about to be navigated to.
     expect(safeRedirectTarget(value)).toBeNull();
   });
 });

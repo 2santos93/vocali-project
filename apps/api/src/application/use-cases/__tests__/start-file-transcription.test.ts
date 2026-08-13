@@ -61,9 +61,6 @@ describe('StartFileTranscription', () => {
     );
     expect(storage.calls.presignedReads).toHaveLength(1);
     expect(storage.calls.presignedReads[0]?.objectKey).toBe('audio/user-1/01A/visit.mp3');
-    // Stays a literal even though AUDIO_READ_URL_TTL_SECONDS is one import
-    // away: importing it would make this `expect(constant).toBe(constant)`,
-    // which pins nothing. A change to the constant must fail here.
     expect(storage.calls.presignedReads[0]?.expiresInSeconds).toBe(3_600);
 
     const stored = await repository.findById('user-1', '01A');
@@ -192,10 +189,6 @@ describe('StartFileTranscription', () => {
       'write throttled',
     );
 
-    // The provider has the job but the record still shows PENDING_UPLOAD with
-    // no externalJobId, so a retry submits a second job and orphans the first:
-    // the callback arrives with an id that was never stored. Recovering that
-    // is why the callback URL carries (userId, transcriptionId).
     expect(provider.submissions).toHaveLength(1);
     const stored = await repository.findById('user-1', '01A');
     expect(stored?.status).toBe('PENDING_UPLOAD');

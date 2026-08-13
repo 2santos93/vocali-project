@@ -30,11 +30,6 @@ describe('buildTranscriptText', () => {
     expect(buildTranscriptText(results)).toBe('dolor, agudo.');
   });
 
-  /**
-   * Spanish opens a question with `¿`, which the provider marks as attaching
-   * to the token that follows. Joining every token with a space would produce
-   * `¿ duele ?`, which is what a clinician would be asked to sign.
-   */
   it('attaches an opening question mark to the word after it', () => {
     const results = [
       { type: 'punctuation', attaches_to: 'next', alternatives: [{ content: '¿' }] },
@@ -174,11 +169,6 @@ describe('interpretSpeechmaticsCallback', () => {
     });
   });
 
-  /*
-   * The upload screen no longer asks, so this is where the language enters the
-   * platform. Without it the record says nothing about a fact the transcript
-   * is already carrying.
-   */
   it('reports the language the provider identified', () => {
     const body = JSON.stringify({
       job: { id: 'job-1', duration: 4 },
@@ -190,11 +180,6 @@ describe('interpretSpeechmaticsCallback', () => {
     expect(outcome).toMatchObject({ kind: 'completed', language: 'en' });
   });
 
-  /*
-   * The job restricts identification to the platform's languages, so this
-   * should not arrive — but the payload belongs to somebody else, and a
-   * language outside the union is one the rest of the system cannot name.
-   */
   it('ignores a language code the platform does not support', () => {
     const body = JSON.stringify({
       job: { id: 'job-1', duration: 4 },
@@ -214,11 +199,6 @@ describe('interpretSpeechmaticsCallback', () => {
     });
   });
 
-  /**
-   * Guessing the other way would complete a transcription out of whatever the
-   * body happened to hold. FAILED -> COMPLETED is allowed, so this is the
-   * direction that can be undone.
-   */
   it('treats a status it has never seen as a failure rather than as a completion', () => {
     const outcome = interpretSpeechmaticsCallback(callbackQuery({ status: 'something-new' }));
 
@@ -230,9 +210,6 @@ describe('interpretSpeechmaticsCallback', () => {
     ['an empty job id', { id: '' }],
     ['a job id longer than the bound', { id: 'j'.repeat(129) }],
   ])('refuses to interpret a callback with %s', (_description, overrides) => {
-    // Not a failure. The job id is what proves the callback belongs to the
-    // record it names, so marking a transcription failed without one is a
-    // write the sender never earned.
     expect(interpretSpeechmaticsCallback(callbackQuery(overrides))).toEqual({
       kind: 'unrecognised',
       reason: 'The callback did not name a provider job',
@@ -263,11 +240,6 @@ describe('interpretSpeechmaticsCallback', () => {
     });
   });
 
-  /**
-   * The provider may send no body at all for an empty recording. Refusing that
-   * leaves the job redelivered until the provider gives up and the record
-   * stuck in PROCESSING, which is worse than a transcription with nothing in it.
-   */
   it.each([
     ['an absent body', undefined],
     ['an empty body', ''],

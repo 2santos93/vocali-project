@@ -1,9 +1,4 @@
-/**
- * Lambda entry point for `GET /transcriptions`.
- *
- * The exported type is AWS's own, so this layer's narrowed event declarations
- * stay checked against the real shape.
- */
+// Lambda entry point for GET /transcriptions.
 import type { APIGatewayProxyHandlerV2WithJWTAuthorizer } from 'aws-lambda';
 import { getContainer } from '../composition-root.js';
 import { listTranscriptionsHandler } from '../presentation/handlers/list-transcriptions.js';

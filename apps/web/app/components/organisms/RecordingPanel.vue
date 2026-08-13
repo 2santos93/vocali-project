@@ -227,13 +227,7 @@ function onDiscard(): void {
             {{ t('dictation.placeholder') }}
           </p>
 
-          <!-- No `whitespace-pre-wrap`: the two spans sit on separate lines in
-               this file, and preserving whitespace would render that
-               indentation as a hanging indent before the dictation. -->
           <p v-else class="text-base leading-relaxed">
-            <!-- Only confirmed text is announced. The provisional tail is
-                 rewritten several times a second, and a live region carrying
-                 that makes a screen reader unusable. -->
             <span aria-live="polite" class="text-ink" data-testid="final-text">{{
               finalText
             }}</span>

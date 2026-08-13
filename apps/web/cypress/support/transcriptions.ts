@@ -1,15 +1,3 @@
-/**
- * The records the API hands back, written out here rather than imported from
- * `@vocali/contracts`.
- *
- * The application parses every one of these responses against the contract
- * before it renders them, so a stub assembled from the contract's own schema
- * would be checked against itself: the two would agree by construction, and a
- * field renamed on both sides at once would still pass. Written as literals,
- * a shape the front end no longer accepts stops the journey at the screen,
- * which is where it would stop for a user.
- */
-
 export type TranscriptionStatus = 'PENDING_UPLOAD' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export interface TranscriptionRecord {

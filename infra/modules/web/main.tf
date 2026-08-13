@@ -4,9 +4,6 @@ data "aws_region" "current" {}
 
 data "aws_caller_identity" "current" {}
 
-# Only consulted when no customer-managed key was given, and for the same
-# reason as in the functions module: resolving the alias means the grant names
-# one concrete key instead of a wildcard.
 data "aws_kms_alias" "ssm" {
   count = var.secrets_kms_key_arn == null ? 1 : 0
 
@@ -30,9 +27,6 @@ locals {
   assets_origin_id = "assets"
   ssr_origin_id    = "ssr"
 
-  # Nuxt writes hashed, immutable files here and nowhere else, which is what
-  # makes it the one path that can be cached for a year and served from S3
-  # instead of from a function.
   hashed_asset_path_pattern = "/_nuxt/*"
 }
 
@@ -75,11 +69,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "assets" {
   }
 }
 
-# No versioning, and this is the one bucket in the platform without it. Its
-# contents are build output: every object here is reproducible from a commit,
-# and a rollback is a redeploy of the previous build rather than a restore of
-# a previous version. Versioning would keep every asset of every build for
-# ever for nothing.
 resource "aws_s3_bucket_lifecycle_configuration" "assets" {
   bucket = aws_s3_bucket.assets.id
 
@@ -119,13 +108,6 @@ data "aws_iam_policy_document" "assets" {
     }
   }
 
-  # The only read grant on the bucket, and it is not to a principal anyone can
-  # be: it is to the CloudFront service, acting for one named distribution.
-  # Another distribution in this account, or anyone's, gets nothing.
-  #
-  # Absent entirely while `expose_ssr_publicly` is set, because there is no
-  # distribution to name and a policy that granted read to the service without
-  # naming one would be readable by any distribution in any account.
   dynamic "statement" {
     for_each = aws_cloudfront_distribution.this[*].arn
 
@@ -157,9 +139,6 @@ resource "aws_s3_bucket_policy" "assets" {
   depends_on = [aws_s3_bucket_public_access_block.assets]
 }
 
-# The Nuxt server. Its own role and its own log group rather than the
-# functions module's, because it is not one of the API functions: it renders
-# pages and holds the session, and what it may reach is a different list.
 data "aws_iam_policy_document" "ssr_assume_role" {
   statement {
     sid     = "LambdaAssumeRole"
@@ -207,10 +186,6 @@ resource "aws_iam_role_policy" "ssr" {
           Resource = ["${aws_cloudwatch_log_group.ssr.arn}:*"]
         }
       ],
-      # The renderer calls the API as the signed-in user, with that user's
-      # token, so it needs no AWS permission to do it. The only thing it reads
-      # from AWS is whatever credential it authenticates to Cognito with, and
-      # that is a SecureString it is named here.
       length(local.secret_parameter_arns) == 0 ? [] : [
         {
           Sid      = "ReadOwnSecrets"
@@ -229,15 +204,6 @@ resource "aws_iam_role_policy" "ssr" {
   })
 }
 
-# The Nitro server bundle, as built by `NITRO_PRESET=aws_lambda nuxt build`.
-#
-# The whole directory, not one file: unlike the API bundles this one is
-# produced by Nitro rather than by our own esbuild call, and it ships its own
-# chunks beside the entry point.
-#
-# If the directory is not there the plan stops here with the command that
-# builds it. There is no flag that makes this module create a distribution
-# pointing at nothing.
 data "archive_file" "ssr" {
   type        = "zip"
   source_dir  = "${var.nuxt_output_dir}/server"
@@ -264,9 +230,6 @@ resource "aws_lambda_function" "ssr" {
   filename         = data.archive_file.ssr.output_path
   source_code_hash = data.archive_file.ssr.output_base64sha256
 
-  # Rendering a page is more work than any of the API handlers do: a Vue
-  # render pass plus the fetches behind it, all on one thread whose speed is
-  # bought with memory.
   memory_size = var.ssr_memory_size
 
   # A page nobody has been served in fifteen seconds is a page the reader has
@@ -287,28 +250,13 @@ resource "aws_lambda_function" "ssr" {
   }
 }
 
-# IAM, not NONE. A function URL with no authorisation is a public HTTPS
-# endpoint that bypasses CloudFront entirely — no security headers, no
-# caching, no WAF later, and a second origin for the same application on a
-# domain nobody would think to check.
 resource "aws_lambda_function_url" "ssr" {
-  function_name = aws_lambda_function.ssr.function_name
-  # AWS_IAM is the intended state: only CloudFront, signing with its origin
-  # access control, may invoke this. NONE is the temporary exposure, and it is
-  # expressed here rather than changed by hand so that the state and the
-  # repository never disagree about which one is live.
+  function_name      = aws_lambda_function.ssr.function_name
   authorization_type = var.expose_ssr_publicly ? "NONE" : "AWS_IAM"
 
-  # Buffered rather than streamed. Streaming would shorten time-to-first-byte
-  # on a slow render, and it is not compatible with the response compression
-  # and header rewriting the distribution does on every response.
   invoke_mode = "BUFFERED"
 }
 
-# The public counterpart of the CloudFront grant below, and mutually exclusive
-# with it. A function URL set to NONE still refuses every caller until a
-# resource policy admits one, so opening the URL without this returns 403 —
-# which is a safe default and an easy hour to lose.
 resource "aws_lambda_permission" "public_ssr" {
   count = var.expose_ssr_publicly ? 1 : 0
 
@@ -358,14 +306,6 @@ data "aws_cloudfront_cache_policy" "caching_disabled" {
   name = "Managed-CachingDisabled"
 }
 
-# Everything the viewer sent except Host, which has to be dropped: the origin
-# is a function URL whose certificate and SigV4 signature are for its own
-# hostname, and forwarding the viewer's Host breaks both.
-#
-# `allExcept` rather than the managed AllViewerExceptHostHeader policy so that
-# the signing header CloudFront adds for a request with a body travels with
-# it. A request whose body is not covered by the signature is rejected by the
-# function URL, and sign-in is a POST with a body.
 resource "aws_cloudfront_origin_request_policy" "ssr" {
   name    = "${var.name_prefix}-ssr"
   comment = "Forwards everything but Host to the renderer"
@@ -418,13 +358,6 @@ resource "aws_cloudfront_response_headers_policy" "security" {
     }
   }
 
-  # No Content-Security-Policy here, deliberately. Nuxt emits an inline
-  # hydration script on every page, so a useful policy needs a per-response
-  # nonce, and a nonce has to come from the renderer that emitted the script —
-  # a static header at the edge can only be `unsafe-inline`, which is the
-  # policy that permits what a policy exists to forbid. It belongs in the Nuxt
-  # application, and this is the note saying so rather than a header
-  # pretending the question is settled.
 }
 
 resource "aws_cloudfront_distribution" "this" {
@@ -434,10 +367,6 @@ resource "aws_cloudfront_distribution" "this" {
   comment         = "${var.name_prefix} front end"
   price_class     = var.price_class
   is_ipv6_enabled = true
-
-  # No `default_root_object`. The renderer answers `/` itself, and naming an
-  # object here would make CloudFront rewrite that request to a file in the
-  # asset bucket that a server-rendered application does not have.
 
   origin {
     origin_id                = local.ssr_origin_id
@@ -468,9 +397,6 @@ resource "aws_cloudfront_distribution" "this" {
     allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
     cached_methods  = ["GET", "HEAD"]
 
-    # Nothing is cached. Every page here is personalised — it is somebody's
-    # transcription history — and a cached response served to the next viewer
-    # is a disclosure, not a performance win.
     cache_policy_id            = data.aws_cloudfront_cache_policy.caching_disabled.id
     origin_request_policy_id   = aws_cloudfront_origin_request_policy.ssr.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
@@ -478,9 +404,6 @@ resource "aws_cloudfront_distribution" "this" {
     compress = true
   }
 
-  # The hashed build assets, which are immutable by construction: a change to
-  # one produces a different file name. They come from the bucket rather than
-  # from the renderer, so a page load costs one invocation instead of thirty.
   ordered_cache_behavior {
     path_pattern           = local.hashed_asset_path_pattern
     target_origin_id       = local.assets_origin_id
@@ -502,11 +425,6 @@ resource "aws_cloudfront_distribution" "this" {
   }
 
   viewer_certificate {
-    # CloudFront's own certificate, on the distribution's own domain. There is
-    # no custom domain yet, and the day there is one this becomes an ACM
-    # certificate in us-east-1 and a minimum protocol version of TLSv1.2_2021;
-    # with the default certificate that argument is fixed and cannot be
-    # raised.
     cloudfront_default_certificate = true
   }
 

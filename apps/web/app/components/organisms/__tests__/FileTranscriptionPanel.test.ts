@@ -118,7 +118,7 @@ describe('FileTranscriptionPanel', () => {
     expect(wrapper.find('[data-testid="rejection-alert"]').exists()).toBe(false);
   });
 
-  it('shows the drop zone’s refusal as a warning and keeps the form usable', async () => {
+  it('shows a refusal from the drop zone as a warning and keeps the form usable', async () => {
     const wrapper = panel();
 
     await drop(wrapper, fileOf('grande.wav', 'audio/wav', MAX_AUDIO_FILE_SIZE_BYTES + 1));
@@ -256,11 +256,6 @@ describe('FileTranscriptionPanel', () => {
     expect(wrapper.find('[data-testid="selected-file-name"]').exists()).toBe(false);
   });
 
-  /*
-   * `language` on a transcription is the language of the *audio*, and neither
-   * it nor the interface language may drive the other: a clinician reading
-   * these screens in English may well have uploaded a Spanish consultation.
-   */
   describe('the language of the audio, which is not the language of the screen', () => {
     it('names the identified language in the language the reader chose', () => {
       const spanish = panel({
@@ -297,7 +292,7 @@ describe('FileTranscriptionPanel', () => {
       expect(wrapper.text()).toContain('Transcribe an audio file');
     });
 
-    it('leaves the interface alone when the identified language is not the reader’s', () => {
+    it('leaves the interface alone when the identified language is not the one being read', () => {
       const wrapper = panel({
         phase: 'completed',
         transcription: { ...COMPLETED, language: 'en' },

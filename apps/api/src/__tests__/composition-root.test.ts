@@ -24,12 +24,6 @@ const ENVIRONMENT = {
   WEBSOCKET_MANAGEMENT_ENDPOINT: 'https://sockets.test/prod',
 };
 
-/**
- * Credentials the SDK can find without leaving the process, needed because the
- * bucket tests below presign, and presigning signs with real credentials.
- * `withoutCredentials` strips these again for the test that asserts the graph
- * builds without touching AWS.
- */
 const CREDENTIALS = {
   AWS_ACCESS_KEY_ID: 'AKIAEXAMPLE',
   AWS_SECRET_ACCESS_KEY: 'secret',
@@ -77,11 +71,6 @@ describe('composition root', () => {
     }
   });
 
-  /**
-   * Identity is the only assertion that can see this: a rebuilt graph is still
-   * a valid graph and every other check passes, while every request goes back
-   * to Parameter Store and builds three AWS SDK clients.
-   */
   it('builds the graph once and reuses it across invocations', () => {
     const first = getContainer();
     const second = getContainer();
@@ -98,23 +87,12 @@ describe('composition root', () => {
     );
   });
 
-  /**
-   * The failure has to happen while the container initialises. Lambda reports
-   * an init failure on every invocation with the reason attached; a lazy one
-   * reports it once, as a 500 on a user's upload.
-   */
   it('refuses to build a graph from an environment missing a required variable', () => {
     delete process.env.AUDIO_BUCKET_NAME;
 
     expect(() => getContainer()).toThrow(/AUDIO_BUCKET_NAME/);
   });
 
-  /**
-   * Configuration validation must be the *only* thing that can fail while the
-   * graph is built. Anything else throwing at module scope surfaces as an
-   * initialisation crash with no request, no correlation id and no handler
-   * context — far worse to diagnose than the named-variable failure above.
-   */
   it('builds with no credentials in the environment, so only the configuration can fail', () => {
     process.env = withoutCredentials(process.env);
 
@@ -122,14 +100,6 @@ describe('composition root', () => {
     expect(getContainer().createAudioUploadIntent).toBeDefined();
   });
 
-  /**
-   * `FileStorage` carries an object key and no bucket, so every use case and
-   * every in-memory double behaves identically whichever store it was handed.
-   * Only the deployed roles tell the difference, and only after the provider
-   * has transcribed the audio and billed for it. So these run the real
-   * adapters against a mocked S3 and assert the bucket on the wire, which is
-   * the one place the mistake is observable.
-   */
   describe('bucket routing', () => {
     const USER_ID = 'user-1';
     const TRANSCRIPTION_ID = '01A';
@@ -146,9 +116,6 @@ describe('composition root', () => {
       dynamoMock.on(PutCommand).resolves({});
       ssmMock.on(GetParameterCommand).resolves({ Parameter: { Value: 'provider-key' } });
 
-      // The composition root builds the provider adapter without its
-      // injectable `fetch` hook, so intercepting the global here is what keeps
-      // the wiring under test the wiring that ships.
       submittedJobConfig = undefined;
       globalThis.fetch = captureJobSubmission((config) => {
         submittedJobConfig = config;

@@ -12,11 +12,6 @@ function buildUseCase(): {
   return { useCase, repository };
 }
 
-/**
- * `idOffset` exists so two users get distinguishable ids. Every other exposed
- * field is identical across builder calls and the mapper strips `userId`, so
- * without it an isolation test would be asserting a property both users share.
- */
 async function seed(
   repository: InMemoryTranscriptionRepository,
   userId: string,
@@ -39,9 +34,6 @@ describe('ListUserTranscriptions', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    // Hardcoded, not re-imported from TRANSCRIPTION_PAGE_SIZE: ten per page is
-    // a stated product requirement, so changing the constant must fail here
-    // rather than have the assertion follow it.
     expect(result.value.items).toHaveLength(10);
     expect(result.value.nextCursor).not.toBeNull();
   });
@@ -67,9 +59,6 @@ describe('ListUserTranscriptions', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    // Asserting the exact ids, newest first: a count alone would catch two
-    // pages being merged but not one user's page being served in place of
-    // another's, which is the failure this test is named for.
     expect(result.value.items.map((item) => item.id)).toEqual(['002', '001']);
   });
 

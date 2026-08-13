@@ -1,14 +1,5 @@
 import { typeIntoField } from '../support/forms';
 
-/**
- * Journey 1: registering, and confirming the address by the code that arrives
- * by email.
- *
- * Cognito is not reached. What is driven is the browser's half: the two forms,
- * the address carried from one screen to the next so nobody types it twice,
- * the code, and the sign-in screen that says the account is ready.
- */
-
 const EMAIL = 'nuevo.medico@clinicavocali.es';
 const PASSWORD = 'Consulta7-segura';
 
@@ -108,9 +99,6 @@ describe('Registering an account', () => {
   });
 
   it('will not submit an empty form, and says which field is missing', () => {
-    // Stubbed even though nothing should reach it: an intercept that passes
-    // through would let a regression in the form's own validation leave this
-    // machine and contact Cognito, which no test in this suite may do.
     cy.intercept('POST', '/api/auth/register', {
       statusCode: 200,
       body: { status: 'CONFIRMATION_REQUIRED', email: EMAIL },

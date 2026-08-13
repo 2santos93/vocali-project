@@ -34,16 +34,6 @@ interface QueryResult {
   LastEvaluatedKey?: Item;
 }
 
-/**
- * Reproduces the two DynamoDB behaviours this adapter exists to handle, so the
- * tests are not written against a store more forgiving than the real one: a
- * `LastEvaluatedKey` whenever the query stops at `Limit` even with nothing
- * following, and an `ExclusiveStartKey` that resumes strictly after the given
- * sort key whether or not that item still exists.
- *
- * It rejects anything it was not built to model rather than answering
- * plausibly, so a change in how the adapter queries surfaces here.
- */
 class FakeDynamoTable {
   private readonly items = new Map<string, Item>();
 
@@ -82,9 +72,6 @@ class FakeDynamoTable {
     const page = remaining.slice(0, limit);
     const lastItem = page[page.length - 1];
 
-    // The whole point of the fake: DynamoDB cannot tell "I stopped at the
-    // limit and more follows" from "I stopped at the limit and that was
-    // everything", so it reports a start key in both cases.
     if (page.length === limit && lastItem !== undefined) {
       return { Items: page, LastEvaluatedKey: { PK: lastItem.PK, SK: lastItem.SK } };
     }
@@ -92,11 +79,6 @@ class FakeDynamoTable {
     return { Items: page };
   }
 
-  /**
-   * All items or none, every condition evaluated first. A fake that wrote the
-   * record and then discovered the claim was taken would leave the table in a
-   * state the real transaction cannot produce, hiding the orphan.
-   */
   transactWrite(input: TransactWriteCommandInput): void {
     const puts = (input.TransactItems ?? []).map((entry) => {
       const put = entry.Put;
@@ -200,9 +182,6 @@ describe('DynamoTranscriptionRepository', () => {
         userId: 'user-1',
         status: 'PENDING_UPLOAD',
         source: 'FILE',
-        // Written as a null rather than left off the item: the attribute has
-        // to exist for the read schema to find it, and an upload has no
-        // language until the provider identifies one.
         language: null,
       });
     });
@@ -226,9 +205,6 @@ describe('DynamoTranscriptionRepository', () => {
     });
 
     it('reports a rejected condition as a lost race rather than throwing', async () => {
-      // Built first: the helper installs its own PutCommand behaviour, so a
-      // rejection set before it would be overwritten and the test would pass
-      // against a write that never failed.
       const repository = buildRepository(new FakeDynamoTable());
       ddbMock
         .on(PutCommand)
@@ -266,9 +242,6 @@ describe('DynamoTranscriptionRepository', () => {
         clientSessionId: SESSION,
       });
 
-      // A separate write for the claim, in either order, has an outcome the
-      // transaction does not: a claim pointing at a record that was never
-      // stored, or a record no retry can ever find again.
       expect(ddbMock.commandCalls(PutCommand)).toHaveLength(0);
       const items = ddbMock.commandCalls(TransactWriteCommand)[0]?.args[0].input.TransactItems;
       expect(items).toHaveLength(2);
@@ -294,9 +267,6 @@ describe('DynamoTranscriptionRepository', () => {
         await repository.listByUser({ userId: 'user-1', limit: 10, cursor: null }),
       );
 
-      // `IDEM#` sorts before `TRANS#`, so without the sort-key prefix on the
-      // query the user's first history page would be full of claim items that
-      // the mapper cannot turn into transcriptions.
       expect(page.items.map((item) => item.id)).toEqual(['01A']);
     });
 
@@ -314,14 +284,11 @@ describe('DynamoTranscriptionRepository', () => {
       expect(result.success).toBe(false);
       if (!result.success) expect(result.error.code).toBe('CONCURRENT_MODIFICATION');
       // The whole transaction was refused, so the second record was not stored
-      // either — a retry left no residue at all.
+      // either: a retry left no residue at all.
       expect(await repository.findById('user-1', '01B')).toBeNull();
     });
 
     it('propagates a cancellation that is not a failed condition', async () => {
-      // A cancellation by a throttle is infrastructure, not a claim someone
-      // else won. Reported as a lost race it tells the caller a retry was
-      // already stored when nothing was written at all.
       const repository = buildRepository(new FakeDynamoTable());
       ddbMock.on(TransactWriteCommand).rejects(
         new TransactionCanceledException({
@@ -354,9 +321,6 @@ describe('DynamoTranscriptionRepository', () => {
       expect(found?.toPrimitives().id).toBe('01A');
       const claimLookup = ddbMock.commandCalls(GetCommand)[0]?.args[0].input;
       expect(claimLookup?.Key).toEqual({ PK: 'USER#user-1', SK: 'IDEM#session-abc' });
-      // A retry can follow the original by milliseconds, and an eventually
-      // consistent read would report the key as unclaimed — producing exactly
-      // the duplicate this path exists to prevent.
       expect(claimLookup?.ConsistentRead).toBe(true);
     });
 
@@ -404,9 +368,6 @@ describe('DynamoTranscriptionRepository', () => {
       const table = new FakeDynamoTable();
       seed(table, 'user-1', ['01A']);
 
-      // Asserted on the key that was sent, not only on the null that came
-      // back: a null is also what an empty table returns, so it cannot tell
-      // an isolated lookup from a lookup that simply found nothing.
       const found = await buildRepository(table).findById('user-2', '01A');
 
       expect(found).toBeNull();
@@ -466,9 +427,6 @@ describe('DynamoTranscriptionRepository', () => {
       );
 
       expect(page.items.map((item) => item.id)).toEqual(['01B', '01A']);
-      // DynamoDB hands back a start key whenever it stops at the limit, even
-      // with nothing behind it. Passing that through would offer the client a
-      // "next page" that is always empty.
       expect(page.nextCursor).toBeNull();
     });
 
@@ -532,9 +490,6 @@ describe('DynamoTranscriptionRepository', () => {
       const table = new FakeDynamoTable();
       seed(table, 'user-1', ['01A']);
       const repository = buildRepository(table);
-      // A page cut short by the 1 MB response limit returns fewer items than
-      // asked for and still reports a start key. Treating that as the end of
-      // the history would truncate what the user can reach.
       ddbMock.on(QueryCommand).resolves({
         Items: [{ ...toTranscriptionItem(buildTranscription({ id: '01A' }).toPrimitives()) }],
         LastEvaluatedKey: { PK: 'USER#user-1', SK: 'TRANS#01A' },
@@ -568,9 +523,6 @@ describe('DynamoTranscriptionRepository', () => {
         cursor: Buffer.from('null').toString('base64url'),
       });
 
-      // The case above dies inside JSON.parse and never reaches the shape
-      // guard. This one parses cleanly, so without the guard the adapter reads
-      // .userId off null and a query parameter becomes a 500 rather than a 400.
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error.code).toBe('INVALID_CURSOR');
@@ -605,9 +557,6 @@ describe('DynamoTranscriptionRepository', () => {
         await double.save(buildTranscription({ id, userId: 'user-1' }));
       }
 
-      // The double is the behaviour every use-case test is written against,
-      // so a cursor the two encode differently would mean the suite is
-      // verifying a contract production does not implement.
       const fromDouble = expectOk(
         await double.listByUser({ userId: 'user-1', limit: 2, cursor: null }),
       ).nextCursor;

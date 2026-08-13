@@ -24,12 +24,6 @@ const NOW = new Date('2026-08-11T09:00:00.000Z');
 const WEBHOOK_SECRET_NAME = '/vocali/test/speechmatics/webhook-secret';
 const WEBHOOK_SECRET = 'a-long-shared-webhook-secret-value';
 
-/**
- * Opaque on purpose: this handler is correct only if it can carry a body it
- * cannot read, so nothing below asserts the shape of this string — only that
- * it reaches the provider adapter unchanged. The real payload is pinned in
- * `infrastructure/providers/speechmatics-callback.test.ts`.
- */
 const CALLBACK_BODY = '{"whatever":"the provider chose to post"}';
 
 const TRANSCRIPT_TEXT = 'el paciente refiere dolor.';
@@ -70,9 +64,6 @@ function buildSubject(): {
   const publisher = new RecordingConnectionPublisher();
   const logger = new CapturingLogger();
 
-  // Completion is the common case, so it is the default; every test that means
-  // something else stages it. Nothing is staged implicitly — an unstaged
-  // provider answers `unrecognised`, which writes nothing at all.
   provider.nextCallbackOutcome = completed();
 
   return {
@@ -149,7 +140,7 @@ function buildPendingUpload(): Transcription {
   });
 }
 
-describe('handleProviderCallbackHandler — the shared secret', () => {
+describe('handleProviderCallbackHandler: the shared secret', () => {
   it('accepts a callback presenting the configured secret', async () => {
     const { handler, repository, secrets } = buildSubject();
     await saveProcessing(repository);
@@ -161,11 +152,6 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');
   });
 
-  /**
-   * This route has no JWT authorizer, so without the secret check anyone who
-   * learns the URL can write a fabricated transcript into a named user's
-   * history. Nothing may change on this path.
-   */
   it('answers 401 and changes nothing for a wrong secret', async () => {
     const { handler, repository, storage, provider } = buildSubject();
     await saveProcessing(repository);
@@ -176,9 +162,6 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
     expect(parseResponseBody(response.body).code).toBe('UNAUTHENTICATED');
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
     expect(storage.calls.writes).toHaveLength(0);
-    // Not even read. An unauthenticated body is attacker-controlled input, and
-    // handing it to a parser is work done on behalf of someone who has proved
-    // nothing.
     expect(provider.interpretedCallbacks).toHaveLength(0);
   });
 
@@ -189,9 +172,6 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
       buildCallback({ secret: 'not-the-shared-secret-at-all-xxxx', requestId: 'request-77' }),
     );
 
-    // Asserted end to end through the handler rather than on the logger: the
-    // correlation is only real if the middleware binds it and the handler uses
-    // what it was handed.
     expect(parseResponseBody(response.body).requestId).toBe('request-77');
     expect(logger.entries).toEqual([
       {
@@ -212,10 +192,6 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
     const { handler, repository, storage } = buildSubject();
     await saveProcessing(repository);
 
-    // A length-mismatched credential must be rejected, not crash:
-    // `timingSafeEqual` throws on buffers of different lengths, and the
-    // obvious guard — comparing lengths first — is exactly the leak the
-    // constant-time comparison exists to avoid.
     const response = await handler(buildCallback({ secret }));
 
     expect(response.statusCode).toBe(401);
@@ -232,11 +208,6 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
     expect(response.statusCode).toBe(200);
   });
 
-  /**
-   * Ordering, not just outcome. An unauthenticated caller must learn nothing
-   * about the shape of the payload, so a forged callback with a nonsense
-   * query string is a 401 and never a 400.
-   */
   it('checks the credential before it looks at the query string or the body', async () => {
     const { handler, repository } = buildSubject();
     await saveProcessing(repository);
@@ -264,13 +235,7 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
   });
 });
 
-describe('handleProviderCallbackHandler — asking the provider what the callback meant', () => {
-  /**
-   * The handler reads only the two parameters it appended itself and passes
-   * the rest on untouched. Picking out the provider's own parameters would
-   * mean editing this route — the one carrying the shared-secret check — every
-   * time the provider changed.
-   */
+describe('handleProviderCallbackHandler: asking the provider what the callback meant', () => {
   it('hands the provider the query and the body exactly as they arrived', async () => {
     const { handler, repository, provider } = buildSubject();
     await saveProcessing(repository);
@@ -290,11 +255,6 @@ describe('handleProviderCallbackHandler — asking the provider what the callbac
     ]);
   });
 
-  /**
-   * API Gateway base64-encodes a body whenever the content type is not on its
-   * text list. Undoing that is this layer's job, and an adapter handed the
-   * encoded form rejects a perfectly good transcript as unparseable.
-   */
   it('decodes a base64 body before handing it over', async () => {
     const { handler, repository, provider } = buildSubject();
     await saveProcessing(repository);
@@ -349,7 +309,7 @@ describe('handleProviderCallbackHandler — asking the provider what the callbac
   });
 });
 
-describe('handleProviderCallbackHandler — completion', () => {
+describe('handleProviderCallbackHandler: completion', () => {
   it('stores the text and the duration the provider reported', async () => {
     const { handler, repository, storage } = buildSubject();
     await saveProcessing(repository);
@@ -362,11 +322,6 @@ describe('handleProviderCallbackHandler — completion', () => {
     expect(stored?.toPrimitives().textPreview).toContain('el paciente');
   });
 
-  /**
-   * The provider redelivers until it gets a 2xx. A second delivery must be
-   * acknowledged, and must not overwrite a transcript that is already good —
-   * COMPLETED is terminal for exactly this reason.
-   */
   it('acknowledges a redelivered completion without rewriting the transcript', async () => {
     const { handler, repository, storage } = buildSubject();
     await saveProcessing(repository);
@@ -380,20 +335,11 @@ describe('handleProviderCallbackHandler — completion', () => {
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');
   });
 
-  /**
-   * The orphan recovery path. If the save that would have recorded PROCESSING
-   * failed after the provider accepted the job, the record is still
-   * PENDING_UPLOAD with a null externalJobId, and a lookup by job id could
-   * never find it — which is why the identity travels in the callback URL.
-   */
   it('completes a record whose job id was never persisted, and records it', async () => {
     const { handler, repository, provider } = buildSubject();
     await repository.save(buildPendingUpload());
     provider.nextCallbackOutcome = completed({ externalJobId: 'job-recovered' });
 
-    // The two differ here on purpose: what is recorded has to be the id the
-    // provider's adapter reported, not a parameter this layer picked out of
-    // the URL, and reading the wrong one must be visible.
     const response = await handler(buildCallback({ jobId: 'job-1' }));
 
     expect(response.statusCode).toBe(200);
@@ -407,9 +353,6 @@ describe('handleProviderCallbackHandler — completion', () => {
     await saveProcessing(repository);
     provider.nextCallbackOutcome = completed({ externalJobId: 'somebody-elses-job' });
 
-    // The query names the job the record is expecting and the interpretation
-    // does not. A handler that trusted the query string would answer 200 and
-    // write a stranger's transcript into this user's history.
     const response = await handler(buildCallback({ jobId: 'job-1' }));
 
     expect(response.statusCode).toBe(404);
@@ -426,7 +369,7 @@ describe('handleProviderCallbackHandler — completion', () => {
   });
 });
 
-describe('handleProviderCallbackHandler — failure', () => {
+describe('handleProviderCallbackHandler: failure', () => {
   it('marks the record failed with a reason written for a clinician', async () => {
     const { handler, repository, provider } = buildSubject();
     await saveProcessing(repository);
@@ -500,15 +443,12 @@ function readPushedTranscription(publisher: RecordingConnectionPublisher): {
     type: string;
     transcription: { id: string; status: string };
   };
-  // The discriminator is checked here so every caller gets it for free: a
-  // payload with the right transcription under the wrong `type` is silently
-  // ignored by the browser, which is indistinguishable from no push at all.
   expect(payload.type).toBe('transcription.updated');
 
   return { id: payload.transcription.id, status: payload.transcription.status };
 }
 
-describe('handleProviderCallbackHandler — announcing the outcome', () => {
+describe('handleProviderCallbackHandler: announcing the outcome', () => {
   it('pushes the settled transcription to the sockets its owner has open', async () => {
     const { handler, repository, connections, publisher } = buildSubject();
     await saveProcessing(repository);
@@ -534,12 +474,6 @@ describe('handleProviderCallbackHandler — announcing the outcome', () => {
     expect(readPushedTranscription(publisher)).toEqual({ id: '01ID001', status: 'FAILED' });
   });
 
-  /*
-   * The common shape of this platform is a user who uploads and closes the
-   * tab. A completion with nowhere to be delivered answering anything but 2xx
-   * would be redelivered and, if the condition persisted, eventually abandoned
-   * — for a transcription that was already written and stored.
-   */
   it('acknowledges a completion when the user has no connection open', async () => {
     const { handler, repository, publisher } = buildSubject();
     await saveProcessing(repository);
@@ -553,12 +487,6 @@ describe('handleProviderCallbackHandler — announcing the outcome', () => {
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');
   });
 
-  /*
-   * The same guarantee under the harsher condition: the push machinery is
-   * broken rather than merely unused. A browser that closed its laptop lid,
-   * or a management API being throttled, must not turn a finished
-   * transcription into one the provider believes was never delivered.
-   */
   it('still acknowledges when the push itself fails outright', async () => {
     const { handler, repository, connections, publisher } = buildSubject();
     await saveProcessing(repository);

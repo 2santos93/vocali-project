@@ -13,9 +13,6 @@ describe('CreateRealtimeSession', () => {
 
     expect(result.token).toBe('temporary-token');
     expect(result.websocketUrl).toBe('wss://provider.test/v2');
-    // Pins the ttlSeconds argument indirectly: the fake derives expiresAt as
-    // `clock.now() + ttlSeconds * 1000`, so an exact match here only holds
-    // if the use case requested exactly 60 seconds.
     expect(result.expiresAt).toBe(new Date(NOW.getTime() + 60_000).toISOString());
     expect(result.audioFormat).toEqual({
       type: 'raw',

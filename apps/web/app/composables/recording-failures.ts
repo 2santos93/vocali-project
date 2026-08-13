@@ -9,17 +9,6 @@ import {
 } from './realtime-provider-protocol';
 import type { RecordingFailure } from './types/recording';
 
-/**
- * Gathered here so `recoverable` — the flag deciding whether a clinician is
- * offered their transcribed text back or shown a dead end — is set once per
- * failure rather than at the six points in the flow that used to build these.
- */
-
-/**
- * Every close is recoverable, and that is not an oversight: by the time a
- * socket drops there is usually text on screen, and a lost connection should
- * cost the user time rather than their dictation.
- */
 export function describeCloseCode(code: number): RecordingFailure {
   if (code === CLOSE_NOT_AUTHORISED) {
     return {
@@ -92,11 +81,6 @@ export const NOTHING_TO_SAVE: RecordingFailure = {
   recoverable: false,
 };
 
-/**
- * Recoverable, and the case that matters most: this is the one moment where
- * the dictation exists only in this tab, so the message has to invite another
- * attempt rather than read as a dead end.
- */
 export function describeSaveFailure(error: unknown): RecordingFailure {
   return {
     code: 'SAVE_FAILED',

@@ -6,19 +6,6 @@ import type { TranscriptionRepository } from '../../domain/ports/transcription-r
 import type { PublishTranscriptionUpdateInput } from '../types/connection-inputs.js';
 import { toPublicTranscription } from './public-transcription.js';
 
-/**
- * **Nothing here may fail the caller.** This runs on the provider callback
- * path, and the provider redelivers until it gets a 2xx. A browser whose owner
- * closed the laptop lid must never cause a finished transcription to be
- * reported as failed, so a gone connection is cleaned up and a failed publish
- * is logged, never thrown. The calling handler holds a second guard for the
- * same reason; two are correct, because the cost of being wrong is a lost
- * transcript.
- *
- * The whole public transcription is sent, not an id: a push saying only "one
- * of your records changed" would have every client answer with the request
- * this exists to remove.
- */
 export class PublishTranscriptionUpdate {
   constructor(
     private readonly repository: TranscriptionRepository,
@@ -37,14 +24,11 @@ export class PublishTranscriptionUpdate {
 
     const open = await this.connections.listByUser(input.userId);
     if (open.length === 0) {
-      // The common case: uploaded, then closed the tab. Not worth a log line —
+      // The common case: uploaded, then closed the tab. Not worth a log line;
       // the record is in the history and the next page load reads it.
       return;
     }
 
-    // The public DTO, never the primitives: `toPrimitives()` carries the owning
-    // `userId` and three internal object keys, and this payload leaves the
-    // platform.
     const payload = {
       type: TRANSCRIPTION_UPDATE_EVENT,
       transcription: toPublicTranscription(transcription.toPrimitives()),

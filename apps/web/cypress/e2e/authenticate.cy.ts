@@ -2,17 +2,6 @@ import { typeIntoField } from '../support/forms';
 import { SIGNED_IN_EMAIL, SIGN_IN_PASSWORD, stubSignIn } from '../support/session';
 import { buildTranscriptions } from '../support/transcriptions';
 
-/**
- * Journey 2: authenticating, and the guard that makes it necessary.
- *
- * The redirect is the part worth driving in a browser. It is decided by global
- * route middleware that runs on the server for the first navigation and in the
- * browser for every one after it, and neither half is reachable from a unit
- * test: `decideRouteAccess` is pure and covered, but that it is *called*, that
- * the destination survives the round trip, and that a signed-in visitor is not
- * shown the form again are properties of the running application.
- */
-
 describe('Signing in', () => {
   beforeEach(() => {
     cy.intercept('GET', '/api/transcriptions*', {

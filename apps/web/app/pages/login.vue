@@ -19,11 +19,6 @@ const email = ref(readQueryValue(route.query['email']) ?? '');
 const password = ref('');
 const busy = ref(false);
 
-/*
- * Failures are held as keys rather than as sentences, on this screen as
- * everywhere else: somebody who fails to sign in and then switches language
- * would otherwise be left with the one line on the page in the other one.
- */
 const error = ref<TranslatableMessage | null>(null);
 
 const notice = ref<TranslatableMessage | null>(
@@ -41,20 +36,12 @@ async function onSubmit(): Promise<void> {
       body: { email: email.value, password: password.value },
     });
 
-    // Recorded from the reply rather than fetched again: the server has just
-    // told us who signed in, and asking a second time is a round trip that
-    // shows an empty header while it runs.
     session.adopt(user);
 
     await navigateTo(safeRedirectTarget(route.query['redirect']) ?? HOME_ROUTE);
   } catch (cause) {
     const failure = readFailure(cause);
 
-    /*
-     * An unconfirmed account is not a wrong password, and telling the user it
-     * is leaves them retyping a password that was correct. The one route
-     * forward is the confirmation screen, so take them there.
-     */
     if (failure.code === 'ACCOUNT_NOT_CONFIRMED') {
       await navigateTo({ path: '/confirm', query: { email: email.value } });
 
@@ -71,13 +58,6 @@ async function onSubmit(): Promise<void> {
   }
 }
 
-/**
- * Only used for the prefilled address, which is display state: an address that
- * arrives as anything but a non-empty string leaves the field empty. The
- * `redirect` parameter is a different matter and is checked by
- * `safeRedirectTarget`, which lives in `utils/route-access` where a test can
- * reach it.
- */
 function readQueryValue(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
 }

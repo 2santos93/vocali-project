@@ -15,9 +15,6 @@ describe('SystemClock', () => {
     const clock = new SystemClock();
     const first = clock.now();
 
-    // A clock that captured its instant once would hand every record in a
-    // container the same `createdAt`, which is invisible until a history page
-    // comes back in an order nobody can explain.
     while (Date.now() === first.getTime()) {
       /* wait for the millisecond to turn over */
     }

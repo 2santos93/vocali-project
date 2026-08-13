@@ -15,10 +15,6 @@ describe('UlidIdGenerator', () => {
 
   it('keeps ids sorting in the order they were issued, even within one millisecond', () => {
     const generator = new UlidIdGenerator();
-    // A tight loop lands many of these in the same millisecond, where plain
-    // ULIDs fall back to random entropy. `SK = TRANS#<id>` queried descending
-    // IS the history, so ids that do not sort chronologically are pages in the
-    // wrong order.
     const ids = Array.from({ length: 1_000 }, () => generator.next());
 
     expect([...ids].sort()).toEqual(ids);

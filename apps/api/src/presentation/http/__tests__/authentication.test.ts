@@ -76,13 +76,6 @@ describe('withAuthenticatedUser', () => {
     expect(seenUserIds).toEqual([]);
   });
 
-  /**
-   * The request below carries a plausible user id in the path, the query
-   * string and the body, and the only correct answer is still 401. A fallback
-   * to any of them would not look dangerous in a diff — it would look like
-   * tolerance for a route with no authorizer yet — and it would let any caller
-   * name any user and read their clinical history.
-   */
   it('never takes an identity from the path, the query string or the body', async () => {
     const { wrapped, seenUserIds } = buildSubject();
     const event = buildApiGatewayEvent({

@@ -65,18 +65,9 @@ describe('createUploadIntentHandler', () => {
 
     await handler(buildApiGatewayEvent({ body: JSON.stringify(VALID_BODY) }));
 
-    // The declared sizeBytes is advisory — a client can lie about it. This is
-    // the value that becomes the signed content-length-range condition, and
-    // so the only thing that actually enforces 20 MB.
     expect(storage.calls.presignedUploads[0]?.maxSizeBytes).toBe(MAX_AUDIO_FILE_SIZE_BYTES);
   });
 
-  /**
-   * The object key carries the owner, and `StartFileTranscription` reads the
-   * owner back out of it. A handler that took the user id from the body would
-   * land this upload on the named victim's storage prefix and, from there,
-   * into their history.
-   */
   it('builds the storage key from the sub claim, never from a user id in the body', async () => {
     const { handler, storage, repository } = buildSubject();
     const event = buildApiGatewayEvent({

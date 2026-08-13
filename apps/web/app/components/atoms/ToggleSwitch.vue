@@ -1,12 +1,4 @@
 <script setup lang="ts">
-/**
- * `role="switch"` on a real `<button>`, not a styled checkbox: the button is
- * keyboard-operable for free, and `aria-checked` makes a screen reader say
- * "on" and "off" rather than "checked", which is a box on an unsubmitted form.
- *
- * The whole row is the hit target — a twenty-pixel track gets missed on a
- * touchscreen, and there is nothing else in the row for a stray press to hit.
- */
 interface Props {
   modelValue: boolean;
   /** Visible, and therefore also the accessible name. Never an `aria-label`. */

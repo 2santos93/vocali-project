@@ -1,18 +1,6 @@
 import { signInOnTheWayTo } from '../support/session';
 import { buildTranscription } from '../support/transcriptions';
 
-/**
- * Journey 7: downloading a transcription.
- *
- * **The signed URL is asked for at click time.** It is short-lived, so one
- * minted while the page was rendering may be dead by the time a user reaches
- * for it, and an expired signature surfaces as a broken link.
- *
- * **Only a completed transcription can be downloaded.** Anything else has no
- * transcript object behind it, so the action could only 404 — which to a
- * clinician reads as their dictation having been lost.
- */
-
 const TRANSCRIPT_URL = 'https://transcripciones.example.test/tr-consulta-01.txt?firma=corta';
 
 const COMPLETED = buildTranscription({

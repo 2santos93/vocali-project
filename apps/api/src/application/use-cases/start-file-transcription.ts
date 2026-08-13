@@ -15,12 +15,6 @@ import type {
 import type { StartFileTranscriptionError } from '../types/transcription-errors.js';
 import { parseAudioObjectKey } from './object-keys.js';
 
-/**
- * The identity travels in the callback URL so the webhook resolves by primary
- * key even when `externalJobId` was never persisted — a job that submitted
- * successfully but whose `PROCESSING` save then failed. This is what removes
- * the need for a secondary index on `externalJobId`.
- */
 export function buildProviderCallbackUrl(
   baseUrl: string,
   identity: { userId: string; transcriptionId: string },
@@ -31,11 +25,6 @@ export function buildProviderCallbackUrl(
   return url.toString();
 }
 
-/**
- * S3 delivers upload events at least once, so a redelivery for a transcription
- * already past `PENDING_UPLOAD` is acknowledged with `ok` rather than failed:
- * Lambda does not retry it, and no duplicate job consumes provider quota.
- */
 export class StartFileTranscription {
   constructor(
     private readonly repository: TranscriptionRepository,
@@ -61,9 +50,6 @@ export class StartFileTranscription {
 
     const primitives = transcription.toPrimitives();
 
-    // The key resolves a record by its `{userId}/{transcriptionId}` segments
-    // alone, so without an exact match any object parked under that prefix —
-    // same ids, different file name — is transcribed into this user's record.
     if (primitives.audioObjectKey !== input.audioObjectKey) {
       return err(new TranscriptionNotFoundError(input.audioObjectKey));
     }
@@ -91,19 +77,11 @@ export class StartFileTranscription {
 
     const transition = transcription.markAsProcessing(job.externalJobId, this.clock.now());
     if (!transition.success) {
-      // Unreachable: the transition was validated above and nothing mutates
-      // this transcription in between. Deliberately absent from the error
-      // union — an invariant violation is not an outcome a caller can handle,
-      // and an `err` here would make every caller pretend otherwise.
       throw new Error(
         `Invariant violated: transcription ${primitives.id} could not transition from ${primitives.status} to PROCESSING (${transition.error.message})`,
       );
     }
 
-    // A lost race is deliberately not branched on: another writer advanced the
-    // record between the read and this write, so what this notification would
-    // have applied is already applied or superseded, and S3 only needs a
-    // success to stop retrying.
     await this.repository.save(transcription);
 
     return ok(undefined);

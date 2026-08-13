@@ -27,11 +27,6 @@ const VARIANT_CLASSES: Record<AlertVariant, string> = {
   error: 'bg-danger-soft border-danger-line text-danger-ink',
 };
 
-/*
- * role="alert" is assertive, cutting across whatever a screen reader is
- * saying. Using it for "sesión iniciada" trains the user to ignore the one
- * announcement that had to be heard, so only warnings and failures get it.
- */
 const isUrgent = computed<boolean>(() => props.variant === 'warning' || props.variant === 'error');
 const role = computed<'alert' | 'status'>(() => (isUrgent.value ? 'alert' : 'status'));
 

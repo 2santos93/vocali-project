@@ -111,11 +111,6 @@ describe('a live access token', () => {
 });
 
 describe('an access token about to expire', () => {
-  /*
-   * A token with five seconds left passes a naive check and then spends those
-   * five seconds in a TLS handshake, so the API sees an expired token and the
-   * user gets a 401 they cannot reproduce.
-   */
   it('is refreshed inside the safety margin rather than sent', async () => {
     const { jar } = createJar({
       [ACCESS_TOKEN_COOKIE]: tokenExpiringAt(NOW + EXPIRY_MARGIN_SECONDS - 1),
@@ -174,10 +169,6 @@ describe('an expired access token', () => {
 
     await resolveActiveSession(jar, refresher, NOW);
 
-    // Cognito computes the refresh secret hash over the generated username,
-    // which is the subject. The address produces the same
-    // NotAuthorizedException an expired token does, so the mistake presents as
-    // users being signed out at random.
     expect(refresher.calls[0]?.[1]).toBe('subject-1');
     expect(refresher.calls[0]?.[1]).not.toBe('ana@example.com');
   });

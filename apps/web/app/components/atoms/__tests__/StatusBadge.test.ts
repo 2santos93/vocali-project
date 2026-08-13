@@ -54,11 +54,6 @@ describe('StatusBadge', () => {
     expect(wrapper.attributes('data-status')).toBe('FAILED');
   });
 
-  /*
-   * Literals rather than lookups into the catalogue the component uses: an
-   * expectation taken from the table it is checking would pass against an
-   * empty table, a Spanish one, and one where all four badges say the same.
-   */
   it.each([
     ['PENDING_UPLOAD', 'Awaiting upload'],
     ['PROCESSING', 'In progress'],

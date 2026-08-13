@@ -1,15 +1,6 @@
 import type { MessageKey, TranslatableMessage } from '../i18n/types';
 import type { AuthFailureCode } from '../../server/utils/auth-failures';
 
-/**
- * The routes answer with a stable code; rendering it through this map is what
- * lets somebody reading in English see an English refusal without the server
- * ever being told which language they chose.
- *
- * A type-only import of the code union, so nothing from `server/` reaches the
- * browser bundle — but a failure added there and not given words here fails
- * the type check.
- */
 const AUTH_FAILURE_KEYS: Record<AuthFailureCode, MessageKey> = {
   RATE_LIMITED: 'authFailure.RATE_LIMITED',
   AUTH_UNAVAILABLE: 'authFailure.AUTH_UNAVAILABLE',
@@ -26,13 +17,6 @@ const AUTH_FAILURE_KEYS: Record<AuthFailureCode, MessageKey> = {
   SIGN_OUT_INCOMPLETE: 'authFailure.SIGN_OUT_INCOMPLETE',
 };
 
-/**
- * `code` arrives as an unvalidated string: it has crossed HTTP, and a request
- * that never reached the server carries no code at all.
- *
- * @param code     the `code` field of the failure body, or null
- * @param fallback what this screen says when it has learned nothing useful
- */
 export function authFailureMessage(code: string | null, fallback: MessageKey): TranslatableMessage {
   const known = AUTH_FAILURE_CODE_LIST.find((candidate) => candidate === code);
 

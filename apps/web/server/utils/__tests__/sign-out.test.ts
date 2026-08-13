@@ -68,12 +68,6 @@ const LIVE_SESSION = {
 };
 
 describe('signing out revokes the session at Cognito', () => {
-  /*
-   * `GlobalSignOut` invalidates the refresh token everywhere, not only in this
-   * browser. Without the call, clearing the cookies leaves that token valid
-   * for the rest of its eight hours wherever a copy exists, and the user has
-   * been told they signed out when they did not.
-   */
   it('calls the global sign-out with the access token', async () => {
     const { jar, gateway, events } = createHarness(LIVE_SESSION);
 
@@ -104,9 +98,6 @@ describe('signing out revokes the session at Cognito', () => {
   });
 
   it('renews an expired access token first, so the revocation can authenticate', async () => {
-    // Cognito refuses `GlobalSignOut` with an expired token, so skipping the
-    // renewal leaves the refresh token alive for anybody who waited sixteen
-    // minutes before pressing the button.
     const renewed = tokenExpiringAt(NOW + 900);
     const { jar, gateway, events } = createHarness(
       { ...LIVE_SESSION, [ACCESS_TOKEN_COOKIE]: tokenExpiringAt(NOW - 60) },

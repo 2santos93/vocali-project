@@ -3,11 +3,6 @@ data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  # Created by infra/bootstrap, once per account. Its ARN is derived rather
-  # than read through a data source or a remote state: it is entirely
-  # determined by the account and the issuer's host, and a data source here
-  # would make every plan in this environment depend on a lookup that fails
-  # confusingly when bootstrap has not been applied.
   oidc_provider_arn = coalesce(
     var.oidc_provider_arn,
     "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com",
@@ -18,10 +13,6 @@ locals {
   code_arns = concat(values(var.function_arns), [var.ssr_function_arn])
 }
 
-# The role GitHub Actions assumes. There is no access key anywhere in this
-# repository, in this account, or in GitHub's secrets: a workflow presents a
-# token GitHub signed, STS validates it against the identity provider and
-# hands back credentials that expire in an hour.
 data "aws_iam_policy_document" "assume_role" {
   statement {
     sid     = "GitHubActionsWebIdentity"
@@ -33,7 +24,7 @@ data "aws_iam_policy_document" "assume_role" {
       identifiers = [local.oidc_provider_arn]
     }
 
-    # Without this the role would trust any token the provider issued —
+    # Without this the role would trust any token the provider issued,
     # which is to say, a workflow in any repository on GitHub.
     condition {
       test     = "StringEquals"
@@ -41,9 +32,6 @@ data "aws_iam_policy_document" "assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # And this is what makes it one repository, and within it the specific
-    # branches, tags or environments named. `sub` is a claim GitHub composes,
-    # not one a workflow can set.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
@@ -66,20 +54,6 @@ resource "aws_iam_role" "github_actions" {
   }
 }
 
-# What a deployment is permitted to do, and nothing beyond it.
-#
-# This role cannot apply Terraform. It updates the code inside functions that
-# already exist, writes the built assets into the bucket that already exists,
-# and invalidates the distribution that already exists. It cannot create a
-# role, change a policy, read the state file, touch the table, the audio, the
-# transcripts or the user pool, or delete any of them.
-#
-# The reasoning is in ADR 10. In short: a role that can apply this
-# configuration is a role that can rewrite every policy in it, and granting
-# that to anything that runs on a push undoes the least privilege the rest of
-# these modules spend their lines establishing. Criterion H3 asks that
-# deployment carry no long-lived credential, which this satisfies without
-# handing the pipeline the account.
 resource "aws_iam_role_policy" "github_actions" {
   name = "${local.role_name}-policy"
   role = aws_iam_role.github_actions.id
@@ -88,12 +62,8 @@ resource "aws_iam_role_policy" "github_actions" {
     Version = "2012-10-17"
     Statement = concat([
       {
-        Sid    = "UpdateFunctionCode"
-        Effect = "Allow"
-        # Code only. UpdateFunctionConfiguration is absent on purpose: memory,
-        # timeout, role and environment are decided in Terraform and reviewed
-        # there, and a pipeline that could change them could give a function a
-        # different role.
+        Sid      = "UpdateFunctionCode"
+        Effect   = "Allow"
         Action   = ["lambda:UpdateFunctionCode"]
         Resource = local.code_arns
       },
@@ -124,11 +94,8 @@ resource "aws_iam_role_policy" "github_actions" {
       },
       ], var.distribution_arn == null ? [] : [
       {
-        Sid    = "InvalidateCache"
-        Effect = "Allow"
-        # One distribution. GetInvalidation is what `aws cloudfront wait`
-        # polls, so a workflow can finish when the edge has actually caught up
-        # rather than when the request was accepted.
+        Sid      = "InvalidateCache"
+        Effect   = "Allow"
         Action   = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
         Resource = [var.distribution_arn]
       },

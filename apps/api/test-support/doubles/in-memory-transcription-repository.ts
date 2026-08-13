@@ -19,20 +19,6 @@ interface CursorPayload {
 
 type RepositoryMethod = 'save' | 'findById' | 'findByClientSession' | 'listByUser';
 
-/**
- * Mirrors the DynamoDB adapter's ordering and cursor semantics: newest first by
- * sort key, and a cursor encoding the last returned key rather than an array
- * offset, so a record inserted between two pages cannot shift or repeat items.
- *
- * A malformed or foreign cursor returns `err(InvalidCursorError)` rather than
- * a silent empty page — attacker-controlled input is an expected failure.
- * `failNextWith` still throws: it models infrastructure blowing up.
- *
- * `nextCursor` is null only when nothing is left to page through, even on a
- * page holding exactly `limit` items. DynamoDB returns a `LastEvaluatedKey`
- * whenever it stops at `Limit` regardless, so the adapter owns normalising to
- * this contract.
- */
 export class InMemoryTranscriptionRepository implements TranscriptionRepository {
   private readonly recordsByUser = new Map<string, Map<string, TranscriptionPrimitives>>();
 
@@ -44,12 +30,6 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
 
   private readonly failOnMethod = new Map<RepositoryMethod, Error>();
 
-  /**
-   * Schedules the next call to a specific method to reject with this error;
-   * cleared after one use. Unlike `failNextWith`, which fires on whichever
-   * method is called next, this targets one method so a test can make, say,
-   * only `save` fail after an earlier `findById` in the same flow succeeded.
-   */
   failOn(method: RepositoryMethod, error: Error): void {
     this.failOnMethod.set(method, error);
   }
@@ -66,17 +46,11 @@ export class InMemoryTranscriptionRepository implements TranscriptionRepository 
       this.recordsByUser.get(primitives.userId) ?? new Map<string, TranscriptionPrimitives>();
     const stored = userRecords.get(primitives.id);
 
-    // The same condition the adapter sends to DynamoDB, evaluated here rather
-    // than by the table. A double that accepted a stale write would let every
-    // use-case test pass while production rejected the same call.
     if (stored !== undefined && stored.version !== primitives.version) {
       return Promise.resolve(err(new ConcurrentModificationError(primitives.id)));
     }
 
     const userClaims = this.claimsByUser.get(primitives.userId) ?? new Map<string, string>();
-    // `attribute_not_exists(SK)` on the claim item, checked before anything is
-    // stored so the two writes land together or not at all — the transaction
-    // the adapter sends has no partial outcome either.
     if (options.clientSessionId !== undefined && userClaims.has(options.clientSessionId)) {
       return Promise.resolve(err(new ConcurrentModificationError(primitives.id)));
     }

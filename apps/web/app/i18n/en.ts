@@ -1,28 +1,5 @@
 import type { MessageKey } from './types';
 
-/**
- * The English interface.
- *
- * Typed as a `Record` over the key set the Spanish catalogue defines: a key
- * missing here fails to compile, and a key here that Spanish does not have
- * fails to compile too.
- *
- * The annotation is belt and braces. `createInterfaceI18n` hands the same key
- * set to `vue-i18n` as its message schema, so the gap is caught there as well
- * — but as "I18n<false, Options[...]> is not assignable", pointing at the
- * instance rather than at the missing word. The annotation here is what makes
- * the compiler name the key and the file, which is the difference between a
- * five-second fix and a puzzle.
- *
- * There is no runtime fallback to Spanish and there is deliberately none: a
- * fallback is how half a screen ends up in the wrong language and nobody
- * notices for a month. `fallbackLocale` is `false` for the same reason.
- *
- * British spelling and a European date and decimal convention (`en-GB`, see
- * `language.ts`): the readers of this catalogue are clinicians in Spain
- * working in English, not readers in the United States, and 12/08/2026 has to
- * keep meaning the twelfth of August on both halves of the same screen.
- */
 export const ENGLISH_MESSAGES: Record<MessageKey, string> = {
   'common.processing': 'Working',
   'common.loading': 'Loading',

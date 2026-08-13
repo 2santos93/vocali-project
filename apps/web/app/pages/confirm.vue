@@ -39,15 +39,6 @@ async function onSubmit(): Promise<void> {
   }
 }
 
-/**
- * The way out of an expired code, and the reason this screen is not a dead
- * end.
- *
- * The reply is the same sentence whatever happened at Cognito — unknown
- * address, already confirmed, or a message genuinely on its way — because a
- * resend control that reported the difference would be the user enumeration
- * endpoint the sign-up form is deliberately not.
- */
 async function onResend(): Promise<void> {
   resending.value = true;
   error.value = null;
@@ -72,10 +63,6 @@ async function onResend(): Promise<void> {
     :error="error === null ? null : t(error)"
     :notice="notice === null ? null : t(notice)"
   >
-    <!-- Landing here without an address means the screen was reached directly
-         rather than through registration or a sign-in attempt. There is no
-         code to check against nothing, so say what to do instead of showing a
-         form that cannot work. -->
     <div v-if="email === ''" class="flex flex-col gap-4 text-sm text-ink-muted">
       <p>{{ t('auth.confirm.noAddress') }}</p>
       <div class="flex flex-wrap gap-3">

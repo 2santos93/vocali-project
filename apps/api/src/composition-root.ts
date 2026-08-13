@@ -32,16 +32,6 @@ import { SsmSecretsProvider } from './infrastructure/secrets/ssm-secrets-provide
 import { S3FileStorage } from './infrastructure/storage/s3-file-storage.js';
 import { SystemClock } from './infrastructure/time/system-clock.js';
 
-/**
- * One graph per container, not one per request. Building it inside the handler
- * would create three AWS SDK clients on every call and throw away the secret
- * cache that lets a warm invocation avoid Parameter Store entirely.
- *
- * The entry points call this at module scope, so it runs during
- * initialisation. That is also where `loadConfig` belongs: a missing
- * environment variable then fails the container's init, naming the variable,
- * instead of surfacing as a 500 on some user's first upload.
- */
 let container: Container | undefined;
 
 export function getContainer(): Container {
@@ -62,18 +52,10 @@ export function buildContainer(config: AppConfig): Container {
   // in `string | null` rather than in `{ S: ... }` and `{ NULL: true }`.
   const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region: config.region }));
 
-  // Which bucket a use case receives is decided here and nowhere else:
-  // `FileStorage` carries an object key and no bucket, so a use case cannot
-  // tell which store it was handed. The roles grant `s3:PutObject` on the
-  // transcripts bucket alone, so a transcript writer holding the audio adapter
-  // is denied at the moment it writes, after the provider has done the work.
   const audioStorage = new S3FileStorage(s3, config.audioBucketName, clock);
   const transcriptsStorage = new S3FileStorage(s3, config.transcriptsBucketName, clock);
   const repository = new DynamoTranscriptionRepository(dynamo, config.transcriptionsTableName);
   const secrets = new SsmSecretsProvider(ssm);
-  // The one AWS client whose endpoint is not derived from the region alone:
-  // without this the SDK addresses the service's default endpoint and every
-  // publish answers 404 for a connection that is open.
   const connectionPublisher = new ApiGatewayConnectionPublisher(
     new ApiGatewayManagementApiClient({
       region: config.region,

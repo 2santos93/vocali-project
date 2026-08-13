@@ -7,16 +7,6 @@ type PresignedReadInput = Parameters<FileStorage['createPresignedRead']>[0];
 type PresignedDownloadInput = Parameters<FileStorage['createPresignedDownload']>[0];
 type PutTextInput = Parameters<FileStorage['putText']>[0];
 
-/**
- * Records every call with its full arguments, so a test can assert on anything
- * a use case passed through — including `maxSizeBytes`.
- *
- * It carries a bucket, which the port deliberately does not: an instance IS a
- * bucket, exactly as `S3FileStorage` is. Without that identity every object
- * lands in one flat map and a transcript written into the audio bucket is
- * indistinguishable from one written into the right one, where in production it
- * is an IAM denial.
- */
 export class InMemoryFileStorage implements FileStorage {
   /** One instance is one bucket, so this holds only that bucket's objects. */
   readonly objects = new Map<string, string>();
@@ -34,9 +24,6 @@ export class InMemoryFileStorage implements FileStorage {
 
   private readonly clock: Clock;
 
-  // An options object rather than two positionals, because
-  // `new InMemoryFileStorage(TRANSCRIPTS_BUCKET)` and
-  // `new InMemoryFileStorage(clock)` would read as the same call.
   constructor(options: { bucketName?: string; clock?: Clock } = {}) {
     this.bucketName = options.bucketName ?? 'in-memory-bucket';
     this.clock = options.clock ?? { now: (): Date => new Date() };

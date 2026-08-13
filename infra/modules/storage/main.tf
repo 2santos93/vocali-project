@@ -4,10 +4,6 @@ locals {
     transcripts = var.transcripts_bucket_name
   }
 
-  # Mirrors the key builders in apps/api: audio/{userId}/{transcriptionId}/{fileName}
-  # and transcripts/{userId}/{transcriptionId}.{format}. The prefixes are
-  # exported so the function policies can be scoped to them rather than to the
-  # whole bucket.
   audio_object_prefix      = "audio/"
   transcript_object_prefix = "transcripts/"
 }
@@ -23,9 +19,6 @@ resource "aws_s3_bucket" "this" {
   }
 }
 
-# Nothing here is ever public. Both buckets are reached exclusively through
-# presigned URLs, which carry the signer's authority for a few minutes and
-# expire; the bucket itself grants nobody anything.
 resource "aws_s3_bucket_public_access_block" "this" {
   for_each = aws_s3_bucket.this
 
@@ -65,9 +58,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   }
 }
 
-# Versioning on both. On the transcripts bucket it is what makes a bad write
-# recoverable; on the audio bucket it mostly guards against a delete, and the
-# lifecycle rules below stop either from accumulating.
 resource "aws_s3_bucket_versioning" "this" {
   for_each = aws_s3_bucket.this
 
@@ -114,10 +104,6 @@ resource "aws_s3_bucket_policy" "this" {
   depends_on = [aws_s3_bucket_public_access_block.this]
 }
 
-# The browser posts the audio straight to S3, so S3 itself has to answer the
-# preflight. The methods are exactly one: a presigned POST. Reads never need
-# CORS, because a download is a navigation to a presigned URL rather than a
-# scripted request.
 resource "aws_s3_bucket_cors_configuration" "audio" {
   bucket = aws_s3_bucket.this["audio"].id
 
@@ -125,9 +111,6 @@ resource "aws_s3_bucket_cors_configuration" "audio" {
     allowed_methods = ["POST"]
     allowed_origins = var.cors_allowed_origins
 
-    # A presigned POST carries its policy and signature in the form body, not
-    # in headers, so the only header the browser sends that needs clearing is
-    # the multipart content type.
     allowed_headers = ["Content-Type"]
 
     # Read by the upload code to confirm what S3 stored.
@@ -140,9 +123,6 @@ resource "aws_s3_bucket_cors_configuration" "audio" {
 resource "aws_s3_bucket_lifecycle_configuration" "audio" {
   bucket = aws_s3_bucket.this["audio"].id
 
-  # The recording is an input, not the product. Once it has been transcribed
-  # the transcript is what the user comes back for, and keeping the audio past
-  # that is a growing pile of clinical voice recordings with no purpose.
   rule {
     id     = "expire-raw-audio"
     status = "Enabled"
@@ -192,9 +172,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "audio" {
 resource "aws_s3_bucket_lifecycle_configuration" "transcripts" {
   bucket = aws_s3_bucket.this["transcripts"].id
 
-  # No expiry on the current version. The transcript is what the user came for
-  # and their history has to keep resolving to it; only superseded versions
-  # are cleaned up.
   rule {
     id     = "expire-superseded-transcripts"
     status = "Enabled"

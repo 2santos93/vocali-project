@@ -18,12 +18,6 @@ describe('the interface language', () => {
     expect(INTERFACE_LANGUAGE_COOKIE_MAX_AGE_SECONDS).toBe(365 * 24 * 60 * 60);
   });
 
-  /*
-   * The regional tags are the point of this function. `es` and `en` alone would
-   * leave `Intl` to guess, and its guess for English is the United States:
-   * 08/12/2026 rather than 12/08/2026, on the same screen as Spanish rows that
-   * were written the other way round.
-   */
   it('formats for Spain and for British English, never for the United States', () => {
     expect(localeTag('es')).toBe('es-ES');
     expect(localeTag('en')).toBe('en-GB');

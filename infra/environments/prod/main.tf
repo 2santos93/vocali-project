@@ -16,10 +16,6 @@ locals {
   provider_api_key_parameter_name        = "/${local.project_name}/${local.environment}/transcription-provider/api-key"
   provider_webhook_secret_parameter_name = "/${local.project_name}/${local.environment}/transcription-provider/webhook-secret"
 
-  # The Cognito app client secret, which the renderer authenticates with. Also
-  # put there by hand — Cognito generates it, so it is already in the state
-  # file, and copying it into a parameter is what gives the renderer a way to
-  # read it that is not an environment variable in plaintext.
   bff_client_secret_parameter_name = "/${local.project_name}/${local.environment}/bff/cognito-client-secret"
 
   # Written by infra/build/bundle-functions.sh and by `nuxt build`. Relative to
@@ -27,9 +23,6 @@ locals {
   function_bundle_dir = "${path.module}/../../build/dist"
   nuxt_output_dir     = "${path.module}/../../../apps/web/.output"
 
-  # A GitHub deployment environment, not a branch. The claim is only minted
-  # for a run that passed that environment's approval, so a merge to main
-  # cannot deploy production on its own.
   deployment_subject_claims = ["repo:${var.github_repository}:environment:production"]
 }
 
@@ -56,18 +49,6 @@ module "storage" {
   audio_bucket_name       = local.audio_bucket_name
   transcripts_bucket_name = local.transcripts_bucket_name
 
-  # The browser posts audio straight to the bucket, so the domain the front
-  # end is served from has to be on this list or every upload fails its
-  # preflight. The distribution's own domain is added here; the variable
-  # carries everything else — a custom domain the day there is one, and
-  # `http://localhost:3000` for as long as development is local.
-  #
-  # That last one used to be a literal in this line, marked temporary and
-  # waiting on the distribution. It was neither: the front end is developed
-  # against this bucket because it is the only one, and that stays true after
-  # the distribution exists. `front_end_origins` already validates localhost
-  # explicitly, and stating the origin at plan time keeps a development
-  # convenience out of the composition that describes production.
   cors_allowed_origins = concat(var.front_end_origins, [module.web.front_end_origin])
 
   audio_retention_days = 30
@@ -91,14 +72,8 @@ module "functions" {
   provider_api_key_parameter_name        = local.provider_api_key_parameter_name
   provider_webhook_secret_parameter_name = local.provider_webhook_secret_parameter_name
 
-  # The same fourteen days as development. Log retention is a privacy decision
-  # rather than an environment convenience, and these lines describe clinical
-  # recordings: file names, user identifiers and provider correlation ids.
   log_retention_days = 14
 
-  # The websocket API this platform pushes finished transcriptions over. Its
-  # execution ARN is what the ManageConnections grant is scoped beneath, so a
-  # function can post to a connection of this API and of no other.
   websocket_api_execution_arn = module.websocket.api_execution_arn
   websocket_stage_name        = module.websocket.stage_name
 }
@@ -113,9 +88,6 @@ module "api" {
 
   log_retention_days = 14
 
-  # Room for a clinic's worth of concurrent use, and still a ceiling: the
-  # account default of ten thousand a second is not a limit, it is the number
-  # of invocations a runaway client can bill before anyone notices.
   throttling_rate_limit  = 100
   throttling_burst_limit = 200
 }
@@ -129,9 +101,6 @@ module "websocket" {
   # connections opened against clinical records.
   log_retention_days = 14
 
-  # The same ceiling as the HTTP API: a client reconnecting in a loop bills an
-  # invocation per attempt, and a connect is cheaper than a request only in the
-  # sense that it does less.
   throttling_rate_limit  = 100
   throttling_burst_limit = 200
 }
@@ -142,10 +111,6 @@ module "lambda" {
   name_prefix = local.name_prefix
   bundle_dir  = local.function_bundle_dir
 
-  # This account is new, and AWS caps a new account at 512 MB per function
-  # until the quota is raised. The per-function sizing inside the module is
-  # the intent; this line is the account speaking. Delete it once the quota
-  # request is granted and every function returns to the size it was given.
   max_memory_size_mb = 512
 
   function_names             = module.functions.function_names
@@ -191,22 +156,6 @@ module "web" {
   # Same account cap as above.
   ssr_memory_size = 512
 
-  # TEMPORARY, 2026-08-12. AWS has not verified this account, so
-  # CreateDistribution is refused and no distribution exists. This is the only
-  # value that lets the environment apply at all: with a distribution the
-  # apply fails, and with neither the module has no origin to name.
-  #
-  # It does not buy a public front end. The function URL it opens answers 403
-  # to every caller — the unverified account refuses public access to the URL
-  # as well, so the intended edge and its substitute are blocked by the same
-  # gate. The function is healthy; invoked directly it renders. See
-  # docs/adr/0009.
-  #
-  # Which is why `front_end_origins` carries the local origin: the only way to
-  # exercise an upload is to run the renderer on a developer machine, and the
-  # browser posts the file straight to S3 from whatever origin serves the page.
-  #
-  # Set back to false and apply once the verification case is answered.
   expose_ssr_publicly = true
 
   environment_variables = {

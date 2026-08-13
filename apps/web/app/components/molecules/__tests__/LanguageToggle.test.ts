@@ -4,11 +4,6 @@ import { withTranslations } from '../../../i18n/testing';
 import type { InterfaceLanguage } from '../../../i18n/types';
 import LanguageToggle from '../LanguageToggle.vue';
 
-/**
- * Attached to the document: the three ways this closes are listeners on
- * `document`, which an event dispatched inside a detached fragment never
- * reaches, so a suite mounting loose would pass with all three missing.
- */
 function mountToggle(
   props: Record<string, unknown> = {},
   language: InterfaceLanguage = 'es',
@@ -106,8 +101,8 @@ describe('LanguageToggle', () => {
     expect(wrapper.find('[role=listbox]').exists()).toBe(false);
   });
 
-  // Focus never leaves the button — the active row is pointed at rather than
-  // focused — so every key below is handled there.
+  // Focus never leaves the button (the active row is pointed at rather than
+  // focused), so every key below is handled there.
   describe('from the keyboard', () => {
     it.each(['ArrowDown', 'ArrowUp', 'Enter', ' '])('opens on %s', async (key) => {
       const wrapper = mountToggle();
@@ -200,15 +195,6 @@ describe('LanguageToggle', () => {
     expect(wrapper.find('[role=listbox]').exists()).toBe(false);
   });
 
-  /*
-   * A row is not focusable, so pressing one blurs the button, the dropdown
-   * closes on that blur, and the row unmounts between its own `mousedown` and
-   * its `click` — the press does nothing, intermittently.
-   *
-   * Asserted as "the default is prevented" rather than by replaying the
-   * sequence: jsdom does not move focus on `mousedown`, so a hand-dispatched
-   * version would assert against a model of the bug rather than the bug.
-   */
   it('does not let a press on a row take the focus off the button', async () => {
     const wrapper = mountToggle();
     await open(wrapper);
@@ -268,11 +254,6 @@ describe('LanguageToggle', () => {
     expect(button(mountToggle()).classes()).toContain('focus-visible:focus-ring');
   });
 
-  /*
-   * The literal is the point. `UserMenu` sits beside this and asserts the same
-   * `h-9`; written out in both files rather than shared, one of them moving
-   * fails rather than silently agreeing with itself.
-   */
   it('is the same height as the account menu beside it', () => {
     expect(button(mountToggle()).classes()).toContain('h-9');
   });

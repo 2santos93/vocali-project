@@ -41,11 +41,6 @@ describe('createRealtimeSessionHandler', () => {
     });
   });
 
-  /**
-   * The credential spends the platform's metered provider quota, so an
-   * unauthenticated route here is an open tap even though no record is read
-   * or written. Nothing must reach the provider before the identity is known.
-   */
   it('answers 401 without minting a credential when the request carries no identity', async () => {
     const { handler, provider } = buildSubject();
     provider.failNextWith = new Error('the provider must not have been called');

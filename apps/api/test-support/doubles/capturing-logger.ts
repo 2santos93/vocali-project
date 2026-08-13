@@ -8,11 +8,6 @@ export interface CapturedLogEntry {
   readonly context: Record<string, unknown>;
 }
 
-/**
- * The level is recorded alongside the message because it is part of the
- * behaviour: a failure written at `info` disappears the moment an operator
- * raises `LOG_LEVEL`, and nothing inspecting only the text can see that.
- */
 export class CapturingLogger implements Logger {
   readonly entries: CapturedLogEntry[];
 
@@ -35,13 +30,6 @@ export class CapturingLogger implements Logger {
     this.write('error', message, context);
   }
 
-  /**
-   * The child writes into this logger's record rather than one of its own, as
-   * pino's child does, and stamps `requestId` — the same field `PinoLogger`
-   * uses. A double that dropped the id would let a handler forget to correlate
-   * and still pass; one that renamed it would let a test assert a field
-   * production never writes.
-   */
   withCorrelationId(correlationId: string): CapturingLogger {
     return new CapturingLogger(correlationId, this.entries);
   }

@@ -25,15 +25,6 @@ beforeEach(() => {
 });
 
 describe('DynamoConnectionTicketStore', () => {
-  /*
-   * A ticket is a bearer credential, so a table export holding them in the
-   * clear is an export of usable credentials.
-   *
-   * The digest is computed here with `node:crypto` rather than by importing
-   * the mapper's builder: importing it would assert the adapter against the
-   * same function it uses, and would stay green if that function were changed
-   * to return the ticket unchanged.
-   */
   it('stores the ticket under a digest rather than under the ticket itself', async () => {
     dynamo.on(PutCommand).resolves({});
 
@@ -56,12 +47,6 @@ describe('DynamoConnectionTicketStore', () => {
     expect(input.Item?.ttlEpochSeconds).toBe(1786525230);
   });
 
-  /*
-   * One `DeleteItem` with `ReturnValues: 'ALL_OLD'` both spends the ticket and
-   * says whose it was. A `GetItem` followed by a `DeleteItem` reads the same
-   * and leaves a window in which two `$connect` attempts both see a live
-   * ticket, so the absence of any Get on this path is itself the assertion.
-   */
   it('spends the ticket with the same call that reads it', async () => {
     dynamo.on(DeleteCommand).resolves({
       Attributes: { userId: 'user-1', expiresAt: EXPIRES_AT.toISOString() },
@@ -88,9 +73,6 @@ describe('DynamoConnectionTicketStore', () => {
       Attributes: { userId: 'user-1', expiresAt: '2026-08-12T08:59:59.000Z' },
     });
 
-    // The table's own TTL deletes expired items within days of their expiry
-    // rather than at it, so without this check a thirty-second credential
-    // stays usable for two more days.
     expect(await buildStore().redeem({ ticket: TICKET, now: NOW })).toBeNull();
   });
 
@@ -105,9 +87,6 @@ describe('DynamoConnectionTicketStore', () => {
   it('refuses to resolve an identity from a malformed item', async () => {
     dynamo.on(DeleteCommand).resolves({ Attributes: { expiresAt: EXPIRES_AT.toISOString() } });
 
-    // This value becomes the identity of a websocket connection. The
-    // alternative to failing here is opening a socket as whoever a drifted
-    // attribute happened to name.
     await expect(buildStore().redeem({ ticket: TICKET, now: NOW })).rejects.toBeInstanceOf(
       MalformedConnectionTicketError,
     );

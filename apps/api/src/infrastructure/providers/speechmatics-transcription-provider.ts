@@ -35,11 +35,6 @@ import type { AttemptResult, RequestInitWithHeaders, RetryPolicy } from '../type
 import type { SpeechmaticsProviderOptions } from '../types/config.js';
 import type { SpeechmaticsRuntimeHooks } from '../types/speechmatics.js';
 
-/**
- * The API key is fetched per operation, used to build one `Authorization`
- * header, and never placed in a log context: a key in CloudWatch is a key
- * disclosed to everyone who can read logs.
- */
 export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider {
   private readonly fetch: SpeechmaticsRuntimeHooks['fetch'];
   private readonly sleep: SpeechmaticsRuntimeHooks['sleep'];
@@ -57,15 +52,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     this.random = hooks.random ?? Math.random;
   }
 
-  /**
-   * `fetch_data` rather than `data_file`: the provider is handed a presigned
-   * GET URL and fetches the audio itself, so a 20 MB upload never becomes
-   * 20 MB of Lambda memory and a second copy over the wire.
-   *
-   * The callback authenticates with a header in `auth_headers` rather than a
-   * signature in the query string, so the shared secret never lands in an
-   * access log or a proxy's URL history.
-   */
   async submitFileJob(input: { audioUrl: string; callbackUrl: string }): Promise<SubmittedJob> {
     const [apiKey, webhookSecret] = await Promise.all([
       this.secrets.getSecret(this.options.apiKeySecretName),
@@ -99,9 +85,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       BATCH_JOBS_URL,
       {
         method: 'POST',
-        // No `Content-Type`: `fetch` derives the multipart type and its
-        // boundary from the `FormData` body, and a hand-written header would
-        // omit the boundary and make the body unparseable.
         headers: { Authorization: `Bearer ${apiKey}` },
         body,
       },
@@ -117,11 +100,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     return { externalJobId };
   }
 
-  /**
-   * The long-lived key never leaves the backend; what the browser receives
-   * expires within the minute, so a token captured from a page is worth almost
-   * nothing.
-   */
   async createRealtimeCredentials(input: { ttlSeconds: number }): Promise<RealtimeCredentials> {
     const apiKey = await this.secrets.getSecret(this.options.apiKeySecretName);
     const ttlSeconds = this.resolveKeyTtlSeconds(input.ttlSeconds);
@@ -145,9 +123,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
 
     return {
       token,
-      // Returned without the `jwt` query parameter; the caller appends the
-      // token when it opens the connection. A credential in a URL is
-      // duplicated into anything that records URLs.
       websocketUrl: REALTIME_WEBSOCKET_URL,
       expiresAt: new Date(this.clock.now().getTime() + ttlSeconds * 1_000),
     };
@@ -157,12 +132,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     return Promise.resolve(interpretSpeechmaticsCallback(callback));
   }
 
-  /**
-   * The provider answers a TTL outside its documented range with a 400, which
-   * this adapter refuses to retry, so a caller's bad value would fail the
-   * request outright. Clamping turns that into a working session, and the
-   * adjustment is logged so it is visible rather than silent.
-   */
   private resolveKeyTtlSeconds(requested: number): number {
     const applied = Math.min(
       Math.max(Math.trunc(requested), MIN_REALTIME_KEY_TTL_SECONDS),
@@ -193,10 +162,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       if (result.kind === 'success') return result.response;
 
       if (result.kind === 'permanent') {
-        // At `error`, because for a submission this is the only record that a
-        // clinical transcription will never happen. The status is logged and
-        // never carried into the thrown error — operational detail for
-        // CloudWatch, not something a client should branch on.
         this.logger.error('Transcription provider request failed and was not retried', {
           operation,
           attempt,
@@ -253,9 +218,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     try {
       response = await this.fetch(url, {
         ...init,
-        // A fresh signal per attempt, and never absent: without it a provider
-        // that accepts the connection and then says nothing holds this Lambda
-        // open until the function's own far longer timeout.
         signal: AbortSignal.timeout(this.options.requestTimeoutMs),
       });
     } catch (cause) {
@@ -292,15 +254,7 @@ function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-/**
- * Never repeats the cause's message: a fetch failure message can contain the
- * full URL, and for a batch job that URL is the presigned link to a patient's
- * audio.
- */
 function describeRequestFailure(cause: unknown): string {
-  // Branching on `code`, never on `name` or `instanceof`: esbuild mangles
-  // class names, and `AbortSignal.timeout` rejects with a `DOMException`
-  // this bundle does not own the constructor of.
   const code: unknown = (cause as { code?: unknown } | null)?.code;
 
   return code === 'TimeoutError' || code === 23 || code === 'ABORT_ERR'

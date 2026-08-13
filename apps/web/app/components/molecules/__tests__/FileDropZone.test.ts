@@ -174,11 +174,6 @@ describe('FileDropZone', () => {
     expect(click).toHaveBeenCalledTimes(1);
   });
 
-  /*
-   * The assignment is captured rather than the resulting value read: jsdom
-   * leaves a file input's value at '' regardless, so reading it back passes
-   * whether or not the component ever wrote to it.
-   */
   it('clears the input so the same file can be chosen twice', async () => {
     const wrapper = mount(FileDropZone, { global: withTranslations() });
     const input = wrapper.find('[data-testid="file-input"]');

@@ -9,15 +9,6 @@ import {
 import { computeSecretHash } from './secret-hash';
 import { readTokenClaims } from './token-claims';
 
-/**
- * The seam where `SECRET_HASH` is applied once rather than at five call sites,
- * and where the rest of the server stops depending on the AWS SDK.
- *
- * Nothing here interprets a failure: the SDK's exception propagates exactly as
- * thrown, because what `NotAuthorizedException` means to a user depends on
- * which flow raised it. See `auth-failures.ts`.
- */
-
 export interface CognitoConfiguration {
   readonly region: string;
   readonly userPoolId: string;
@@ -48,11 +39,6 @@ export class CognitoResponseError extends Error {
   }
 }
 
-/**
- * Sign-in sits on a request a person is watching, and waiting out the SDK's
- * default two-minute socket timeout means the browser gives up first and the
- * user presses the button again, starting a second sign-in.
- */
 const REQUEST_TIMEOUT_MS = 5000;
 const CONNECTION_TIMEOUT_MS = 3000;
 const MAX_ATTEMPTS = 3;
@@ -109,9 +95,6 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
     async signIn(email: string, password: string): Promise<IssuedSession> {
       const response = await client.send(
         new InitiateAuthCommand({
-          // Not the admin flow. `AdminInitiateAuth` would additionally bind
-          // signing in to this server's IAM identity, so a role change or a
-          // credential rotation would take sign-in down with it.
           AuthFlow: 'USER_PASSWORD_AUTH',
           ClientId: configuration.clientId,
           AuthParameters: {
@@ -126,9 +109,6 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
       const accessToken = result?.AccessToken;
       const refreshToken = result?.RefreshToken;
 
-      // No tokens means Cognito answered with a challenge — MFA enrolment or a
-      // forced password change. The pool has neither, so this is configuration
-      // drift rather than something to paper over with an empty session.
       if (accessToken === undefined || refreshToken === undefined) {
         throw new CognitoResponseError('Cognito returned no tokens for a password sign-in');
       }
@@ -138,9 +118,6 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
         throw new CognitoResponseError('Cognito returned an access token with no readable claims');
       }
 
-      // The address is taken from the id token rather than from what was
-      // typed: Cognito's username matching is case-insensitive, so the two can
-      // differ, and the header should show the account, not the keystrokes.
       const identity = result?.IdToken === undefined ? null : readTokenClaims(result.IdToken);
 
       return {
@@ -158,14 +135,6 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
           ClientId: configuration.clientId,
           AuthParameters: {
             REFRESH_TOKEN: refreshToken,
-            /*
-             * The subject, not the email address: on a pool keyed by email the
-             * generated username equals the `sub`, and Cognito computes the
-             * refresh secret hash against that. The address produces a hash
-             * that fails to match, arriving as `NotAuthorizedException` — the
-             * same exception an expired refresh token gives, so the mistake
-             * presents as "users are signed out at random".
-             */
             SECRET_HASH: secretHashFor(subject),
           },
         }),
@@ -180,12 +149,6 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
     },
 
     async signOutEverywhere(accessToken: string): Promise<void> {
-      /*
-       * `GlobalSignOut`, not a cookie deletion: deleting the cookies alone
-       * leaves the refresh token valid for the rest of its eight hours in
-       * whatever copy of it exists elsewhere, which is forgetting rather than
-       * signing out. This is what `enable_token_revocation` is for.
-       */
       await client.send(new GlobalSignOutCommand({ AccessToken: accessToken }));
     },
   };

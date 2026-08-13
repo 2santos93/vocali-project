@@ -1,13 +1,6 @@
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { createCognitoGateway, type CognitoGateway } from './cognito-gateway';
 
-/**
- * The pool id, client id and API base URL are ordinary configuration and
- * arrive as environment variables. The app client secret does not: the
- * environment carries the *path* to a SecureString parameter, read and
- * decrypted at runtime, which is why no secret appears in this repository.
- */
-
 export class MissingConfigurationError extends Error {
   constructor(name: string) {
     // The name of a setting is not a secret, and naming it is the difference
@@ -24,11 +17,6 @@ export class MissingSecretError extends Error {
   }
 }
 
-/*
- * Module scope, so a warm process reads the parameter once. The promise is
- * cached rather than the resolved value, so two requests during a cold start
- * share one Parameter Store call instead of racing to make two.
- */
 let gatewayPromise: Promise<CognitoGateway> | null = null;
 
 export interface ServerRuntime {
@@ -75,9 +63,6 @@ async function buildGateway(settings: GatewaySettings): Promise<CognitoGateway> 
   const ssm = new SSMClient({ region: settings.region });
 
   const response = await ssm.send(
-    // `WithDecryption`, because the parameter is a SecureString: without it
-    // the call succeeds and hands back the ciphertext, which travels onwards
-    // as if it were the secret and fails every signature silently.
     new GetParameterCommand({ Name: settings.clientSecretParameter, WithDecryption: true }),
   );
 
@@ -94,12 +79,6 @@ async function buildGateway(settings: GatewaySettings): Promise<CognitoGateway> 
   });
 }
 
-/**
- * Fails at the first request rather than defaulting: a missing pool id that
- * defaults to an empty string produces `ResourceNotFoundException`, which the
- * failure translation reports as "vuelve a intentarlo en unos minutos" —
- * advice that will never work.
- */
 function requireSetting(value: string, name: string): string {
   if (value === '') throw new MissingConfigurationError(name);
 

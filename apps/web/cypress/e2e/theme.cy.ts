@@ -8,16 +8,6 @@ import { chooseTheme, expectThemeSwitch, followSystemTheme } from '../support/pr
 import { signInOnTheWayTo } from '../support/session';
 import { buildTranscriptions } from '../support/transcriptions';
 
-/**
- * Journey 8: reading the application in the light or the dark.
- *
- * The rules are pure and covered in `app/utils/theme.test.ts`. What only a
- * running application shows is that the cookie survives a reload, that the
- * *server* reads it and puts the class in the HTML it sends, and that the
- * palette the tokens describe is the palette the page is painted in — a class
- * on `<html>` that no stylesheet keys on is a passing test and a white screen.
- */
-
 describe('Choosing a theme', () => {
   beforeEach(() => {
     cy.intercept('GET', '/api/transcriptions*', {
@@ -63,11 +53,6 @@ describe('Choosing a theme', () => {
     expectThemeSwitch('dark');
   });
 
-  /*
-   * The reason it is a cookie and not `localStorage`. This reads the markup
-   * the server sent, before a line of JavaScript has run: the class is either
-   * in that markup or the first frame of every page load is painted wrong.
-   */
   it('is already in the HTML the server sends', () => {
     cy.visit('/login');
     chooseTheme('dark');
@@ -78,11 +63,6 @@ describe('Choosing a theme', () => {
       .should('match', /<html[^>]*\bclass="[^"]*theme-dark/);
   });
 
-  /*
-   * Someone who has chosen light is overriding a machine set to dark, and only
-   * an explicit class can say so — which is why `system` is the absence of one
-   * and `light` is not.
-   */
   it('lets an explicit choice overrule the machine, in both directions', () => {
     emulateSystemColorScheme('dark');
     cy.visit('/login');

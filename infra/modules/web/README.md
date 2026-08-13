@@ -20,7 +20,7 @@ in its substitute shape.
 hand edit precisely so the state and the repository cannot disagree about
 which shape is live. Set, it drops the distribution, sets the function URL's
 authorisation to `NONE`, adds a public invoke permission, and leaves the asset
-bucket with no read grant at all — there is no distribution to name, and a
+bucket with no read grant at all, there is no distribution to name, and a
 grant to the CloudFront service without one would be usable by any
 distribution in any account. Set back to `false`, everything above reverses
 and the diagram at the top of this file is what runs.
@@ -28,7 +28,7 @@ and the diagram at the top of this file is what runs.
 **The substitute does not work either, which is the thing to know before
 reaching for it.** The renderer's function URL, opened to `NONE` with a
 resource policy admitting `*`, answers 403 to every caller. The function is
-healthy — invoked directly it returns the login page with a 200 — so what the
+healthy (invoked directly it returns the login page with a 200), so what the
 unverified account refuses is public access to the URL, not the code behind
 it. The intended edge and the fallback are blocked by the same gate. The front
 end is run locally against the deployed API in the meantime, which is why
@@ -38,8 +38,8 @@ Two things are still not Terraform's to produce:
 
 - **The renderer's package.** The plan stops at `data.archive_file.ssr` until
   `apps/web/.output/server` exists, naming the command that produces it. That
-  is deliberate: the alternative — a `count` on a flag, or an archive of an
-  empty directory — deploys a renderer that answers every request with an
+  is deliberate: the alternative (a `count` on a flag, or an archive of an
+  empty directory) deploys a renderer that answers every request with an
   initialisation error and looks deployed.
 - **The assets.** Terraform creates the bucket and never writes to it. A few
   thousand `aws_s3_object` resources in a state file is not how build output
@@ -61,7 +61,7 @@ the same source has to keep running under `nuxt dev`.
 
 ## Why a function URL and not API Gateway
 
-The renderer needs one route — every path — and none of what an API gateway
+The renderer needs one route (every path), and none of what an API gateway
 adds: no authorizer, no per-route configuration, no request validation. A
 function URL is the same thing with none of it, at a lower price and a 6 MB
 response limit rather than 10.
@@ -71,14 +71,14 @@ principal allowed to invoke it is the CloudFront service acting for one named
 distribution, which reaches it through an origin access control that signs
 every request with SigV4. A public function URL would be a second address for
 the application, on a domain nobody thinks to check, with none of the headers
-or caching the distribution applies — which is exactly what the section above
+or caching the distribution applies, which is exactly what the section above
 describes as the temporary shape, and exactly why it is temporary. Everything
 in this section is the `expose_ssr_publicly = false` design.
 
 ## Two behaviours, and only two
 
 **`/_nuxt/*` is served from S3** with the managed `CachingOptimized` policy.
-Those files are immutable by construction — a change to one changes its name —
+Those files are immutable by construction (a change to one changes its name),
 so they are cached at the edge for a year and a page load costs one Lambda
 invocation instead of thirty.
 
@@ -90,14 +90,14 @@ The origin request policy forwards everything except `Host`, which has to be
 dropped: the origin is a function URL whose certificate and whose SigV4
 signature are for its own hostname. It is a policy of our own rather than the
 managed `AllViewerExceptHostHeader` so that the signing header CloudFront adds
-for a request carrying a body travels with it — sign-in is a POST with a body,
+for a request carrying a body travels with it, sign-in is a POST with a body,
 and a body the signature does not cover is rejected by the function URL.
 
 ## Security headers
 
-HSTS for a year including subdomains, `nosniff`, `frame-options: DENY` — a
+HSTS for a year including subdomains, `nosniff`, `frame-options: DENY`, a
 clinical record inside somebody else's frame is the classic clickjacking setup
-— and `strict-origin-when-cross-origin`.
+and `strict-origin-when-cross-origin`.
 
 There is no `Content-Security-Policy`, and its absence is a decision rather
 than an omission. Nuxt emits an inline hydration script on every page, so a
@@ -111,7 +111,7 @@ It belongs in the Nuxt application.
 `environment_variables` takes plain configuration. It refuses a variable whose
 name ends in `SECRET`, `PASSWORD`, `CREDENTIAL`, `API_KEY` or `_TOKEN`,
 because a Lambda environment variable is stored in plaintext and is legible to
-anyone holding `lambda:GetFunctionConfiguration` — a read-only permission
+anyone holding `lambda:GetFunctionConfiguration`, a read-only permission
 should not disclose a credential.
 
 A secret is a `SecureString` in Parameter Store. Name its path in

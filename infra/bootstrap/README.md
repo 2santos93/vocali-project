@@ -21,7 +21,7 @@ terraform apply
 
 Nothing here is environment specific. One state bucket serves every
 environment, separated by the key prefix in their backend blocks rather than
-by the bucket. Today that is `prod` alone — an `environments/dev` existed
+by the bucket. Today that is `prod` alone, an `environments/dev` existed
 briefly and was removed, because a second composition nobody deploys is a
 maintenance cost paid for a benefit nobody collects.
 
@@ -34,8 +34,8 @@ recreate it
 with `terraform import` rather than re-running `apply`, which would fail on
 names that already exist.
 
-Migrating this state into the bucket it just created is possible — add a
-backend block and run `terraform init -migrate-state` — but it means a
+Migrating this state into the bucket it just created is possible (add a
+backend block and run `terraform init -migrate-state`), but it means a
 destroyed bucket takes the record of itself with it. Local state was chosen
 instead.
 
@@ -53,7 +53,7 @@ backend block cannot interpolate.
 ## Why the state bucket has a customer-managed key
 
 The state file records every attribute of every resource, and some of those
-attributes are secrets that AWS generates rather than ones anybody typed —
+attributes are secrets that AWS generates rather than ones anybody typed,
 the Cognito app client secret above all. A customer-managed key means access
 to the key is a second gate in front of the object, every use of it appears in
 CloudTrail, and rotation happens on its own. It costs about one dollar a

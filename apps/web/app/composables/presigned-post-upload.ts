@@ -2,13 +2,6 @@ import type { TranslatableMessage } from '../i18n/types';
 import { HTTP_FORBIDDEN, HTTP_MULTIPLE_CHOICES, HTTP_OK } from '../utils/http-status';
 import type { PresignedPostUpload, StorageUploadFailureCode } from './types/upload';
 
-/**
- * The only part of the upload flow that leaves the application: everything
- * else goes through the BFF proxy, and this posts straight at a bucket. Kept
- * apart from `useFileUpload` because the part order, the field name and the
- * status ranges below belong to S3's presigned POST contract, not to us.
- */
-
 const PERCENT = 100;
 
 export class StorageUploadError extends Error {
@@ -25,15 +18,6 @@ export class StorageUploadError extends Error {
   }
 }
 
-/**
- * **The policy fields must precede the file, which is why this exists rather
- * than three lines at the call site.** S3 parses the multipart body in order
- * and stops collecting form fields at the file part, so a body that puts the
- * file first arrives with no policy, no signature and no key — and fails,
- * after however long the file took to send, for a reason S3 does not state.
- *
- * `file` is the part name the contract requires; it is not a choice.
- */
 export function buildPresignedPostForm(
   fields: Readonly<Record<string, string>>,
   file: File,
@@ -56,11 +40,6 @@ function describeStorageRefusal(status: number): TranslatableMessage {
   return { key: 'failure.upload.storageUnavailable' };
 }
 
-/**
- * `XMLHttpRequest` rather than `fetch` for one reason: `fetch` cannot report
- * upload progress at all — it exposes a stream for the response and nothing
- * for the request, so a `fetch` upload can only show a bar moving on a timer.
- */
 export function uploadToPresignedPost(
   upload: PresignedPostUpload,
   createRequest: () => XMLHttpRequest = (): XMLHttpRequest => new XMLHttpRequest(),

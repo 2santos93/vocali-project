@@ -122,9 +122,6 @@ describe('saveRealtimeTranscriptionHandler', () => {
     const first = await handler(buildApiGatewayEvent({ body }));
     const second = await handler(buildApiGatewayEvent({ body }));
 
-    // The retry the client sends when the first response never arrived. Any
-    // other answer — a 409, a second id — leaves the browser deciding which
-    // of two identical entries in the history is the real one.
     expect(second.statusCode).toBe(201);
     expect(parseResponseBody(second.body)).toEqual(parseResponseBody(first.body));
 

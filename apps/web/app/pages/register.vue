@@ -24,14 +24,6 @@ async function onSubmit(): Promise<void> {
       body: { email: email.value, password: password.value },
     });
 
-    /*
-     * Always the confirmation screen, whatever the address turned out to be.
-     *
-     * The server answers a repeat registration exactly as it answers a new
-     * one, so this screen cannot tell the two apart — which is the point. If
-     * the account already existed and was confirmed, the code will not work
-     * and the confirmation screen says to sign in instead.
-     */
     await navigateTo({ path: '/confirm', query: { email: email.value } });
   } catch (cause) {
     error.value = authFailureMessage(readFailure(cause).code, 'auth.register.failed');

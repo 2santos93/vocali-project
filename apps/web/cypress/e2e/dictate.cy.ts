@@ -3,18 +3,6 @@ import type { ProviderSocket } from '../support/microphone';
 import { signInOnTheWayTo } from '../support/session';
 import { buildTranscription } from '../support/transcriptions';
 
-/**
- * Journey 5: dictating into the microphone and having it transcribed live.
- *
- * The microphone and the provider's stream are replaced at the boundary the
- * application uses rather than skipped; everything between them is real — the
- * session request through the proxy, the audio graph, the state machine, the
- * screen, and the save.
- *
- * No audio is transcribed and no provider is contacted. Under test is the
- * application's half of the protocol.
- */
-
 const SESSION = {
   token: 'proveedor-token-efimero',
   websocketUrl: 'wss://transcripcion.example.test/v2',
@@ -55,9 +43,6 @@ function startDictating(): Cypress.Chainable<ProviderSocket> {
 
     socket.accept();
 
-    // Announced from the session the API minted rather than restated by the
-    // client. A mismatch is rejected by the provider only after the socket is
-    // open and the user has already started speaking.
     expect(socket.messagesSent[0]).to.deep.equal({
       message: 'StartRecognition',
       audio_format: { type: 'raw', encoding: 'pcm_s16le', sample_rate: 16_000 },
@@ -88,9 +73,6 @@ describe('Dictating by microphone', () => {
         metadata: { transcript: 'Paciente de sesenta y dos' },
       });
 
-      // A partial is rendered as provisional, and said to be so in words: a
-      // tail that looks settled and is then rewritten reads as the system
-      // contradicting itself.
       cy.get('[data-testid=partial-text]').should('contain', 'Paciente de sesenta y dos');
       cy.get('[data-testid=partial-legend]').should(
         'contain',

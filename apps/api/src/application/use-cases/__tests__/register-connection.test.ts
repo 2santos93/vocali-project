@@ -17,15 +17,6 @@ describe('RegisterConnection', () => {
     expect(await connections.listByUser('user-1')).toEqual([{ connectionId: 'connection-a' }]);
   });
 
-  /*
-   * The lifetime is asserted as a literal, not imported: importing the
-   * constant would make this assert `constant === constant`. Two hours fifteen
-   * — API Gateway's own two-hour cap, plus slack against clock skew.
-   *
-   * Without an expiry an entry for a browser that vanished without a close
-   * frame is published to for ever; no `$disconnect` arrives for a connection
-   * that died with the network.
-   */
   it('expires the entry two hours and fifteen minutes after the injected clock', async () => {
     const connections = new InMemoryConnectionRegistry();
 

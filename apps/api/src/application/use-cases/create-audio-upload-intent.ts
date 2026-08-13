@@ -13,11 +13,6 @@ import type { CreateAudioUploadIntentError } from '../types/transcription-errors
 import type { CreateAudioUploadIntentInput } from '../types/transcription-inputs.js';
 import { buildAudioObjectKey } from './object-keys.js';
 
-/**
- * The size cap is enforced by the presigned POST's `content-length-range`
- * condition, via `maxSizeBytes`, not by the client-supplied `sizeBytes`: a
- * client can lie about that number but cannot forge the signed condition.
- */
 export class CreateAudioUploadIntent {
   constructor(
     private readonly repository: TranscriptionRepository,
@@ -37,10 +32,6 @@ export class CreateAudioUploadIntent {
     const transcriptionId = this.idGenerator.next();
     const audioObjectKey = buildAudioObjectKey(input.userId, transcriptionId, input.fileName);
 
-    // Presign before saving. If presigning fails nothing is persisted; if the
-    // save fails the client gets a 5xx and never receives the URL, so the only
-    // residue is a signed URL nobody holds. The other order strands a
-    // PENDING_UPLOAD row in the user's history on every client retry.
     const upload = await this.storage.createPresignedUpload({
       objectKey: audioObjectKey,
       contentType: input.contentType,
@@ -58,9 +49,6 @@ export class CreateAudioUploadIntent {
 
     const written = await this.repository.save(transcription);
     if (!written.success) {
-      // Unreachable: the record was built around an id generated moments ago,
-      // so nothing else holds it and there is no earlier revision to lose to.
-      // An invariant violation rather than an outcome a caller must handle.
       throw new Error(
         `Invariant violated: CreateAudioUploadIntent could not persist a newly created transcription (${written.error.message})`,
       );

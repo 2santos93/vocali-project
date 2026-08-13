@@ -8,12 +8,6 @@ export interface RegistrationAccepted {
   readonly email: string;
 }
 
-/**
- * The reply is the same whether the address was new or already had an account.
- * That is not politeness: it is the only response that does not turn this
- * route into a way of asking whether a given doctor uses this service. See
- * `describeRegistrationFailure`.
- */
 export default defineEventHandler(
   async (event): Promise<RegistrationAccepted | AuthFailureBody> => {
     const credentials = parseRequest(credentialsSchema, await readBody(event));

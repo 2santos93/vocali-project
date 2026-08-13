@@ -1,15 +1,6 @@
 import { onScopeDispose, ref } from 'vue';
 import type { Dropdown } from './types/controls';
 
-/**
- * Shared so that the three ways a panel has to close — a click elsewhere,
- * Escape, the focus moving on — are written once rather than twice with one
- * of them missing, which is usually Escape.
- *
- * Here rather than in `composables/`, and built out of plain Vue: everything
- * under `components/` has to mount under Jest with no Nuxt runtime around it,
- * so a Nuxt auto-import here would end that.
- */
 export function useDropdown(): Dropdown {
   const open = ref(false);
   const container = ref<HTMLElement | null>(null);
@@ -34,11 +25,6 @@ export function useDropdown(): Dropdown {
     open.value = !open.value;
   }
 
-  /**
-   * `contains` rather than `composedPath`: the panel renders inside the
-   * container rather than teleported out, so DOM containment is containment
-   * on screen. It would stop being true if the panel were ever teleported.
-   */
   function isOurs(target: EventTarget | null): boolean {
     return target instanceof Node && container.value?.contains(target) === true;
   }
@@ -70,11 +56,6 @@ export function useDropdown(): Dropdown {
     dismiss();
   }
 
-  /*
-   * Attached for the life of the component rather than around `open`: a
-   * listener added in a watcher survives the component if it unmounts while
-   * the panel is open. Every handler returns early while it is closed.
-   */
   if (typeof document !== 'undefined') {
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('focusin', onFocusIn);

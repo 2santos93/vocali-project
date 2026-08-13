@@ -5,11 +5,7 @@ output "api_id" {
 
 output "api_endpoint" {
   description = "Base URL of the API, with no trailing slash and no stage segment because the stage is $default. The application's PROVIDER_CALLBACK_BASE_URL is built from it."
-  # Taken from the stage rather than from the API so that it cannot be read
-  # before the stage exists, and trimmed because the stage reports it with a
-  # trailing slash: a path is appended to this, and `…com//webhooks/…` is a
-  # different URL from `…com/webhooks/…` to a router that is matching strings.
-  value = trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")
+  value       = trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")
 }
 
 output "api_execution_arn" {

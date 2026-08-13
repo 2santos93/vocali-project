@@ -14,11 +14,6 @@ const INVALID_REQUEST_CODE = 'INVALID_REQUEST';
  */
 const MAX_VALIDATION_MESSAGE_LENGTH = 500;
 
-/**
- * The schemas come from `@vocali/contracts`, the same module the frontend
- * validates against, so the two cannot drift about what a valid request is.
- * Nothing here re-states a rule the schema already carries.
- */
 export function withValidatedBody<Schema extends z.ZodTypeAny, Request extends HttpRequest>(
   schema: Schema,
   handler: (request: Request, body: z.infer<Schema>) => Promise<HttpResponse>,
@@ -41,11 +36,6 @@ export function withValidatedQuery<Schema extends z.ZodTypeAny, Request extends 
     validateAndRun(schema, request.event.queryStringParameters ?? {}, request, handler);
 }
 
-/**
- * API Gateway fills these from the URL, so `{transcriptionId}` is whatever the
- * caller typed. Validating turns a missing or absurd segment into a 400 here
- * rather than an unbounded string travelling into a DynamoDB key.
- */
 export function withValidatedPathParameters<
   Schema extends z.ZodTypeAny,
   Request extends HttpRequest,
@@ -71,11 +61,6 @@ function validateAndRun<Schema extends z.ZodTypeAny, Request extends HttpRequest
   return handler(request, parsed.data as z.infer<Schema>);
 }
 
-/**
- * An absent body becomes an empty object rather than a parse failure, so a
- * client that forgot to send one is told which fields are missing instead of
- * being told its JSON is malformed. The second message is true and useless.
- */
 function readJsonBody(event: ApiGatewayRequestEvent): Result<unknown, string> {
   const raw = readRawBody(event);
   if (raw === undefined || raw === '') return ok({});
@@ -87,11 +72,6 @@ function readJsonBody(event: ApiGatewayRequestEvent): Result<unknown, string> {
   }
 }
 
-/**
- * Repeats Zod's own message per field. Where one echoes a rejected value it
- * echoes the caller's own input back to the caller — nothing from storage, a
- * provider or another user is reachable from here.
- */
 function describeIssues(error: z.ZodError): string {
   const described = error.issues
     .map((issue) => {

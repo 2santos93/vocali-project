@@ -90,11 +90,6 @@ interface GatewayDouble extends FileUploadGateway {
   streamsClosed: number;
 }
 
-/**
- * The socket is driven from inside `openUpdateStream` rather than by a `push`
- * afterwards, and that is forced: `upload()` does not return until the record
- * settles, so anything done after awaiting it is too late to settle it.
- */
 function gatewayDouble(): GatewayDouble {
   const intentRequests: CreateUploadIntentRequest[] = [];
   const uploads: PresignedPostUpload[] = [];
@@ -170,12 +165,6 @@ function gatewayDouble(): GatewayDouble {
 }
 
 describe('buildPresignedPostForm', () => {
-  /*
-   * S3 parses the multipart body in order and stops collecting form fields at
-   * the file part, so a body with the file first arrives carrying no policy
-   * and no signature — and fails, after the whole file has been sent, with a
-   * policy error that names none of that.
-   */
   it('appends every policy field before the file', () => {
     const form = buildPresignedPostForm(PRESIGNED_FIELDS, AUDIO_FILE);
 
@@ -351,7 +340,7 @@ describe('uploadToPresignedPost', () => {
   });
 
   /*
-   * A 403 here is the storage policy doing its job — it is what rejects a file
+   * A 403 here is the storage policy doing its job: it is what rejects a file
    * over 20 MB, and it is the control, not the client-side check.
    */
   it('reports a 403 as the storage policy refusing the file, naming the limit', async () => {
@@ -430,12 +419,6 @@ describe('uploadToPresignedPost', () => {
     await expect(settled).rejects.toBeInstanceOf(StorageUploadError);
   });
 
-  /*
-   * Every case above hands in a request factory, which left the default — the
-   * one production uses — as the single line no test entered. A default that
-   * stopped producing a working request would reject with a `TypeError` the
-   * screen has no words for.
-   */
   it('builds a browser request of its own when the caller supplies no factory', async () => {
     const double = requestDouble();
     const construct = jest.fn(() => double.request);
@@ -480,11 +463,6 @@ function requesterReturning(response: unknown): {
   };
 }
 
-/*
- * These cannot pin that the API serves the paths — the routes exist only as
- * prose on the Lambda entry points — but they catch a path, method or body
- * being edited, which is otherwise invisible until a 404 on a deployment.
- */
 describe('createUploadRequests', () => {
   it('asks for an upload intent at POST /api/uploads', async () => {
     const { request, calls } = requesterReturning(INTENT);
@@ -510,11 +488,6 @@ describe('createUploadRequests', () => {
     ]);
   });
 
-  /*
-   * The path is a literal rather than imported from `utils/api-routes`: a test
-   * that imports the constant it is checking asserts `constant === constant`
-   * and stays green through the path changing to one the API does not serve.
-   */
   it('reads one transcription from GET /api/transcriptions/{id}', async () => {
     const { request, calls } = requesterReturning(transcriptionWith('COMPLETED'));
 
@@ -605,15 +578,6 @@ describe('useFileUpload', () => {
     expect(seen).toEqual([40, 100]);
   });
 
-  /*
-   * Note what is NOT here: a single request for a record. That absence is the
-   * assertion — a client that opened the socket and then polled anyway would
-   * satisfy every other expectation in this test.
-   *
-   * The one `wait` is the socket budget, abandoned when the push wins. It is
-   * asserted rather than tolerated: a poll schedule creeping back in grows
-   * this list.
-   */
   it('settles on the pushed record without asking for anything', async () => {
     const gateway = gatewayDouble();
     gateway.pushOnOpen = [transcriptionWith('COMPLETED')];
@@ -650,11 +614,6 @@ describe('useFileUpload', () => {
     expect(gateway.streamsClosed).toBe(1);
   });
 
-  /*
-   * The socket carries every transcription this user owns, so another tab's
-   * completion arrives here too. Acting on it reports someone else's file as
-   * this one, with its name, preview and status.
-   */
   it('ignores a pushed record belonging to a different upload', async () => {
     const gateway = gatewayDouble();
     gateway.pushOnOpen = [{ ...transcriptionWith('COMPLETED'), id: 'another-upload' }];
@@ -700,11 +659,6 @@ describe('useFileUpload', () => {
     expect(gateway.transcriptionRequests).toEqual(['t-1']);
   });
 
-  /*
-   * The case nothing else catches: the socket opens, stays open, and the
-   * completion is never pushed. Without the budget the client waits for ever
-   * on a message that is not coming.
-   */
   it('falls back to polling when the socket opens and stays silent', async () => {
     const gateway = gatewayDouble();
     gateway.records = [transcriptionWith('COMPLETED')];

@@ -1,13 +1,3 @@
-/**
- * Reads claims **without verifying** the token. Nothing here checks a
- * signature and nothing here may ever be the reason a request is allowed:
- * the API Gateway JWT authorizer verifies before any handler runs.
- *
- * This exists for the two decisions the BFF makes on its own — when to
- * refresh, and which address to show in the header. The worst a tampered
- * token achieves is a wrong name or a needless refresh.
- */
-
 const JWT_SEGMENT_COUNT = 3;
 
 export interface TokenClaims {
@@ -27,9 +17,6 @@ export function readTokenClaims(token: string): TokenClaims | null {
   const expiresAt = payload['exp'];
   const email = payload['email'];
 
-  // Validated rather than asserted: `as TokenClaims` over `JSON.parse` hands
-  // the rest of the server a `subject` that is undefined at runtime and a
-  // string to the type checker.
   if (typeof subject !== 'string' || subject === '') return null;
   if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) return null;
 

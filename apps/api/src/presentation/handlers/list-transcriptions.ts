@@ -7,13 +7,7 @@ import { withValidatedQuery } from '../http/validation.js';
 import type { ApiGatewayRequestHandler } from '../types/http.js';
 import type { ListTranscriptionsDependencies } from '../types/dependencies.js';
 
-/**
- * `GET /transcriptions` — the signed-in user's history, newest first.
- *
- * A cursor minted for a different user is rejected by the repository as
- * `INVALID_CURSOR`: the check lives there because that is where the cursor is
- * decoded and can be compared against the partition it would be applied to.
- */
+// GET /transcriptions
 export function listTranscriptionsHandler(
   dependencies: ListTranscriptionsDependencies,
 ): ApiGatewayRequestHandler {

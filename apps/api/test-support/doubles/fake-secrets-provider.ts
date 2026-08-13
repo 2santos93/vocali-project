@@ -1,10 +1,5 @@
 import type { SecretsProvider } from '../../src/domain/ports/secrets-provider.js';
 
-/**
- * Serves secrets from a map and records which names were asked for, so a test
- * can assert that a handler read the parameter it was configured with rather
- * than one it happened to have in scope.
- */
 export class FakeSecretsProvider implements SecretsProvider {
   readonly requestedNames: string[] = [];
 

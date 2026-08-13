@@ -14,12 +14,6 @@ const KEYS_PATH = '/v1/api_keys';
 const API_KEY_PARAMETER = '/vocali/speechmatics/api-key';
 const WEBHOOK_SECRET_PARAMETER = '/vocali/speechmatics/webhook-secret';
 
-/**
- * Written to look like the real thing rather than like a placeholder: the
- * point of the "never logged" test is that a value of this shape cannot be
- * found anywhere in the captured output, and `'secret'` would match half the
- * words a log line contains.
- */
 const API_KEY = 'JnT4pKq7XwZ2bR9mLd6VsYh1Gc3FaE8u';
 const WEBHOOK_SECRET = 'whs_9QbR2tYm7KpL4vXn6ZdA1sHf';
 
@@ -71,16 +65,6 @@ class StubSecretsProvider implements SecretsProvider {
 let agent: MockAgent;
 let requests: CapturedRequest[];
 
-/**
- * Outbound connections are disabled, so a request this suite forgot to
- * intercept fails loudly instead of reaching Speechmatics and spending the
- * free tier's 480 minutes.
- *
- * Handed to each request rather than installed with `setGlobalDispatcher`:
- * Jest runs this file in its own VM realm, so the global that call writes to
- * is not the one the injected `fetch` reads from. The mock appears installed,
- * every request leaves the machine anyway, and the failures point elsewhere.
- */
 beforeEach(() => {
   agent = new MockAgent();
   agent.disableNetConnect();
@@ -123,16 +107,6 @@ function interceptTemporaryKeys(...responses: StubResponse[]): void {
   intercept(MANAGEMENT_ORIGIN, KEYS_PATH, { type: 'rt' }, ...responses);
 }
 
-/**
- * The cast is unavoidable and says nothing about the runtime: `RequestInit`
- * declares `dispatcher` against the `undici-types` bundled with `@types/node`
- * while the agent comes from the `undici` dev dependency, and the two are
- * identical except that `Dispatcher.compose` is recursively self-typed.
- *
- * The body deliberately stays a global `FormData`, exactly as production
- * builds it. Handing undici's own `fetch` the global class instead fails an
- * `instanceof` check inside it and silently posts the form as `text/plain`.
- */
 function dispatchedThroughMock(init: RequestInit): RequestInit {
   return { ...init, dispatcher: agent } as unknown as RequestInit;
 }
@@ -193,12 +167,6 @@ function submittedConfig(request: CapturedRequest): Record<string, unknown> {
   return JSON.parse(config) as Record<string, unknown>;
 }
 
-/**
- * Counts outbound attempts, including one that never produced a response.
- * `requests` cannot see those: it is filled by the mock's reply callback, so
- * an attempt answered with a transport error leaves no trace in it — and "the
- * submission went out exactly once" is precisely what those tests assert.
- */
 function countingFetch(counter: { sent: number }): SpeechmaticsRuntimeHooks['fetch'] {
   return (url, init): Promise<Response> => {
     counter.sent += 1;
@@ -245,9 +213,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(submittedConfig(request)).toEqual({
         type: 'transcription',
         fetch_data: { url: AUDIO_URL },
-        // `auto`, with the platform's languages as the only candidates and a
-        // fallback: a file short enough to defeat identification is
-        // transcribed rather than refused.
         transcription_config: { language: 'auto', operating_point: 'enhanced' },
         language_identification_config: {
           expected_languages: ['es', 'en', 'ca', 'eu', 'gl'],
@@ -335,9 +300,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
     it('splits the backoff into a fixed half and a jittered half', async () => {
       interceptJobs({ status: 429 }, { status: 201, body: { id: 'sm-job-87' } });
-      // A draw of 1 is the single value where equal jitter and no jitter
-      // agree, so the other tests cannot tell them apart. Half of the 100 ms
-      // base delay is fixed and half is drawn: 50 + 50 * 0.5.
       const { provider, delays } = buildProvider({}, { random: (): number => 0.5 });
 
       await provider.submitFileJob({
@@ -360,9 +322,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         callbackUrl: CALLBACK_URL,
       });
 
-      // Seven seconds before the injected clock. Subtracting without a floor
-      // gives a negative delay, which a timer treats as no wait at all, so the
-      // next attempt goes straight into the rate limit just reported.
       expect(delays).toEqual([0]);
     });
 
@@ -385,9 +344,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
-      // An undici socket stays checked out of the pool until its body is read
-      // or cancelled, so leaving a failed response undrained leaks one
-      // connection per failure — and failures come in bursts.
       expect(cancelled).toBe(true);
     });
 
@@ -400,10 +356,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
-      // The provider documents no idempotency key, so a 5xx cannot be told
-      // apart from an edge proxy answering for a server that already created
-      // the job. Retrying transcribes the same audio twice, and the losing
-      // job's callback carries an id no record holds.
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
       expect(attempts.sent).toBe(1);
       expect(delays).toEqual([]);
@@ -422,9 +374,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
-      // A request that produced no response may still have been received. The
-      // adapter cannot tell, so it reports a failure the caller can act on
-      // rather than creating a job that might be the second one.
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
       expect(attempts.sent).toBe(1);
       expect(delays).toEqual([]);
@@ -449,9 +398,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         callbackUrl: CALLBACK_URL,
       });
 
-      // 3000, not the 100 ms the backoff would have chosen. The provider knows
-      // when its quota window rolls over and this adapter does not, so its
-      // instruction outranks the local schedule.
       expect(delays).toEqual([3_000]);
     });
 
@@ -484,9 +430,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       // Two waits for three attempts: nothing sleeps after the last one.
       expect(delays).toEqual([100, 200]);
 
-      // The level is asserted, not the text alone: this line is the only
-      // record that a clinical transcription will never happen, and at `info`
-      // it vanishes the moment an operator raises LOG_LEVEL to cut noise.
       expect(logger.entries).toContainEqual({
         level: 'error',
         message: 'Transcription provider request exhausted its attempts',
@@ -552,9 +495,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
         provider.submitFileJob({ audioUrl: AUDIO_URL, callbackUrl: CALLBACK_URL }),
       );
 
-      // A 201 whose body cannot be read is not a submitted job. Treating it as
-      // one marks the transcription PROCESSING against a job id that does not
-      // exist, where it sits until a reconciler notices.
       expect((error as { code?: unknown }).code).toBe('TRANSCRIPTION_PROVIDER_FAILED');
       expect(error.message).toContain(expected);
     });
@@ -574,9 +514,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       const written = logger.serialise();
       expect(written).not.toContain(API_KEY);
       expect(written).not.toContain(WEBHOOK_SECRET);
-      // CloudWatch retains what is written to it, and log read access is far
-      // broader than secret read access. A key that reaches a log line is a
-      // key that has to be rotated.
       expect(written).not.toContain('Bearer');
     });
   });
@@ -608,10 +545,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(secrets.requested).toEqual([API_KEY_PARAMETER]);
     });
 
-    // A ttl outside the documented range comes back as a 400, which this
-    // adapter refuses to retry, so an unclamped value costs the session. The
-    // reported expiry has to move with the clamp too: a caller told its key
-    // lasts a day when a minute was issued reconnects onto a dead key.
     it.each([
       ['below the provider minimum', 5, 60],
       ['above the provider maximum', 100_000, 86_400],
@@ -636,9 +569,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
 
       const credentials = await provider.createRealtimeCredentials({ ttlSeconds: 60 });
 
-      // Minting a key has no second effect: a duplicate is one unused key that
-      // expires within the minute. That is what makes the ambiguity of a 5xx
-      // worth another attempt here and not on the submission.
       expect(credentials.token).toBe('temporary-jwt-value');
       expect(requests).toHaveLength(2);
       expect(delays).toEqual([100]);
@@ -658,9 +588,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(credentials.token).toBe('temporary-jwt-value');
       expect(attempts.sent).toBe(2);
       expect(delays).toEqual([100]);
-      // A retried request is a problem being handled, so it is written at
-      // `warn`: an operator cutting noise to `warn` keeps it and loses only
-      // the routine progress lines.
       expect(logger.entries.map((entry) => entry.level)).toEqual(['warn']);
     });
 
@@ -689,12 +616,6 @@ describe('SpeechmaticsTranscriptionProvider', () => {
     });
   });
 
-  /**
-   * The translation itself is pinned against real payloads in
-   * `speechmatics-callback.test.ts`. What these two assert is that it is
-   * reachable through the port, because a translation nothing can call leaves
-   * the webhook route's coupling to the vendor exactly where it was.
-   */
   describe('interpretCallback', () => {
     it('answers a success callback in the platform terms the caller expects', async () => {
       const { provider } = buildProvider();

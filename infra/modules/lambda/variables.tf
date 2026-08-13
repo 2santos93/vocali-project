@@ -22,11 +22,6 @@ variable "function_names" {
   description = "Logical name to full function name, from the functions module. The names have to match, because the log groups were created after them."
   type        = map(string)
 
-  # Deliberately no count here. A number in a validation is a second place to
-  # remember, and it was already wrong once: four functions were added and this
-  # still demanded eight. The `check` block in main.tf compares these keys
-  # against the module's own catalogue instead, so the assertion cannot drift
-  # from the thing it is asserting about.
 }
 
 variable "role_arns" {

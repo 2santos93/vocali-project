@@ -21,10 +21,6 @@ describe('SaveRealtimeTranscriptionRequestSchema', () => {
   });
 
   it('rejects an unsupported language code, matching the upload path', () => {
-    // Both entry points write to the same table and are read by the same
-    // history view, so a language accepted here but rejected on upload would
-    // put a value in storage that the rest of the system treats as invalid.
-    // 'xx' is the exact code the upload schema rejects.
     const result = SaveRealtimeTranscriptionRequestSchema.safeParse({
       ...validRequest,
       language: 'xx',

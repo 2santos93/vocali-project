@@ -6,12 +6,6 @@ import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import { useDropdown } from '../dropdown';
 import ThemeSwitch from './ThemeSwitch.vue';
 
-/**
- * A disclosure, deliberately not a `role="menu"`. The panel holds a switch and
- * two buttons; `role="menu"` would promise arrow-key navigation and Tab
- * leaving the whole menu, which these do not implement. As ordinary controls
- * Tab walks them in order and each announces what it actually is.
- */
 interface Props {
   email: string;
   preference: ThemePreference;
@@ -93,10 +87,6 @@ const initial = computed<string>(() => props.email.trim().charAt(0).toUpperCase(
 
       <hr class="my-1 border-line" />
 
-      <!-- The menu stays open while the request is in flight: closing it on the
-           press would take the spinner with it, leaving a header that looks
-           idle mid sign-out. The layout replaces the chrome when the session
-           ends, which is what closes this. -->
       <button
         type="button"
         :disabled="signingOut"

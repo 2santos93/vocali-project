@@ -20,17 +20,6 @@ export class DynamoConnectionTicketStore implements ConnectionTicketStore {
     );
   }
 
-  /**
-   * **The delete is the read.** `ReturnValues: 'ALL_OLD'` makes one
-   * `DeleteItem` both spend the ticket and say whose it was, so two `$connect`
-   * attempts with the same ticket race inside DynamoDB and exactly one comes
-   * back with attributes. A `GetItem` then a `DeleteItem` looks equivalent and
-   * is not: between the calls both attempts read the same live ticket and both
-   * open a socket.
-   *
-   * The ticket is spent whether or not it was still valid — one that survived
-   * its own rejection could be retried until a clock skew let it through.
-   */
   async redeem(input: { ticket: string; now: Date }): Promise<{ userId: string } | null> {
     const response = await this.client.send(
       new DeleteCommand({
@@ -46,9 +35,6 @@ export class DynamoConnectionTicketStore implements ConnectionTicketStore {
 
     const stored = toRedeemedTicket(response.Attributes);
 
-    // Checked here rather than left to the table's TTL, which deletes within
-    // days of an expiry rather than at it. Relying on it alone would leave a
-    // thirty-second credential usable for two more days.
     if (stored.expiresAt.getTime() <= input.now.getTime()) return null;
 
     return { userId: stored.userId };

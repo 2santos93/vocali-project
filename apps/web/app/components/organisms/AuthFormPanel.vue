@@ -21,9 +21,6 @@ const { t } = useTranslations();
 </script>
 
 <template>
-  <!-- `flex-1` rather than `min-h-screen`: the panel sits below the preference
-       controls, and a full viewport height under them pushes the form off the
-       bottom of the screen by exactly their height. -->
   <div class="flex flex-1 items-center justify-center px-4 py-10">
     <div class="w-full max-w-md">
       <div class="mb-6 text-center">

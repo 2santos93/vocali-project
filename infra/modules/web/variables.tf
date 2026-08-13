@@ -34,11 +34,6 @@ variable "environment_variables" {
   default     = {}
 
   validation {
-    # A guard rather than a convention. An environment variable is stored in
-    # plaintext and is legible to anyone holding
-    # lambda:GetFunctionConfiguration, so a secret placed here is disclosed by
-    # a read-only permission. Names ending in _PARAMETER are allowed through
-    # because they are the path, not the value.
     condition = alltrue([
       for name in keys(var.environment_variables) :
       !can(regex("(SECRET|PASSWORD|CREDENTIAL|PRIVATE_KEY|API_KEY|_TOKEN)$", name))
@@ -123,7 +118,7 @@ variable "force_destroy" {
 }
 
 variable "expose_ssr_publicly" {
-  description = "Publishes the renderer on its own function URL and creates no distribution. A temporary answer to an account that AWS has not yet verified for CloudFront: it costs the CDN, the cache and any future WAF, and it puts the function on a public address of its own. Returning it to false restores the intended shape — the distribution, the origin restricted to it, and the bucket readable by nothing else."
+  description = "Publishes the renderer on its own function URL and creates no distribution. A temporary answer to an account that AWS has not yet verified for CloudFront: it costs the CDN, the cache and any future WAF, and it puts the function on a public address of its own. Returning it to false restores the intended shape: the distribution, the origin restricted to it, and the bucket readable by nothing else."
   type        = bool
   default     = false
 }

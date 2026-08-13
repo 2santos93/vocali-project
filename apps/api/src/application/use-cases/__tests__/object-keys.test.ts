@@ -50,9 +50,6 @@ describe('parseAudioObjectKey', () => {
   });
 
   it('parses a key with extra trailing segments structurally, leaving rejection to the caller', () => {
-    // Deliberately permissive: four non-empty segments, so it parses.
-    // `StartFileTranscription.execute` is what rejects this, by comparing the
-    // full key against the record's own `audioObjectKey`.
     expect(parseAudioObjectKey('audio/user-1/01A/sub/dir/visit.mp3')).toEqual({
       userId: 'user-1',
       transcriptionId: '01A',

@@ -52,11 +52,6 @@ describe('CompleteTranscription', () => {
     expect(stored?.toPrimitives().updatedAt).toBe(NOW.toISOString());
   });
 
-  /*
-   * The upload screen no longer asks which language a recording is in, so this
-   * is the only moment the platform learns it. A completion that dropped it
-   * leaves every uploaded transcription permanently unnamed.
-   */
   it('records the language the provider identified', async () => {
     const { useCase, repository } = buildUseCase();
     const transcription = buildTranscription({ id: '01A', userId: 'user-1' });
@@ -228,9 +223,6 @@ describe('CompleteTranscription', () => {
 
   it('rejects completion for a corrupted stored status, without writing to storage', async () => {
     const { useCase, repository, storage } = buildUseCase();
-    // A corrupted stored status is not a valid transition source. This proves
-    // the pre-check catches it before any storage write, not merely that the
-    // entity would eventually reject it.
     const corrupted = Transcription.fromPrimitives({
       ...buildTranscription({ id: '01A', userId: 'user-1' }).toPrimitives(),
       status: 'ARCHIVED' as unknown as TranscriptionStatus,

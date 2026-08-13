@@ -34,15 +34,6 @@ describe('IssueConnectionTicket', () => {
     expect(tickets.calls.issued[0]?.ticket).toBe('ticket-001');
   });
 
-  /*
-   * The lifetime is asserted as a literal, not imported from `constants.ts`: a
-   * test that imports the constant it checks asserts `constant === constant`
-   * and stays green through the window being widened to an hour.
-   *
-   * Asserted on the stored expiry and the one the client is told, because a
-   * store expiring on a different schedule from the browser's promise produces
-   * a connect that fails for no visible reason.
-   */
   it('expires the ticket thirty seconds after the injected clock', async () => {
     const { useCase, tickets } = buildUseCase();
 
@@ -65,9 +56,6 @@ describe('IssueConnectionTicket', () => {
     const { useCase, tickets } = buildUseCase();
     tickets.failNextWith = new Error('table unavailable');
 
-    // A ticket handed to a browser that the store never accepted produces a
-    // connect that is denied, which reads to the user as the feature being
-    // broken rather than as the request having failed.
     await expect(useCase.execute({ userId: 'user-1' })).rejects.toThrow('table unavailable');
   });
 });

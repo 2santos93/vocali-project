@@ -51,11 +51,6 @@ describe('GetTranscriptionDownloadUrl', () => {
       `https://storage.test/download/${TRANSCRIPTS_BUCKET}/transcripts/user-1/01A.txt`,
     );
     expect(result.value.format).toBe('txt');
-    // Both stay literals even though DOWNLOAD_URL_TTL_SECONDS is one import
-    // away: importing it would make each `expect(constant).toBe(constant)`,
-    // which pins nothing. The two must also agree — a link the client believes
-    // lasts fifteen minutes while the signature expires sooner is a download
-    // that fails after the user has already clicked it.
     expect(result.value.expiresAt).toBe('2026-08-10T12:15:00.000Z');
 
     expect(storage.calls.presignedDownloads).toHaveLength(1);

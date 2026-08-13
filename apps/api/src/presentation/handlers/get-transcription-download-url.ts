@@ -14,14 +14,7 @@ import type {
 } from '../types/http.js';
 import type { GetTranscriptionDownloadUrlDependencies } from '../types/dependencies.js';
 
-/**
- * `GET /transcriptions/{transcriptionId}/download?format=txt|json`.
- *
- * The only endpoint validating two sources, so the query middleware is applied
- * inside the path one and closes over the id it produced. A record that is not
- * `COMPLETED` yet is answered 409 rather than 404: it exists and is not ready,
- * and "not found" would send the client looking for a bug instead of waiting.
- */
+// GET /transcriptions/{transcriptionId}/download
 export function getTranscriptionDownloadUrlHandler(
   dependencies: GetTranscriptionDownloadUrlDependencies,
 ): ApiGatewayRequestHandler {

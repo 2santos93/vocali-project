@@ -22,10 +22,5 @@ export interface Dropdown {
   show: () => void;
   /** Closes and leaves the focus where it is. For a click on an option. */
   close: () => void;
-  /**
-   * Closes and puts the focus back on the trigger. For Escape: a panel that
-   * vanishes and drops the focus onto `<body>` sends a keyboard user back to
-   * the top of the page.
-   */
   dismiss: () => void;
 }

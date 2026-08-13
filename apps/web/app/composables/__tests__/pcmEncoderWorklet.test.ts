@@ -2,12 +2,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { runInThisContext } from 'node:vm';
 
-/**
- * Drives the real `public/worklets/pcm-encoder.js`, read from disk. It cannot
- * be imported — no exports, and its top level calls `registerProcessor` — so
- * it is evaluated against stand-ins for `AudioWorkletGlobalScope`. That pins
- * the artifact the browser fetches rather than a copy of its arithmetic.
- */
 const WORKLET_SOURCE_PATH = path.join(__dirname, '../../../public/worklets/pcm-encoder.js');
 
 interface AudioProcessor {
@@ -44,14 +38,6 @@ function loadWorklet(): LoadedWorklet {
   }
   const registrations: Registration[] = [];
 
-  /*
-   * Compiled in this context rather than a fresh one, so `Int16Array` and
-   * `ArrayBuffer` are the same constructors the assertions use; across realms
-   * the frames come back as objects this process does not see as typed arrays.
-   *
-   * The only string compiled is a file from this repository, at a path fixed
-   * at module load. Nothing a user supplies reaches it.
-   */
   const evaluate = runInThisContext(
     `(function (AudioWorkletProcessor, registerProcessor) {\n${source}\n})`,
     { filename: WORKLET_SOURCE_PATH },
@@ -90,11 +76,6 @@ describe('pcm-encoder worklet', () => {
     expect(loadWorklet().registeredName).toBe('pcm-encoder');
   });
 
-  /*
-   * If this conversion is wrong the socket still opens, audio still flows and
-   * the provider still answers — with a transcript of noise. Nothing upstream
-   * detects that, which is why it is pinned sample by sample.
-   */
   it('converts float samples to signed 16-bit', () => {
     const worklet = loadWorklet();
 
@@ -103,11 +84,6 @@ describe('pcm-encoder worklet', () => {
     expect(Array.from(frame)).toEqual([0, 16384, -16384, 8192]);
   });
 
-  /*
-   * Each polarity is scaled separately because two's complement has one more
-   * step below zero than above it: scaling the positive side by 32768 wraps
-   * full scale round to -32768, a click at the loudest moment of the dictation.
-   */
   it('scales each polarity to its own full-scale value', () => {
     const worklet = loadWorklet();
 
@@ -117,11 +93,6 @@ describe('pcm-encoder worklet', () => {
     expect(frame[1]).toBe(-32768);
   });
 
-  /*
-   * The renderer's floats are only nominally bounded, and an Int16Array wraps
-   * rather than saturates: an unclamped overshoot becomes a burst at the
-   * opposite polarity instead of merely being too loud.
-   */
   it('clamps a sample that overshoots the nominal range', () => {
     const worklet = loadWorklet();
 
@@ -161,11 +132,6 @@ describe('pcm-encoder worklet', () => {
     expect(Array.from(new Int16Array(worklet.posted[0]!))).toEqual([16384]);
   });
 
-  /*
-   * Returning false lets the browser collect the node, and a momentarily
-   * starved input produces an empty block — ending the capture there leaves
-   * the interface showing a recording that sends nothing.
-   */
   it.each([
     ['no input at all', [] as Float32Array[][]],
     ['an input with no channels', [[]] as Float32Array[][]],
