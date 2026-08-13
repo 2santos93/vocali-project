@@ -57,7 +57,11 @@ export default {
     '!server/utils/cognito-gateway.ts',
     '!server/utils/auth-runtime.ts',
     '!server/utils/http.ts',
+
+    // Nitro entry points. Both are defined by an auto-import that only exists
+    // inside the server build, so Jest cannot construct either one.
     '!server/api/**',
+    '!server/plugins/**',
   ],
 
   coverageThreshold: {
