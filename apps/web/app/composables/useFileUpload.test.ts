@@ -6,17 +6,13 @@ import type {
 } from '@vocali/contracts';
 import {
   buildPresignedPostForm,
-  createUploadRequests,
   StorageUploadError,
   uploadToPresignedPost,
-  useFileUpload,
-} from './useFileUpload';
-import type {
-  ApiRequestOptions,
-  ApiRequester,
-  FileUploadGateway,
-  PresignedPostUpload,
-} from './useFileUpload';
+} from './presigned-post-upload';
+import type { PresignedPostUpload } from './presigned-post-upload';
+import type { ApiRequestOptions, ApiRequester } from '../utils/api-request';
+import { createUploadRequests, useFileUpload } from './useFileUpload';
+import type { FileUploadGateway } from './useFileUpload';
 import type { TranscriptionUpdateStream, UpdateStreamHandlers } from './useTranscriptionUpdates';
 
 function fileOf(name: string, type: string, size: number): File {
@@ -440,6 +436,38 @@ describe('uploadToPresignedPost', () => {
       expect((error as StorageUploadError).detail).toEqual({ key });
     });
     await expect(settled).rejects.toBeInstanceOf(StorageUploadError);
+  });
+
+  /*
+   * Every case above hands in a request factory, which left the default — the
+   * factory production actually uses — as the one line of this file no test
+   * entered. The page calls `uploadToPresignedPost` with the upload alone, so
+   * a default that stopped producing a working request would fail there and
+   * nowhere else: the bar would never move and the upload would reject with a
+   * `TypeError` rather than with anything the screen has words for.
+   */
+  it('builds a browser request of its own when the caller supplies no factory', async () => {
+    const double = requestDouble();
+    const construct = jest.fn(() => double.request);
+    const browserRequest = globalThis.XMLHttpRequest;
+    Object.assign(globalThis, { XMLHttpRequest: construct });
+
+    try {
+      const settled = uploadToPresignedPost({
+        url: INTENT.upload.url,
+        fields: PRESIGNED_FIELDS,
+        file: AUDIO_FILE,
+      });
+
+      double.emit('load');
+      await expect(settled).resolves.toBeUndefined();
+
+      expect(construct).toHaveBeenCalledTimes(1);
+      expect(double.opened).toEqual([{ method: 'POST', url: INTENT.upload.url }]);
+      expect(double.sent).toHaveLength(1);
+    } finally {
+      Object.assign(globalThis, { XMLHttpRequest: browserRequest });
+    }
   });
 });
 

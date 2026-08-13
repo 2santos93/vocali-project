@@ -183,6 +183,38 @@ describe('buildTranscriptFileName', () => {
   });
 });
 
+/*
+ * Every case above hands in a `followUrl`, which left the default — the one
+ * the history table actually runs — untested. The page constructs the
+ * composable with the requester alone, so a default that stopped reaching the
+ * browser would fail there and nowhere else, as a download button that does
+ * nothing at all and reports no error.
+ */
+describe('useTranscriptionDownload, with no follower supplied', () => {
+  it('hands the signed URL to the browser itself', async () => {
+    const clicked: { href: string; download: string }[] = [];
+    const click = jest
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function replaceNavigation(this: HTMLAnchorElement): void {
+        clicked.push({ href: this.href, download: this.download });
+      });
+    const requestUrl = jest.fn().mockResolvedValue(signedUrlResponse());
+
+    try {
+      await useTranscriptionDownload(requestUrl).download(makeTranscription());
+
+      expect(clicked).toEqual([
+        {
+          href: 'https://storage.example.com/transcripts/transcription-1.txt?signature=abc',
+          download: 'consulta.txt',
+        },
+      ]);
+    } finally {
+      click.mockRestore();
+    }
+  });
+});
+
 describe('followDownloadUrlInBrowser', () => {
   it('clicks an anchor carrying the URL, and leaves nothing behind', () => {
     const clicked: { href: string; download: string }[] = [];

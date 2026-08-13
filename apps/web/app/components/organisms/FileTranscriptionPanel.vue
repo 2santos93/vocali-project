@@ -11,7 +11,7 @@ import AlertBanner from '../molecules/AlertBanner.vue';
 import FileDropZone from '../molecules/FileDropZone.vue';
 import FormField from '../molecules/FormField.vue';
 import type { FileRejection, SelectOption } from '../types';
-import type { FileUploadFailure, FileUploadPhase } from '../../composables/useFileUpload';
+import type { FileUploadFailure, FileUploadPhase } from '../../composables/upload-failures';
 import type { TranslatableMessage } from '../../i18n/translate';
 import { useTranslations } from '../../i18n/translations';
 import { transcriptionLanguageOptions, toTranscriptionLanguage } from '../transcription-languages';
@@ -120,122 +120,162 @@ function onReset(): void {
 </script>
 
 <template>
-  <section class="flex flex-col gap-5" aria-labelledby="file-transcription-heading">
-    <h2 id="file-transcription-heading" class="text-lg font-semibold text-ink">
-      {{ t('file.heading') }}
-    </h2>
+  <!--
+    The same two columns as the dictation screen, and for the same reason: what
+    the user provides on the left, what comes back on the right, with one rule
+    between them. Reading them as one shape across both screens is worth more
+    than either arrangement is on its own.
+  -->
+  <section
+    class="overflow-hidden rounded-panel border border-line bg-surface"
+    aria-labelledby="file-transcription-heading"
+  >
+    <!-- The page's <h1> already says this. Kept as the section's name, and
+         hidden, rather than printed twice. -->
+    <h2 id="file-transcription-heading" class="sr-only">{{ t('file.heading') }}</h2>
 
-    <!-- A warning rather than an error: nothing has been attempted yet, and
-         the client-side checks are a courtesy — the storage policy is what
-         enforces the limit. -->
-    <AlertBanner
-      v-if="warning !== null"
-      variant="warning"
-      :message="t(warning)"
-      data-testid="rejection-alert"
-    />
-
-    <AlertBanner
-      v-if="failure !== null"
-      variant="error"
-      :title="t('file.failureTitle')"
-      :message="t(failure.message)"
-      data-testid="failure-alert"
-    />
-
-    <FileDropZone
-      input-id="audio-file"
-      :disabled="isBusy"
-      :selected-file-name="selectedFileName"
-      @select="onSelect"
-      @reject="onReject"
-    />
-
-    <FormField id="audio-language" :label="t('file.language')" :hint="t('file.languageHint')">
-      <template #default="{ id, describedBy }">
-        <BaseSelect
-          :id="id"
-          :model-value="language"
-          :options="languageOptions"
+    <div class="grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div class="flex flex-col gap-5 border-b border-line p-5 lg:border-b-0 lg:border-r lg:p-6">
+        <FileDropZone
+          input-id="audio-file"
           :disabled="isBusy"
-          :described-by="describedBy"
-          @update:model-value="onLanguageChange"
+          :selected-file-name="selectedFileName"
+          @select="onSelect"
+          @reject="onReject"
         />
-      </template>
-    </FormField>
 
-    <div class="flex flex-wrap items-center gap-3">
-      <BaseButton
-        :disabled="isBusy"
-        :loading="isBusy"
-        :loading-label="t('file.submitting')"
-        data-testid="submit-button"
-        @click="onSubmit"
-      >
-        {{ t('file.submit') }}
-      </BaseButton>
+        <FormField id="audio-language" :label="t('file.language')" :hint="t('file.languageHint')">
+          <template #default="{ id, describedBy }">
+            <BaseSelect
+              :id="id"
+              :model-value="language"
+              :options="languageOptions"
+              :disabled="isBusy"
+              :described-by="describedBy"
+              @update:model-value="onLanguageChange"
+            />
+          </template>
+        </FormField>
 
-      <BaseButton v-if="isFinished" variant="secondary" data-testid="reset-button" @click="onReset">
-        {{ t('file.again') }}
-      </BaseButton>
-    </div>
+        <div class="flex flex-col gap-2">
+          <BaseButton
+            block
+            size="lg"
+            :disabled="isBusy"
+            :loading="isBusy"
+            :loading-label="t('file.submitting')"
+            data-testid="submit-button"
+            @click="onSubmit"
+          >
+            {{ t('file.submit') }}
+          </BaseButton>
 
-    <!-- Real progress, from XMLHttpRequest's progress event. It is shown only
-         while the file is on its way: a bar during the transcription itself
-         would be measuring nothing. -->
-    <ProgressBar
-      v-if="phase === 'uploading'"
-      :value="progress"
-      :label="t('file.uploading')"
-      data-testid="upload-progress"
-    />
+          <BaseButton
+            v-if="isFinished"
+            block
+            variant="secondary"
+            data-testid="reset-button"
+            @click="onReset"
+          >
+            {{ t('file.again') }}
+          </BaseButton>
+        </div>
 
-    <p
-      v-if="phase === 'requesting'"
-      class="flex items-center gap-2 text-sm text-ink-muted"
-      role="status"
-    >
-      <SpinnerIcon :label="t('file.preparing')" />
-      {{ t('file.preparingNotice') }}
-    </p>
+        <!-- Real progress, from XMLHttpRequest's progress event. It is shown
+             only while the file is on its way: a bar during the transcription
+             itself would be measuring nothing. -->
+        <ProgressBar
+          v-if="phase === 'uploading'"
+          :value="progress"
+          :label="t('file.uploading')"
+          data-testid="upload-progress"
+        />
 
-    <p
-      v-if="phase === 'processing'"
-      class="flex items-center gap-2 text-sm text-ink-muted"
-      role="status"
-      data-testid="processing-notice"
-    >
-      <SpinnerIcon :label="t('file.submitting')" />
-      {{ t('file.processingNotice') }}
-    </p>
+        <p
+          v-if="phase === 'requesting'"
+          class="flex items-center gap-2 text-sm text-ink-muted"
+          role="status"
+        >
+          <SpinnerIcon :label="t('file.preparing')" />
+          {{ t('file.preparingNotice') }}
+        </p>
 
-    <!-- Not an error: the audio is stored and the work is still running. The
-         history is where it will appear, so that is what this says. -->
-    <AlertBanner
-      v-if="phase === 'stillProcessing'"
-      variant="info"
-      :title="t('file.stillProcessingTitle')"
-      :message="t('file.stillProcessingMessage')"
-      data-testid="still-processing-alert"
-    />
+        <p
+          v-if="phase === 'processing'"
+          class="flex items-center gap-2 text-sm text-ink-muted"
+          role="status"
+          data-testid="processing-notice"
+        >
+          <SpinnerIcon :label="t('file.submitting')" />
+          {{ t('file.processingNotice') }}
+        </p>
 
-    <div
-      v-if="transcription !== null"
-      class="flex flex-col gap-3 rounded-panel border border-line bg-surface p-4"
-      data-testid="transcription-result"
-    >
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="text-sm font-medium text-ink">{{ transcription.fileName }}</p>
-        <StatusBadge :status="transcription.status" />
+        <!-- A warning rather than an error: nothing has been attempted yet, and
+             the client-side checks are a courtesy — the storage policy is what
+             enforces the limit. It sits under the controls it is about, so the
+             refused file and the reason are read together. -->
+        <AlertBanner
+          v-if="warning !== null"
+          variant="warning"
+          :message="t(warning)"
+          data-testid="rejection-alert"
+        />
+
+        <AlertBanner
+          v-if="failure !== null"
+          variant="error"
+          :title="t('file.failureTitle')"
+          :message="t(failure.message)"
+          data-testid="failure-alert"
+        />
       </div>
 
-      <p
-        v-if="transcription.textPreview !== null"
-        class="whitespace-pre-wrap text-sm text-ink-muted"
-        data-testid="transcription-preview"
-      >
-        {{ transcription.textPreview }}
-      </p>
+      <div class="flex min-w-0 flex-col gap-3 bg-surface-muted p-5 lg:p-6">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          {{ t('file.resultHeading') }}
+        </h3>
+
+        <!-- Not an error: the audio is stored and the work is still running.
+             The history is where it will appear, so that is what this says. -->
+        <AlertBanner
+          v-if="phase === 'stillProcessing'"
+          variant="info"
+          :title="t('file.stillProcessingTitle')"
+          :message="t('file.stillProcessingMessage')"
+          data-testid="still-processing-alert"
+        />
+
+        <div
+          v-if="transcription !== null"
+          class="flex min-h-64 flex-col gap-3 lg:min-h-80"
+          data-testid="transcription-result"
+        >
+          <div
+            class="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-line bg-surface px-4 py-3"
+          >
+            <p class="text-sm font-medium text-ink">{{ transcription.fileName }}</p>
+            <StatusBadge :status="transcription.status" />
+          </div>
+
+          <p
+            v-if="transcription.textPreview !== null"
+            class="whitespace-pre-wrap text-base leading-relaxed text-ink"
+            data-testid="transcription-preview"
+          >
+            {{ transcription.textPreview }}
+          </p>
+        </div>
+
+        <!-- The column has to say something before there is a result, or the
+             larger half of the screen is an unexplained empty space. -->
+        <p
+          v-else
+          class="min-h-64 text-sm text-ink-muted lg:min-h-80"
+          data-testid="result-placeholder"
+        >
+          {{ t('file.resultPlaceholder') }}
+        </p>
+      </div>
     </div>
   </section>
 </template>

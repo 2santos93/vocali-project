@@ -35,6 +35,43 @@ export const THEME_COOKIE = 'vocali_theme';
 /** A year. Nothing about a theme preference expires with a session. */
 export const THEME_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
+/**
+ * Which of the two palettes a reader is actually looking at.
+ *
+ * A preference has three values and a screen only ever has two, and the gap
+ * between them is not academic: a switch in the account menu has to show the
+ * position the page is *painted* in, or somebody on a machine set to dark
+ * meets a control that says "off" on a dark screen and stops trusting it.
+ */
+export type EffectiveTheme = 'light' | 'dark';
+
+/**
+ * The media query that answers the one question the server cannot.
+ *
+ * Here rather than written out in the composable so that the string the
+ * browser is asked and the string this module reasons about are the same one.
+ */
+export const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
+
+/**
+ * The palette on screen, given what was chosen and what the machine asked for.
+ *
+ * `systemPrefersDark` is only consulted for `system`. That is the whole point
+ * of the third value: an explicit `light` on a machine set to dark is a reader
+ * overruling their operating system, and a function that let the machine win
+ * there would quietly undo the choice they just made.
+ */
+export function effectiveTheme(
+  preference: ThemePreference,
+  systemPrefersDark: boolean,
+): EffectiveTheme {
+  if (preference === 'system') {
+    return systemPrefersDark ? 'dark' : 'light';
+  }
+
+  return preference;
+}
+
 const THEME_CLASSES: Record<ThemePreference, string> = {
   light: 'theme-light',
   dark: 'theme-dark',

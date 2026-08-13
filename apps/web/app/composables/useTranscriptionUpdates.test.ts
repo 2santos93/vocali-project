@@ -1,10 +1,7 @@
 import type { ConnectionTicketResponse, Transcription } from '@vocali/contracts';
+import type { ApiRequestOptions } from '../utils/api-request';
 import { createUpdateStreamOpener, UpdateStreamError } from './useTranscriptionUpdates';
-import type {
-  ApiRequestOptions,
-  SocketLike,
-  UpdateStreamHandlers,
-} from './useTranscriptionUpdates';
+import type { SocketLike, UpdateStreamHandlers } from './useTranscriptionUpdates';
 
 const TICKET: ConnectionTicketResponse = {
   ticket: 'Zx91QeRt44PLm_-abc',
@@ -299,5 +296,39 @@ describe('createUpdateStreamOpener', () => {
       harness.socket.deliver(frame);
     }).not.toThrow();
     expect(handlers.received).toEqual([]);
+  });
+
+  /*
+   * Every case above injects a socket factory, which left the default — the
+   * one production uses — untested, and it is the line that decides what the
+   * browser actually dials. The page opens the stream with the requester
+   * alone, so a URL that stopped carrying the ticket would fail there and
+   * nowhere else: the handshake would be refused by the `$connect` authorizer,
+   * the caller would fall back to polling, and the only visible symptom would
+   * be a settled transcription arriving two minutes late.
+   */
+  it('dials the browser socket at the ticket URL when no factory is supplied', async () => {
+    const dialled: string[] = [];
+    const constructed: SocketDouble[] = [];
+    const construct = jest.fn((url: string): SocketDouble => {
+      dialled.push(url);
+      const socket = socketDouble(dialled);
+      constructed.push(socket);
+      return socket;
+    });
+    const browserSocket = globalThis.WebSocket;
+    Object.assign(globalThis, { WebSocket: construct });
+
+    try {
+      const opener = createUpdateStreamOpener(() => Promise.resolve(TICKET));
+      const opening = opener(recordingHandlers());
+      await Promise.resolve();
+      constructed[0]!.open();
+      await opening;
+
+      expect(dialled).toEqual(['wss://sockets.test/live?ticket=Zx91QeRt44PLm_-abc']);
+    } finally {
+      Object.assign(globalThis, { WebSocket: browserSocket });
+    }
   });
 });

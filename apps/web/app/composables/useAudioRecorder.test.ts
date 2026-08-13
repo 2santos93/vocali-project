@@ -4,20 +4,15 @@ import type {
   Transcription,
 } from '@vocali/contracts';
 import {
-  createRealtimeRequests,
   createWorkletAudioCapture,
   MicrophoneError,
   PCM_ENCODER_PROCESSOR_NAME,
   PCM_ENCODER_WORKLET_URL,
-  useAudioRecorder,
-} from './useAudioRecorder';
-import type { ApiRequestOptions, ApiRequester } from './useFileUpload';
-import type {
-  AudioCapture,
-  AudioCaptureDependencies,
-  AudioCaptureOptions,
-  AudioRecorderDependencies,
-} from './useAudioRecorder';
+} from './audio-capture';
+import type { AudioCapture, AudioCaptureDependencies, AudioCaptureOptions } from './audio-capture';
+import type { ApiRequestOptions, ApiRequester } from '../utils/api-request';
+import { createRealtimeRequests, useAudioRecorder } from './useAudioRecorder';
+import type { AudioRecorderDependencies } from './useAudioRecorder';
 
 const SESSION: RealtimeSessionResponse = {
   token: 'jwt-abc123',
@@ -86,6 +81,8 @@ interface SocketDouble {
   open(): void;
   receive(payload: unknown): void;
   receiveRaw(data: unknown): void;
+  /** The detail-free `error` event a browser fires just before it closes. */
+  fail(): void;
   drop(code: number): void;
 }
 
@@ -138,6 +135,12 @@ function socketDouble(): SocketDouble {
     receiveRaw(data: unknown): void {
       for (const listener of listeners.get('message') ?? []) {
         listener({ data } as MessageEvent);
+      }
+    },
+
+    fail(): void {
+      for (const listener of listeners.get('error') ?? []) {
+        listener(new Event('error'));
       }
     },
 
@@ -570,6 +573,45 @@ describe('createWorkletAudioCapture', () => {
     expect(deps.contextClosed).toBe(1);
   });
 
+  /*
+   * A failure that already knows what it is keeps its own words.
+   *
+   * The catch around the graph turns anything it does not recognise into "this
+   * browser cannot record", which is the right answer for a missing
+   * `AudioWorklet` and the wrong one for everything else. A dependency that
+   * raised a `MicrophoneError` has already identified the failure precisely,
+   * and replacing its message would send the user to check their browser when
+   * the problem is their device.
+   */
+  it('keeps a device failure raised while building the graph, rather than blaming the browser', async () => {
+    const deps = captureHarness();
+    const known = new MicrophoneError('NO_MICROPHONE', { key: 'failure.microphone.missing' });
+    deps.createAudioContext = (): AudioContext => {
+      throw known;
+    };
+
+    const failure = await createWorkletAudioCapture(deps)
+      .start({ sampleRate: 16_000, onFrame: () => undefined })
+      .catch((error: unknown) => error);
+
+    expect(failure).toBe(known);
+  });
+
+  it('reports a browser with no worklet support as exactly that', async () => {
+    const deps = captureHarness();
+    deps.createAudioContext = (): AudioContext => {
+      throw new TypeError('AudioWorkletNode is not defined');
+    };
+
+    const failure = await createWorkletAudioCapture(deps)
+      .start({ sampleRate: 16_000, onFrame: () => undefined })
+      .catch((error: unknown) => error);
+
+    expect((failure as MicrophoneError).detail).toEqual({
+      key: 'failure.microphone.unsupportedBrowser',
+    });
+  });
+
   it('stops the tracks and closes the context on a normal stop', async () => {
     const deps = captureHarness();
     const capture = createWorkletAudioCapture(deps);
@@ -584,6 +626,152 @@ describe('createWorkletAudioCapture', () => {
 
   it('is safe to stop when it never started', async () => {
     await expect(createWorkletAudioCapture(captureHarness()).stop()).resolves.toBeUndefined();
+  });
+
+  /*
+   * `getUserMedia` rejects with a `DOMException` in every browser that
+   * implements it, and the code above reads only the `name` off it. It reads
+   * it defensively all the same, and this is why: a rejection that is a string
+   * — which is what a shimmed or extension-wrapped `getUserMedia` can produce
+   * — must still arrive at the screen as a sentence. Read carelessly it would
+   * be a `TypeError` thrown inside the failure handler, which is a blank
+   * screen instead of an explanation.
+   */
+  it.each([
+    ['a string', 'the device fell over'],
+    ['nothing', undefined],
+    ['an object with a name that is not a string', { name: 404 }],
+  ])(
+    'still explains itself when the microphone rejects with %s',
+    async (_name: string, rejection: unknown) => {
+      const deps = captureHarness();
+      // The harness is typed for the rejection browsers actually produce. This
+      // is the point: `getUserMedia` is not obliged to reject with an `Error`,
+      // and the capture is written not to assume it does.
+      deps.microphoneRejection = rejection as Error;
+
+      const failure = await createWorkletAudioCapture(deps)
+        .start({ sampleRate: 16_000, onFrame: () => undefined })
+        .catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(MicrophoneError);
+      expect((failure as MicrophoneError).code).toBe('CAPTURE_FAILED');
+      expect((failure as MicrophoneError).detail).toEqual({ key: 'failure.microphone.busy' });
+    },
+  );
+
+  /*
+   * The default dependencies, which are the only lines in the front end that
+   * name the browser's audio APIs.
+   *
+   * Everything above drives the capture through injected collaborators, so
+   * until this block existed the three-line adapter that production actually
+   * runs was the one part of the file no test had entered. The wiring it
+   * carries is not free of consequence: the sample rate reaching the
+   * `AudioContext` constructor is what makes the context render at the
+   * provider's rate instead of the device's, and a rate that never arrives
+   * does not fail — it transcribes noise, convincingly enough that nothing
+   * downstream can tell.
+   */
+  describe('with no dependencies supplied', () => {
+    interface BrowserDouble {
+      readonly constraints: MediaStreamConstraints[];
+      readonly contextOptions: (AudioContextOptions | undefined)[];
+      /** Every context constructed, so a node can be checked against the right one. */
+      readonly contexts: unknown[];
+      readonly addedModules: string[];
+      readonly nodes: { context: unknown; name: string }[];
+    }
+
+    function installBrowserAudio(): BrowserDouble {
+      const double: BrowserDouble = {
+        constraints: [],
+        contextOptions: [],
+        contexts: [],
+        addedModules: [],
+        nodes: [],
+      };
+
+      class AudioContextDouble {
+        public readonly destination = { id: 'destination' };
+        public readonly audioWorklet = {
+          addModule: (url: string): Promise<void> => {
+            double.addedModules.push(url);
+            return Promise.resolve();
+          },
+        };
+
+        constructor(options?: AudioContextOptions) {
+          double.contextOptions.push(options);
+          double.contexts.push(this);
+        }
+
+        public createMediaStreamSource(): { connect: () => void } {
+          return { connect: (): void => undefined };
+        }
+
+        public close(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+
+      class AudioWorkletNodeDouble {
+        public readonly port: { onmessage: ((event: MessageEvent<ArrayBuffer>) => void) | null } = {
+          onmessage: null,
+        };
+
+        constructor(context: unknown, name: string) {
+          double.nodes.push({ context, name });
+        }
+
+        public connect(): void {
+          // The graph is what is asserted here, not any audio travelling it.
+        }
+
+        public disconnect(): void {
+          // Same.
+        }
+      }
+
+      // jsdom implements none of these, so the doubles are the whole browser
+      // as far as this block is concerned.
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        writable: true,
+        value: {
+          getUserMedia: (constraints: MediaStreamConstraints): Promise<MediaStream> => {
+            double.constraints.push(constraints);
+            return Promise.resolve({ getTracks: () => [] } as unknown as MediaStream);
+          },
+        },
+      });
+
+      Object.assign(globalThis, {
+        AudioContext: AudioContextDouble,
+        AudioWorkletNode: AudioWorkletNodeDouble,
+      });
+
+      return double;
+    }
+
+    it('opens the browser microphone and builds the graph the worklet needs', async () => {
+      const browser = installBrowserAudio();
+
+      await createWorkletAudioCapture().start({
+        sampleRate: 16_000,
+        onFrame: () => undefined,
+      });
+
+      // Constructed at the provider's rate rather than resampled afterwards.
+      expect(browser.contextOptions).toEqual([{ sampleRate: 16_000 }]);
+      expect((browser.constraints[0]?.audio as MediaTrackConstraints).channelCount).toBe(1);
+      expect(browser.addedModules).toEqual(['/worklets/pcm-encoder.js']);
+      expect(browser.nodes.map((node) => node.name)).toEqual(['pcm-encoder']);
+      // On the context it just built, not on a second one: a node belonging to
+      // another context is never pulled and the worklet simply never runs.
+      expect(browser.contexts).toHaveLength(1);
+      expect(browser.nodes[0]?.context).toBe(browser.contexts[0]);
+    });
   });
 });
 
@@ -920,6 +1108,77 @@ describe('useAudioRecorder', () => {
       expect(controller.hasRecoverableText.value).toBe(true);
     });
 
+    /*
+     * Stopping while the handshake is still in flight.
+     *
+     * `stop` accepts the connecting phase on purpose — a user who presses stop
+     * during a slow handshake has stopped — and the socket at that moment is
+     * still CONNECTING. `send` on a socket that has not opened throws
+     * `InvalidStateError` in every browser, and it would be thrown from inside
+     * `stop`, past the teardown that releases the microphone: the recording
+     * indicator would stay lit on a dictation the user had already ended.
+     */
+    it('sends nothing down a socket that has not finished opening', async () => {
+      const deps = harness();
+      const controller = useAudioRecorder(deps);
+      await controller.start('es');
+      const socket = deps.sockets[0]!;
+      // Never opened, so `readyState` stays CONNECTING.
+      expect(controller.phase.value).toBe('connecting');
+      // `start` tears down whatever came before it, which counts as a stop even
+      // when there was nothing to stop. Zeroed so the assertion below measures
+      // the release of this dictation's microphone and nothing else.
+      deps.capture.stopCount = 0;
+
+      const stopping = controller.stop();
+      await flush();
+      deps.releaseDrainTimeout();
+      await stopping;
+
+      expect(socket.sentText).toEqual([]);
+      expect(deps.capture.stopCount).toBe(1);
+      expect(socket.closes).toEqual([1000]);
+      expect(controller.phase.value).toBe('failed');
+      expect(controller.failure.value?.code).toBe('NOTHING_TO_SAVE');
+    });
+
+    /*
+     * A transcript that arrived before the recorder was ever told recording had
+     * begun — a provider that sends its first words ahead of
+     * `RecognitionStarted`, which nothing in the protocol forbids.
+     *
+     * The duration is measured from the moment capture started, and there was
+     * no such moment. Without the guard the arithmetic runs against a null
+     * start and reports the whole of the clock as the length of the dictation:
+     * a sixteen-minute consultation in the history for a sentence, saved
+     * against a record a clinician has to believe.
+     */
+    it('saves a dictation that never started recording with no duration rather than the epoch', async () => {
+      const deps = harness();
+      const controller = useAudioRecorder(deps);
+      await controller.start('es');
+      const socket = deps.sockets[0]!;
+      socket.open();
+      socket.receive({
+        message: 'AddTranscript',
+        metadata: { transcript: 'El paciente refiere dolor lumbar.' },
+      });
+      deps.clock += 8_000;
+
+      const stopping = controller.stop();
+      await flush();
+      socket.receive({ message: 'EndOfTranscript' });
+      await stopping;
+
+      expect(deps.saves).toEqual([
+        {
+          text: 'El paciente refiere dolor lumbar.',
+          durationSeconds: 0,
+          language: 'es',
+        },
+      ]);
+    });
+
     it('saves the recovered text on a second attempt', async () => {
       const { deps, controller, socket } = await recordingHarness();
       socket.receive({ message: 'AddTranscript', metadata: { transcript: 'Texto valioso.' } });
@@ -998,15 +1257,84 @@ describe('useAudioRecorder', () => {
       expect(controller.hasRecoverableText.value).toBe(true);
     });
 
-    it('reports an Error frame saying the credential was refused the same way', async () => {
+    /*
+     * The provider spells a refused credential two ways — `not_authorised`
+     * when the token is rejected and `invalid_token` when it has expired — and
+     * they mean the same thing to the person holding the microphone. A
+     * dictation that reported the second as a generic provider fault would
+     * tell a clinician the transcription service is broken when their session
+     * has simply run out.
+     */
+    it.each(['not_authorised', 'invalid_token'])(
+      'reports an Error frame of type %s as the credential having expired',
+      async (type) => {
+        const { controller, socket } = await recordingHarness();
+        socket.receive({ message: 'AddTranscript', metadata: { transcript: 'Ya dicho.' } });
+
+        socket.receive({ message: 'Error', type, reason: 'Not authorised' });
+        await flush();
+
+        expect(controller.failure.value?.code).toBe('SESSION_EXPIRED');
+        expect(controller.failure.value?.message).toEqual({
+          key: 'failure.dictation.credentialExpired',
+        });
+        expect(controller.hasRecoverableText.value).toBe(true);
+      },
+    );
+
+    /*
+     * Every other Error frame is the provider failing, and must not be dressed
+     * up as an expired session. The two failures have different remedies —
+     * sign in again, or wait and try again — and sending a clinician to the
+     * wrong one costs them the time they came here to save.
+     */
+    it.each([
+      ['a fault the provider named', 'job_error'],
+      ['a type this client has never seen', 'something_new'],
+      ['a frame with no type at all', undefined],
+    ])(
+      'reports %s as the provider failing rather than as an expired session',
+      async (_name, type) => {
+        const { controller, socket } = await recordingHarness();
+        socket.receive({ message: 'AddTranscript', metadata: { transcript: 'Ya dicho.' } });
+
+        socket.receive({ message: 'Error', type, reason: 'Something went wrong' });
+        await flush();
+
+        expect(controller.failure.value?.code).toBe('PROVIDER_FAILED');
+        expect(controller.failure.value?.message).toEqual({
+          key: 'failure.dictation.providerFailed',
+        });
+        // Still recoverable: the words already on screen are still the
+        // clinician's, whatever the provider did next.
+        expect(controller.hasRecoverableText.value).toBe(true);
+      },
+    );
+
+    /*
+     * The `error` event carries no detail by design and is always followed by
+     * a close. Acting on it as well would publish a vague failure first and
+     * overwrite the specific one the close code affords — the difference
+     * between "se perdió la conexión" and "tu credencial ha caducado", told to
+     * someone who now has to work out which it was.
+     */
+    it('waits for the close code rather than failing on the detail-free error event', async () => {
       const { controller, socket } = await recordingHarness();
       socket.receive({ message: 'AddTranscript', metadata: { transcript: 'Ya dicho.' } });
 
-      socket.receive({ message: 'Error', type: 'not_authorised', reason: 'Not authorised' });
+      socket.fail();
       await flush();
 
-      expect(controller.failure.value?.code).toBe('SESSION_EXPIRED');
-      expect(controller.hasRecoverableText.value).toBe(true);
+      // Still recording: nothing has actually ended yet.
+      expect(controller.phase.value).toBe('recording');
+      expect(controller.failure.value).toBeNull();
+
+      socket.drop(4005);
+      await flush();
+
+      expect(controller.failure.value?.message).toEqual({
+        key: 'failure.dictation.quotaExceeded',
+      });
     });
 
     /*

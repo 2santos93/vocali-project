@@ -4,10 +4,12 @@ import {
   DEFAULT_THEME_PREFERENCE,
   THEME_COOKIE,
   THEME_COOKIE_MAX_AGE_SECONDS,
+  effectiveTheme,
   themeClass,
   toThemePreference,
 } from '../utils/theme';
 import type { ThemePreference } from '../utils/theme';
+import { useSystemPrefersDark } from './useSystemColorScheme';
 
 /**
  * The chosen theme, kept where the server can read it.
@@ -30,6 +32,13 @@ export interface ThemeControl {
   readonly preference: ComputedRef<ThemePreference>;
   /** What `<html>` carries: `theme-light`, `theme-dark`, or nothing at all. */
   readonly rootClass: ComputedRef<string>;
+  /**
+   * The palette actually on screen, with `system` already resolved against the
+   * machine. What a two-position switch shows, and nothing else: the class on
+   * `<html>` is still decided by the preference, because `system` has to stay
+   * the absence of a class for the stylesheet to reach the operating system.
+   */
+  readonly isDark: ComputedRef<boolean>;
   choose: (preference: ThemePreference) => void;
 }
 
@@ -56,9 +65,14 @@ export function useThemePreference(): ThemeControl {
     cookie.value = preference;
   }
 
+  const systemPrefersDark = useSystemPrefersDark();
+
   return {
     preference: computed<ThemePreference>(() => chosen.value),
     rootClass: computed<string>(() => themeClass(chosen.value)),
+    isDark: computed<boolean>(
+      () => effectiveTheme(chosen.value, systemPrefersDark.value) === 'dark',
+    ),
     choose,
   };
 }

@@ -1,4 +1,5 @@
 import { typeIntoField } from '../support/forms';
+import { chooseInterfaceLanguage, expectInterfaceLanguage } from '../support/preferences';
 import { SIGNED_IN_EMAIL, SIGN_IN_PASSWORD, stubSignIn } from '../support/session';
 import { buildTranscriptions } from '../support/transcriptions';
 
@@ -11,6 +12,11 @@ import { buildTranscriptions } from '../support/transcriptions';
  * *server* reads it and renders the first frame in the right language, that the
  * URL does not change, and that switching redraws the screen already on the
  * display rather than the next one.
+ *
+ * The control is a listbox rather than a `<select>` now — collapsed it is a
+ * flag and nothing else, so it fits a header with no room for a label — and
+ * `chooseInterfaceLanguage` is the two presses that costs. Everything these
+ * specs are about is unchanged by that.
  */
 
 /**
@@ -53,7 +59,7 @@ describe('Choosing the interface language', () => {
   it('redraws the screen already on display, without a reload', () => {
     cy.visit('/login');
 
-    cy.get('[data-testid=language-toggle]').select('en');
+    chooseInterfaceLanguage('en');
 
     cy.contains('h1', 'Sign in').should('be.visible');
     cy.contains('button', 'Sign in').should('be.visible');
@@ -68,7 +74,7 @@ describe('Choosing the interface language', () => {
    */
   it('is already in the HTML the server sends', () => {
     cy.visit('/login');
-    cy.get('[data-testid=language-toggle]').select('en');
+    chooseInterfaceLanguage('en');
 
     cy.request('/login').then((response) => {
       expect(response.body).to.contain('Sign in');
@@ -84,7 +90,7 @@ describe('Choosing the interface language', () => {
    */
   it('leaves every address exactly as it was', () => {
     cy.visit('/login');
-    cy.get('[data-testid=language-toggle]').select('en');
+    chooseInterfaceLanguage('en');
 
     signInReadingEnglish('/historial');
 
@@ -96,7 +102,7 @@ describe('Choosing the interface language', () => {
 
   it('survives a reload and follows the reader across screens', () => {
     cy.visit('/login');
-    cy.get('[data-testid=language-toggle]').select('en');
+    chooseInterfaceLanguage('en');
 
     cy.reload();
     cy.contains('h1', 'Sign in').should('be.visible');
@@ -105,7 +111,7 @@ describe('Choosing the interface language', () => {
 
     cy.contains('h1', 'Transcribe a file').should('be.visible');
     cy.contains('button', 'Transcribe').should('be.visible');
-    cy.get('[data-testid=language-toggle]').should('have.value', 'en');
+    expectInterfaceLanguage('en');
   });
 
   it('ignores a language nobody offered', () => {
@@ -126,7 +132,7 @@ describe('Choosing the interface language', () => {
    */
   it('keeps the language of the audio apart from the language of the screen', () => {
     cy.visit('/login');
-    cy.get('[data-testid=language-toggle]').select('en');
+    chooseInterfaceLanguage('en');
 
     signInReadingEnglish('/dictar');
 
@@ -156,7 +162,7 @@ describe('Choosing the interface language', () => {
     }).as('signIn');
 
     cy.visit('/login');
-    cy.get('[data-testid=language-toggle]').select('en');
+    chooseInterfaceLanguage('en');
 
     cy.get('#auth-email').type('ana.torres@clinicavocali.es');
     cy.get('#auth-password').type('equivocada');

@@ -14,6 +14,16 @@ import { buildTranscription } from '../support/transcriptions';
  * S3 is not reached. The presigned POST is answered by the interceptor, which
  * is what makes the *shape* of that request assertable — and the shape is the
  * thing that goes wrong silently in production.
+ *
+ * **How the outcome arrives.** The application asks for a connection ticket,
+ * opens a websocket with it, and waits to be told the record settled; only if
+ * that does not deliver does it fall back to asking for the one record on a
+ * slow schedule. A browser driven by Cypress has no API Gateway to hold a
+ * socket open, so the ticket is refused here on purpose and what this spec
+ * exercises is the fallback. That is the right half to pin from a browser: the
+ * push is the API's to prove, and the fallback is the path that has to work
+ * when the push silently does not — which is the failure the whole design was
+ * built to answer for, and the one nothing else would notice.
  */
 
 const AUDIO_CONTENT = 'RIFF----WAVEfmt consulta de cardiologia';
@@ -36,8 +46,10 @@ const PRESIGNED_FIELDS = {
   'x-amz-signature': '5f2c0a7d9b3e18c4a6d0f7b25e91c8ab',
 };
 
+const TRANSCRIPTION_ID = 'tr-consulta-01';
+
 const UPLOAD_INTENT = {
-  transcriptionId: 'tr-consulta-01',
+  transcriptionId: TRANSCRIPTION_ID,
   upload: {
     url: UPLOAD_URL,
     fields: PRESIGNED_FIELDS,
@@ -59,20 +71,30 @@ describe('Transcribing an audio file', () => {
       headers: { 'access-control-allow-origin': '*' },
     }).as('storageUpload');
 
-    cy.intercept('GET', '/api/transcriptions*', {
+    /*
+     * Refused, so the run takes the fallback rather than waiting out the
+     * socket's five-minute budget on a connection this browser cannot open.
+     * Stubbed rather than left to fail on its own: an unstubbed call would
+     * reach the dev server and fail for a reason that has nothing to do with
+     * what is being tested.
+     */
+    cy.intercept('POST', '/api/connection-tickets', { statusCode: 503, body: {} }).as('ticket');
+
+    /*
+     * One record by id — what the fallback asks for. A glob of
+     * `/api/transcriptions*` does not match this path: `*` does not cross a
+     * `/`, so the request the fallback actually makes would go unstubbed and
+     * the record would never be seen to settle.
+     */
+    cy.intercept('GET', `/api/transcriptions/${TRANSCRIPTION_ID}`, {
       statusCode: 200,
-      body: {
-        items: [
-          buildTranscription({
-            id: 'tr-consulta-01',
-            fileName: FILE_NAME,
-            status: 'COMPLETED',
-            textPreview: 'El paciente refiere molestias torácicas desde hace dos semanas.',
-          }),
-        ],
-        nextCursor: null,
-      },
-    }).as('history');
+      body: buildTranscription({
+        id: TRANSCRIPTION_ID,
+        fileName: FILE_NAME,
+        status: 'COMPLETED',
+        textPreview: 'El paciente refiere molestias torácicas desde hace dos semanas.',
+      }),
+    }).as('record');
 
     signInOnTheWayTo('/transcribir');
 
@@ -109,9 +131,15 @@ describe('Transcribing an audio file', () => {
 
     cy.get('[data-testid=processing-notice]').should('be.visible');
 
-    // The record is polled until it settles, three seconds apart, so this is
-    // the one assertion in the suite that has to outwait a real timer.
-    cy.get('[data-testid=transcription-result]', { timeout: 15_000 }).should('contain', FILE_NAME);
+    /*
+     * The one assertion in the suite that has to outwait a real timer. The
+     * fallback's first request goes out fifteen seconds after the push is
+     * given up on, so the budget here has to clear that interval rather than
+     * merely match it — a timeout equal to the interval is a test that fails
+     * whenever the machine is a little busy.
+     */
+    cy.wait('@record', { timeout: 25_000 });
+    cy.get('[data-testid=transcription-result]', { timeout: 25_000 }).should('contain', FILE_NAME);
     cy.get('[data-testid=transcription-preview]').should(
       'contain',
       'El paciente refiere molestias torácicas',

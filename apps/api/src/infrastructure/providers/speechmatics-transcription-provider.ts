@@ -9,74 +9,23 @@ import type {
   SubmittedJob,
   TranscriptionProvider,
 } from '../../domain/ports/transcription-provider.js';
+import {
+  BATCH_JOBS_URL,
+  MAX_REALTIME_KEY_TTL_SECONDS,
+  MIN_REALTIME_KEY_TTL_SECONDS,
+  OPERATING_POINT,
+  REALTIME_WEBSOCKET_URL,
+  TEMPORARY_KEY_URL,
+} from './speechmatics-api-constants.js';
+import {
+  backoffDelayMs,
+  isRetryableStatus,
+  JOB_SUBMISSION_RETRY_POLICY,
+  parseRetryAfterMs,
+  REPEATABLE_OPERATION_RETRY_POLICY,
+} from './retry-policy.js';
+import type { RetryPolicy } from './retry-policy.js';
 import { interpretSpeechmaticsCallback } from './speechmatics-callback.js';
-
-/**
- * The EU regional hosts, chosen to match the `eu-west-1` deployment: clinical
- * audio stays in the same jurisdiction as the rest of the platform, and the
- * round trip is shorter than to the global endpoint.
- */
-const BATCH_JOBS_URL = 'https://eu1.asr.api.speechmatics.com/v2/jobs/';
-const TEMPORARY_KEY_URL = 'https://mp.speechmatics.com/v1/api_keys?type=rt';
-const REALTIME_WEBSOCKET_URL = 'wss://eu.rt.speechmatics.com/v2';
-
-/** Higher accuracy at the cost of latency, which a batch job can afford. */
-const OPERATING_POINT = 'enhanced';
-
-/** The provider rejects a temporary key request outside this range. */
-const MIN_REALTIME_KEY_TTL_SECONDS = 60;
-const MAX_REALTIME_KEY_TTL_SECONDS = 86_400;
-
-/**
- * The two statuses that say the request was not accepted: the provider gave up
- * waiting for it (408), or the quota window has not rolled over yet (429).
- * Because neither can have been acted on, both are safe to send again whatever
- * the operation does. Everything else in the 4xx range describes the request
- * itself, and a request the provider has already rejected will be rejected
- * identically the second time — retrying it only spends quota and holds a
- * Lambda open.
- */
-const REQUEST_NOT_ACCEPTED_STATUS_CODES = new Set([408, 429]);
-
-/**
- * What to do with the two outcomes where the request may or may not have been
- * acted on: one that produced no response at all, and a 5xx, which can be an
- * edge proxy answering for a server that already did the work.
- *
- * Retryability belongs to the operation rather than to the status, so it is
- * declared beside each call instead of being a global rule to remember.
- */
-interface RetryPolicy {
-  readonly onUnansweredRequest: boolean;
-  readonly onServerFault: boolean;
-}
-
-/**
- * For an operation that can be performed twice without a second effect.
- * Minting a temporary key again costs one unused key that expires within the
- * minute, so an unknown outcome is worth another attempt.
- */
-const REPEATABLE_OPERATION_RETRY_POLICY: RetryPolicy = {
-  onUnansweredRequest: true,
-  onServerFault: true,
-};
-
-/**
- * `POST /v2/jobs/` creates a resource and Speechmatics documents no
- * idempotency key, so a second attempt cannot be recognised as the same
- * submission. A first attempt that reached the provider and then timed out —
- * or that an edge proxy answered 5xx after the job had been created — would
- * leave two jobs transcribing the same audio against the same callback URL:
- * the account's minutes spent twice, and a callback carrying a job id that
- * does not match the stored one, which the webhook can only answer 404 to.
- *
- * So an unknown outcome is treated as a submitted job and reported as a
- * failure, which the caller can act on, rather than retried blindly.
- */
-const JOB_SUBMISSION_RETRY_POLICY: RetryPolicy = {
-  onUnansweredRequest: false,
-  onServerFault: false,
-};
 
 export interface SpeechmaticsProviderOptions {
   /** SSM parameter holding the long-lived provider key. */
@@ -318,7 +267,17 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       });
 
       if (attempt < this.options.maxAttempts) {
-        await this.sleep(this.backoffDelayMs(attempt, result.retryAfterMs));
+        await this.sleep(
+          backoffDelayMs(
+            {
+              baseDelayMs: this.options.retryBaseDelayMs,
+              maxDelayMs: this.options.maxRetryDelayMs,
+              random: this.random,
+            },
+            attempt,
+            result.retryAfterMs,
+          ),
+        );
       }
     }
 
@@ -365,7 +324,7 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     // its socket checked out of the pool for the rest of the container's life.
     await discardBody(response);
 
-    if (REQUEST_NOT_ACCEPTED_STATUS_CODES.has(status) || (retry.onServerFault && status >= 500)) {
+    if (isRetryableStatus(status, retry)) {
       return {
         kind: 'transient',
         reason: 'the provider returned a retryable status',
@@ -375,22 +334,6 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
     }
 
     return { kind: 'permanent', reason: 'the provider returned an error status', status };
-  }
-
-  /**
-   * Equal jitter: half the delay is the exponential term, half is random.
-   * Full jitter can return almost zero and stampede the provider again
-   * immediately; no jitter puts every concurrent Lambda back on the wire in
-   * the same millisecond. `Retry-After` wins outright when the provider sent
-   * one — it knows when its quota window rolls over and this adapter does not.
-   */
-  private backoffDelayMs(attempt: number, retryAfterMs: number | null): number {
-    if (retryAfterMs !== null) return Math.min(retryAfterMs, this.options.maxRetryDelayMs);
-
-    const exponential = this.options.retryBaseDelayMs * 2 ** (attempt - 1);
-    const capped = Math.min(exponential, this.options.maxRetryDelayMs);
-
-    return Math.round(capped / 2 + (capped / 2) * this.random());
   }
 }
 
@@ -421,24 +364,6 @@ async function discardBody(response: Response): Promise<void> {
     // A body that cannot be cancelled is already gone; the request being
     // reported has failed either way and this must not mask its reason.
   }
-}
-
-/**
- * `Retry-After` is either a whole number of seconds or an HTTP date. The date
- * form is resolved against the injected clock so the wait is deterministic
- * under test, and a value in the past becomes zero rather than a negative
- * delay that would skip the backoff entirely.
- */
-function parseRetryAfterMs(header: string | null, now: Date): number | null {
-  if (header === null) return null;
-
-  const trimmed = header.trim();
-  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1_000;
-
-  const retryAt = Date.parse(trimmed);
-  if (Number.isNaN(retryAt)) return null;
-
-  return Math.max(0, retryAt - now.getTime());
 }
 
 async function readJsonObject(

@@ -98,13 +98,5 @@ onBeforeUnmount(() => {
       @save-recovered="onSaveRecovered"
       @discard="onDiscard"
     />
-
-    <p class="text-sm text-ink-muted">
-      {{ t('dictation.historyPrefix') }}
-      <NuxtLink to="/historial" class="font-medium text-brand-700 underline">{{
-        t('common.historyLink')
-      }}</NuxtLink
-      >.
-    </p>
   </div>
 </template>

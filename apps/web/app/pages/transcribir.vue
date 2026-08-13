@@ -75,16 +75,5 @@ function onSubmit(request: { file: File; language: TranscriptionLanguage }): voi
       @submit="onSubmit"
       @reset="reset"
     />
-
-    <!-- The full stop sits outside the link and outside the catalogue: it is
-         punctuation, identical in both languages, and a key holding "." would
-         be a translator's invitation to change it. -->
-    <p class="text-sm text-ink-muted">
-      {{ t('file.historyPrefix') }}
-      <NuxtLink to="/historial" class="font-medium text-brand-700 underline">{{
-        t('common.historyLink')
-      }}</NuxtLink
-      >.
-    </p>
   </div>
 </template>

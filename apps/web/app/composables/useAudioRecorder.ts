@@ -11,11 +11,27 @@ import type {
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import type { ComputedRef, DeepReadonly, Ref } from 'vue';
-import type { TranslatableMessage } from '../i18n/translate';
+import type { ApiRequester } from '../utils/api-request';
 import { REALTIME_SESSIONS_PATH, REALTIME_TRANSCRIPTIONS_PATH } from '../utils/api-routes';
-import { readStatusCode } from '../utils/http-failure';
-import { HTTP_UNAUTHORIZED } from '../utils/http-status';
-import type { ApiRequester } from './useFileUpload';
+import type { AudioCapture } from './audio-capture';
+import {
+  buildEndOfStream,
+  buildStartRecognition,
+  CLOSE_JOB_ERROR,
+  CLOSE_NORMAL,
+  CLOSE_NOT_AUTHORISED,
+  errorTypeOf,
+  parseProviderFrame,
+  transcriptOf,
+} from './realtime-provider-protocol';
+import {
+  describeCloseCode,
+  describeMicrophoneFailure,
+  describeSaveFailure,
+  describeSessionFailure,
+  NOTHING_TO_SAVE,
+} from './recording-failures';
+import type { RecordingFailure, RecordingPhase } from './recording-failures';
 
 /**
  * Dictating into the microphone and having it transcribed as you speak.
@@ -24,25 +40,19 @@ import type { ApiRequester } from './useFileUpload';
  * session request, the socket and the save are all collaborators the page
  * supplies. That is what lets Jest drive a socket that drops halfway through a
  * sentence, which is the failure this screen exists to survive.
+ *
+ * Three collaborators carry what this file used to hold as well. The
+ * microphone is in `audio-capture`, the messages crossing the socket are in
+ * `realtime-provider-protocol`, and what the user is told when any of it fails
+ * is in `recording-failures`, which also holds the phase and failure
+ * vocabulary this file moves through. What remains is the state machine they
+ * feed: which phase the dictation is in, what text has been confirmed, and
+ * when the transcript is safe to persist.
  */
-
-/** The URL the browser fetches the worklet module from. `public/` is served at the site root. */
-export const PCM_ENCODER_WORKLET_URL = '/worklets/pcm-encoder.js';
-
-/** Must match the name `registerProcessor` is called with inside the worklet. */
-export const PCM_ENCODER_PROCESSOR_NAME = 'pcm-encoder';
 
 const MILLISECONDS_PER_SECOND = 1000;
 
 const WEBSOCKET_OPEN = 1;
-
-/** A normal closure, which is the one the client asks for after a clean stop. */
-const CLOSE_NORMAL = 1000;
-const CLOSE_INTERNAL_ERROR = 1011;
-/** The provider's own range. Documented in planning/phase-2-provider-integration-notes.md. */
-const CLOSE_NOT_AUTHORISED = 4001;
-const CLOSE_QUOTA_EXCEEDED = 4005;
-const CLOSE_JOB_ERROR = 4013;
 
 /**
  * How long to wait for the provider to flush its last words after
@@ -53,206 +63,6 @@ const CLOSE_JOB_ERROR = 4013;
  * transcript is saved as it stands rather than discarded.
  */
 const DRAIN_TIMEOUT_MS = 5000;
-
-export type MicrophoneFailureCode = 'PERMISSION_DENIED' | 'NO_MICROPHONE' | 'CAPTURE_FAILED';
-
-export class MicrophoneError extends Error {
-  public readonly code: MicrophoneFailureCode;
-
-  /**
-   * What the reader is told. `Error.message` has to be a string and is what a
-   * developer meets in a stack trace, so it carries the key; the sentence is
-   * produced from `detail` at the moment it reaches the screen.
-   */
-  public readonly detail: TranslatableMessage;
-
-  constructor(code: MicrophoneFailureCode, detail: TranslatableMessage) {
-    super(detail.key);
-    this.name = 'MicrophoneError';
-    this.code = code;
-    this.detail = detail;
-  }
-}
-
-export interface AudioCaptureOptions {
-  readonly sampleRate: number;
-  /** Called once per rendered block, with the PCM the worklet produced. */
-  readonly onFrame: (frame: ArrayBuffer) => void;
-}
-
-export interface AudioCapture {
-  start(options: AudioCaptureOptions): Promise<void>;
-  stop(): Promise<void>;
-}
-
-export interface AudioCaptureDependencies {
-  requestMicrophone(constraints: MediaStreamConstraints): Promise<MediaStream>;
-  createAudioContext(options: AudioContextOptions): AudioContext;
-  createWorkletNode(context: AudioContext, name: string): AudioWorkletNode;
-}
-
-function nameOf(error: unknown): string | null {
-  if (typeof error !== 'object' || error === null) {
-    return null;
-  }
-  const candidate: unknown = (error as { name?: unknown }).name;
-  return typeof candidate === 'string' ? candidate : null;
-}
-
-/**
- * Translates what `getUserMedia` rejects with into something a clinician can
- * act on.
- *
- * The distinction that matters is "you said no" versus "there is nothing to
- * say yes with": the first is fixed in the browser's address bar, the second
- * by plugging something in. A single "no se pudo acceder al micrófono" sends
- * the user looking in the wrong place.
- */
-function toMicrophoneError(error: unknown): MicrophoneError {
-  const name = nameOf(error);
-
-  if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
-    return new MicrophoneError('PERMISSION_DENIED', { key: 'failure.microphone.denied' });
-  }
-  if (
-    name === 'NotFoundError' ||
-    name === 'DevicesNotFoundError' ||
-    name === 'OverconstrainedError'
-  ) {
-    return new MicrophoneError('NO_MICROPHONE', { key: 'failure.microphone.missing' });
-  }
-  return new MicrophoneError('CAPTURE_FAILED', { key: 'failure.microphone.busy' });
-}
-
-/**
- * Microphone capture through an `AudioWorklet`.
- *
- * `ScriptProcessorNode` is deprecated and runs on the main thread, so it drops
- * samples exactly when the page is busy rendering the transcript that is
- * growing beneath it. The worklet runs on the audio thread instead.
- *
- * The `AudioContext` is constructed at the provider's sample rate rather than
- * resampled afterwards. Resampling in JavaScript costs quality and main-thread
- * time for something the audio hardware and the browser will do properly if
- * simply asked; asking is one option object.
- */
-export function createWorkletAudioCapture(
-  dependencies: AudioCaptureDependencies = {
-    requestMicrophone: (constraints: MediaStreamConstraints): Promise<MediaStream> =>
-      navigator.mediaDevices.getUserMedia(constraints),
-    createAudioContext: (options: AudioContextOptions): AudioContext => new AudioContext(options),
-    createWorkletNode: (context: AudioContext, name: string): AudioWorkletNode =>
-      new AudioWorkletNode(context, name),
-  },
-): AudioCapture {
-  let stream: MediaStream | null = null;
-  let context: AudioContext | null = null;
-  let node: AudioWorkletNode | null = null;
-
-  async function stop(): Promise<void> {
-    node?.disconnect();
-    node = null;
-
-    // Stopping every track is what turns the browser's recording indicator
-    // off. Closing the context alone leaves the tab showing as listening,
-    // which for a microphone is not a cosmetic difference.
-    for (const track of stream?.getTracks() ?? []) {
-      track.stop();
-    }
-    stream = null;
-
-    const closing = context;
-    context = null;
-    await closing?.close();
-  }
-
-  async function start(options: AudioCaptureOptions): Promise<void> {
-    try {
-      stream = await dependencies.requestMicrophone({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-    } catch (error: unknown) {
-      throw toMicrophoneError(error);
-    }
-
-    try {
-      context = dependencies.createAudioContext({ sampleRate: options.sampleRate });
-      await context.audioWorklet.addModule(PCM_ENCODER_WORKLET_URL);
-
-      node = dependencies.createWorkletNode(context, PCM_ENCODER_PROCESSOR_NAME);
-      node.port.onmessage = (event: MessageEvent<ArrayBuffer>): void => {
-        options.onFrame(event.data);
-      };
-
-      context.createMediaStreamSource(stream).connect(node);
-
-      /*
-       * Connecting to the destination is what keeps the graph rendering: a
-       * node with no path to the output is not guaranteed to be pulled, and
-       * the symptom is a worklet whose `process` is simply never called.
-       *
-       * It causes no feedback. The worklet writes nothing to its outputs, so
-       * the node emits silence; the connection exists to keep the clock
-       * running, not to make a sound.
-       */
-      node.connect(context.destination);
-    } catch (error: unknown) {
-      await stop();
-      throw error instanceof MicrophoneError
-        ? error
-        : new MicrophoneError('CAPTURE_FAILED', { key: 'failure.microphone.unsupportedBrowser' });
-    }
-  }
-
-  return { start, stop };
-}
-
-export type RecordingPhase =
-  | 'idle'
-  /** Minting the provider session. */
-  | 'preparing'
-  /** Socket open, waiting for the provider to acknowledge `StartRecognition`. */
-  | 'connecting'
-  | 'recording'
-  /** `EndOfStream` sent, waiting for the last words. */
-  | 'finishing'
-  | 'saving'
-  | 'saved'
-  | 'failed';
-
-export type RecordingFailureCode =
-  | 'MICROPHONE_DENIED'
-  | 'MICROPHONE_UNAVAILABLE'
-  | 'SESSION_UNAVAILABLE'
-  | 'SESSION_EXPIRED'
-  | 'CONNECTION_LOST'
-  | 'PROVIDER_QUOTA_EXCEEDED'
-  | 'PROVIDER_FAILED'
-  | 'NOTHING_TO_SAVE'
-  | 'SAVE_FAILED';
-
-export interface RecordingFailure {
-  readonly code: RecordingFailureCode;
-  /**
-   * Which sentence to show, not the sentence itself. Every catalogue phrases
-   * it specifically enough to act on; which catalogue is decided where it is
-   * rendered.
-   */
-  readonly message: TranslatableMessage;
-  /**
-   * Whether there is transcribed text still on screen that the user can save.
-   *
-   * Losing a clinician's dictation to a dropped socket is the worst thing this
-   * screen can do, so a failure that leaves text behind is treated as a
-   * recovery offer rather than as a dead end.
-   */
-  readonly recoverable: boolean;
-}
 
 export interface AudioRecorderDependencies {
   /** Mints the short-lived provider credential. */
@@ -323,73 +133,6 @@ export interface AudioRecorderController {
   /** Also releases the microphone and the socket, so it is safe to call on unmount. */
   readonly discard: () => Promise<void>;
   readonly dismissFailure: () => void;
-}
-
-function propertyOf(source: unknown, key: string): unknown {
-  if (typeof source !== 'object' || source === null) {
-    return undefined;
-  }
-  return (source as Record<string, unknown>)[key];
-}
-
-function stringPropertyOf(source: unknown, key: string): string | null {
-  const value = propertyOf(source, key);
-  return typeof value === 'string' ? value : null;
-}
-
-/**
- * Reads a provider frame without trusting its shape.
- *
- * The socket is a trust boundary: the frames arrive from a third party over a
- * connection this code did not authenticate itself. Asserting a type onto them
- * would turn a protocol change into an undefined-property crash in the middle
- * of a dictation, so every field is read as `unknown` and checked.
- */
-function parseProviderFrame(data: unknown): { name: string; payload: unknown } | null {
-  if (typeof data !== 'string') {
-    return null;
-  }
-  let payload: unknown;
-  try {
-    payload = JSON.parse(data);
-  } catch {
-    return null;
-  }
-  const name = stringPropertyOf(payload, 'message');
-  return name === null ? null : { name, payload };
-}
-
-function transcriptOf(payload: unknown): string {
-  return stringPropertyOf(propertyOf(payload, 'metadata'), 'transcript') ?? '';
-}
-
-function describeCloseCode(code: number): RecordingFailure {
-  if (code === CLOSE_NOT_AUTHORISED) {
-    return {
-      code: 'SESSION_EXPIRED',
-      message: { key: 'failure.dictation.credentialExpired' },
-      recoverable: true,
-    };
-  }
-  if (code === CLOSE_QUOTA_EXCEEDED) {
-    return {
-      code: 'PROVIDER_QUOTA_EXCEEDED',
-      message: { key: 'failure.dictation.quotaExceeded' },
-      recoverable: true,
-    };
-  }
-  if (code === CLOSE_JOB_ERROR || code === CLOSE_INTERNAL_ERROR) {
-    return {
-      code: 'PROVIDER_FAILED',
-      message: { key: 'failure.dictation.providerFailed' },
-      recoverable: true,
-    };
-  }
-  return {
-    code: 'CONNECTION_LOST',
-    message: { key: 'failure.dictation.connectionLost' },
-    recoverable: true,
-  };
 }
 
 export function useAudioRecorder(dependencies: AudioRecorderDependencies): AudioRecorderController {
@@ -467,11 +210,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     const text = spokenText.value.trim();
 
     if (text === '') {
-      failure.value = {
-        code: 'NOTHING_TO_SAVE',
-        message: { key: 'failure.dictation.nothingHeard' },
-        recoverable: false,
-      };
+      failure.value = NOTHING_TO_SAVE;
       phase.value = 'failed';
       return Promise.resolve();
     }
@@ -485,20 +224,8 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
         phase.value = 'saved';
       })
       .catch((error: unknown) => {
-        /*
-         * The text stays on screen and stays recoverable. A failed save is the
-         * one moment where the dictation exists only in this tab, so the
-         * message has to invite another attempt rather than read as a
-         * dead end.
-         */
-        failure.value = {
-          code: 'SAVE_FAILED',
-          message:
-            readStatusCode(error) === HTTP_UNAUTHORIZED
-              ? { key: 'failure.dictation.saveSessionExpired' }
-              : { key: 'failure.dictation.saveFailed' },
-          recoverable: true,
-        };
+        // The text stays on screen, because the failure it is given says so.
+        failure.value = describeSaveFailure(error);
         phase.value = 'failed';
       });
   }
@@ -539,7 +266,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     }
 
     if (frame.name === 'Error') {
-      const type = stringPropertyOf(frame.payload, 'type');
+      const type = errorTypeOf(frame.payload);
       void fail(
         type === 'not_authorised' || type === 'invalid_token'
           ? describeCloseCode(CLOSE_NOT_AUTHORISED)
@@ -569,15 +296,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
         },
       });
     } catch (error: unknown) {
-      const code = error instanceof MicrophoneError ? error.code : 'CAPTURE_FAILED';
-      await fail({
-        code: code === 'PERMISSION_DENIED' ? 'MICROPHONE_DENIED' : 'MICROPHONE_UNAVAILABLE',
-        message:
-          error instanceof MicrophoneError
-            ? error.detail
-            : { key: 'failure.microphone.unavailable' },
-        recoverable: false,
-      });
+      await fail(describeMicrophoneFailure(error));
       return;
     }
 
@@ -594,18 +313,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     try {
       session = await dependencies.createSession();
     } catch (error: unknown) {
-      failure.value =
-        readStatusCode(error) === HTTP_UNAUTHORIZED
-          ? {
-              code: 'SESSION_EXPIRED',
-              message: { key: 'failure.dictation.sessionExpired' },
-              recoverable: false,
-            }
-          : {
-              code: 'SESSION_UNAVAILABLE',
-              message: { key: 'failure.dictation.sessionUnavailable' },
-              recoverable: false,
-            };
+      failure.value = describeSessionFailure(error);
       phase.value = 'failed';
       return;
     }
@@ -629,22 +337,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     opened.binaryType = 'arraybuffer';
 
     opened.addEventListener('open', () => {
-      sendJson({
-        message: 'StartRecognition',
-        // Straight from the session the API minted, rather than restated here.
-        // The provider rejects a mismatch, but only after the socket is open
-        // and the user has already started speaking.
-        audio_format: {
-          type: session.audioFormat.type,
-          encoding: session.audioFormat.encoding,
-          sample_rate: session.audioFormat.sampleRate,
-        },
-        transcription_config: {
-          language: chosenLanguage,
-          operating_point: 'enhanced',
-          enable_partials: true,
-        },
-      });
+      sendJson(buildStartRecognition(session.audioFormat, chosenLanguage));
     });
 
     opened.addEventListener('message', (event: MessageEvent<unknown>) => {
@@ -690,7 +383,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     });
 
     await dependencies.capture.stop();
-    sendJson({ message: 'EndOfStream', last_seq_no: framesSent });
+    sendJson(buildEndOfStream(framesSent));
 
     // Whichever comes first. The transcript is saved either way: a provider
     // that never sends EndOfTranscript must not cost the user their dictation.

@@ -75,39 +75,34 @@ async function onSignOut(): Promise<void> {
           </NuxtLink>
         </nav>
 
-        <div class="ml-auto flex flex-wrap items-center gap-3">
-          <ThemeToggle
-            :preference="theme.preference.value"
-            @update:preference="theme.choose($event)"
-          />
+        <!--
+          Two controls where there were four. The address, the theme and the
+          sign-out button all belong to the person signed in, and they now sit
+          behind one avatar: the header keeps a fixed width whatever the
+          address is, and the sign-out control can no longer be pushed off a
+          narrow screen by a long one.
 
+          The language stays outside the menu, on purpose. It is the one
+          preference somebody may need while unable to read the interface, and
+          burying it behind a button whose label they cannot read would put the
+          way out on the other side of the problem. Collapsed to its flag, it
+          costs the header less than the label it used to carry.
+        -->
+        <div class="ml-auto flex items-center gap-2">
           <LanguageToggle
             :language="language.current.value"
             @update:language="language.choose($event)"
           />
 
-          <!-- Truncated rather than allowed to push the sign-out control off a
-               narrow screen. A long address is common and a missing sign-out
-               button is not acceptable. -->
-          <span
+          <UserMenu
             v-if="session.user.value !== null"
-            class="hidden max-w-[16rem] truncate text-sm text-ink-muted sm:inline"
-            :title="session.user.value.email"
-            data-testid="signed-in-user"
-          >
-            {{ session.user.value.email }}
-          </span>
-
-          <BaseButton
-            variant="secondary"
-            size="sm"
-            :loading="signingOut"
-            :loading-label="t('session.signingOut')"
-            data-testid="sign-out"
-            @click="onSignOut"
-          >
-            {{ t('session.signOut') }}
-          </BaseButton>
+            :email="session.user.value.email"
+            :preference="theme.preference.value"
+            :dark="theme.isDark.value"
+            :signing-out="signingOut"
+            @update:preference="theme.choose($event)"
+            @sign-out="onSignOut"
+          />
         </div>
       </div>
     </header>

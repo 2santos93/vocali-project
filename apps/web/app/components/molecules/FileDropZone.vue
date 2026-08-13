@@ -166,15 +166,32 @@ function openFilePicker(): void {
     :class="[
       isDragActive ? 'border-brand-500 bg-brand-50' : 'border-line bg-surface',
       disabled ? 'opacity-60' : '',
-      'flex flex-col items-center gap-3 rounded-panel border-2 border-dashed px-6 py-10 text-center',
+      'flex flex-col items-center gap-2 rounded-panel border-2 border-dashed px-4 py-6 text-center transition-colors',
     ]"
     data-testid="file-drop-zone"
     @dragover.prevent="onDragOver"
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
   >
+    <!-- Decorative, and marked as such: the instruction below already says
+         what the zone is for, and a screen reader announcing "upload arrow"
+         first would only put a word in front of the sentence. -->
+    <svg
+      class="h-7 w-7 text-ink-muted"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 16V4m0 0L8 8m4-4 4 4" />
+      <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </svg>
+
     <p class="text-sm font-medium text-ink">{{ t('upload.dropInstruction') }}</p>
-    <p :id="`${inputId}-help`" class="text-xs text-ink-muted">
+    <p :id="`${inputId}-help`" class="text-xs leading-relaxed text-ink-muted">
       {{ t('upload.limits', { formats: acceptedFormatsText, maxSize: maxSizeText }) }}
     </p>
 
@@ -191,11 +208,18 @@ function openFilePicker(): void {
       data-testid="file-input"
       @change="onInputChange"
     />
-    <BaseButton variant="secondary" :disabled="disabled" @click="openFilePicker">
+    <BaseButton variant="secondary" size="sm" :disabled="disabled" @click="openFilePicker">
       {{ t('upload.choose') }}
     </BaseButton>
 
-    <p v-if="selectedFileName !== null" class="text-sm text-ink" data-testid="selected-file-name">
+    <!-- The chosen file is the one fact the zone still has to report after it
+         has done its job, so it is set apart from the instructions above it
+         rather than added to the same stack of grey lines. -->
+    <p
+      v-if="selectedFileName !== null"
+      class="mt-1 w-full break-all border-t border-line pt-3 text-sm text-ink"
+      data-testid="selected-file-name"
+    >
       {{ t('upload.selected') }} <span class="font-medium">{{ selectedFileName }}</span>
     </p>
   </div>

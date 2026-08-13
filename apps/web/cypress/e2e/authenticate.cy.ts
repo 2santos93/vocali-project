@@ -41,6 +41,9 @@ describe('Signing in', () => {
 
     cy.location('pathname').should('equal', '/historial');
     cy.contains('h1', 'Historial de transcripciones').should('be.visible');
+    // Behind the account menu now, and shown in full rather than truncated:
+    // "which account am I in" is the question this button exists to answer.
+    cy.get('[data-testid=user-menu]').click();
     cy.get('[data-testid=signed-in-user]').should('contain', SIGNED_IN_EMAIL);
   });
 

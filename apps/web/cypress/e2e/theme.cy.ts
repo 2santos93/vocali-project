@@ -4,6 +4,7 @@ import {
   emulateSystemColorScheme,
   expectPageBackground,
 } from '../support/appearance';
+import { chooseTheme, expectThemeSwitch, followSystemTheme } from '../support/preferences';
 import { signInOnTheWayTo } from '../support/session';
 import { buildTranscriptions } from '../support/transcriptions';
 
@@ -20,6 +21,12 @@ import { buildTranscriptions } from '../support/transcriptions';
  * The colour assertions are the ones that would catch the whole mechanism
  * being wired up and having no effect: a class on `<html>` that no stylesheet
  * keys on is a passing test and a white screen.
+ *
+ * The control itself is a switch now, and a switch has two positions where the
+ * preference has three values — so `chooseTheme` reads the position before it
+ * presses, and the way back to the machine is a control of its own. On the
+ * sign-in screens it sits in the page; everywhere else it is inside the
+ * account menu, which is what `signedIn` opens.
  */
 
 describe('Choosing a theme', () => {
@@ -56,7 +63,7 @@ describe('Choosing a theme', () => {
     cy.visit('/login');
     expectPageBackground(LIGHT_PAGE_BACKGROUND);
 
-    cy.get('[data-testid=theme-toggle]').select('dark');
+    chooseTheme('dark');
 
     cy.get('html').should('have.class', 'theme-dark');
     expectPageBackground(DARK_PAGE_BACKGROUND);
@@ -65,7 +72,7 @@ describe('Choosing a theme', () => {
 
     cy.get('html').should('have.class', 'theme-dark');
     expectPageBackground(DARK_PAGE_BACKGROUND);
-    cy.get('[data-testid=theme-toggle]').should('have.value', 'dark');
+    expectThemeSwitch('dark');
   });
 
   /*
@@ -79,7 +86,7 @@ describe('Choosing a theme', () => {
    */
   it('is already in the HTML the server sends', () => {
     cy.visit('/login');
-    cy.get('[data-testid=theme-toggle]').select('dark');
+    chooseTheme('dark');
     cy.getCookie('vocali_theme').should('have.property', 'value', 'dark');
 
     cy.request('/login')
@@ -96,12 +103,12 @@ describe('Choosing a theme', () => {
     emulateSystemColorScheme('dark');
     cy.visit('/login');
 
-    cy.get('[data-testid=theme-toggle]').select('light');
+    chooseTheme('light');
     cy.get('html').should('have.class', 'theme-light');
     expectPageBackground(LIGHT_PAGE_BACKGROUND);
 
     emulateSystemColorScheme('light');
-    cy.get('[data-testid=theme-toggle]').select('dark');
+    chooseTheme('dark');
     cy.get('html').should('have.class', 'theme-dark');
     expectPageBackground(DARK_PAGE_BACKGROUND);
   });
@@ -110,10 +117,10 @@ describe('Choosing a theme', () => {
     emulateSystemColorScheme('dark');
     cy.visit('/login');
 
-    cy.get('[data-testid=theme-toggle]').select('light');
+    chooseTheme('light');
     expectPageBackground(LIGHT_PAGE_BACKGROUND);
 
-    cy.get('[data-testid=theme-toggle]').select('system');
+    followSystemTheme();
 
     cy.get('html').should('not.have.class', 'theme-light');
     cy.get('html').should('not.have.class', 'theme-dark');
@@ -135,13 +142,16 @@ describe('Choosing a theme', () => {
 
   it('belongs to the reader rather than the account, and survives signing in', () => {
     cy.visit('/login');
-    cy.get('[data-testid=theme-toggle]').select('dark');
+    chooseTheme('dark');
 
     signInOnTheWayTo('/historial');
 
     cy.get('html').should('have.class', 'theme-dark');
     expectPageBackground(DARK_PAGE_BACKGROUND);
-    cy.get('[data-testid=theme-toggle]').should('have.value', 'dark');
+
+    // Inside the account menu now, which is the other half of this test: the
+    // control moved and the preference did not follow the session.
+    expectThemeSwitch('dark', { signedIn: true });
 
     // The table is the densest thing in the application and the reason the dark
     // palette exists: it has to be readable, not merely dark.

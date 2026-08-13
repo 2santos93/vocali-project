@@ -1,8 +1,10 @@
 import {
   DEFAULT_THEME_PREFERENCE,
+  SYSTEM_DARK_QUERY,
   THEME_COOKIE,
   THEME_COOKIE_MAX_AGE_SECONDS,
   THEME_PREFERENCES,
+  effectiveTheme,
   themeClass,
   toThemePreference,
 } from './theme';
@@ -73,5 +75,45 @@ describe('theme preference', () => {
   it('names the cookie the server reads, and keeps it past the session', () => {
     expect(THEME_COOKIE).toBe('vocali_theme');
     expect(THEME_COOKIE_MAX_AGE_SECONDS).toBe(365 * 24 * 60 * 60);
+  });
+});
+
+/*
+ * The switch in the account menu has two positions and the preference has
+ * three values, so something has to decide which position a `system`
+ * preference puts it in. It is this function, and it is here rather than in
+ * the component for the reason the rest of this file exists: a rule in a pure
+ * function fails under Jest the moment it stops holding.
+ */
+describe('the palette actually on screen', () => {
+  it.each([
+    ['a machine set to dark', true, 'dark'],
+    ['a machine set to light', false, 'light'],
+  ] as const)('follows %s when nobody has chosen', (_case, systemPrefersDark, expected) => {
+    expect(effectiveTheme('system', systemPrefersDark)).toBe(expected);
+  });
+
+  /*
+   * The reason the third value exists at all. Somebody who has picked light is
+   * overruling a machine set to dark, and a resolver that let the machine win
+   * here would undo the choice a moment after it was made — which is worse
+   * than never offering the choice.
+   */
+  it.each([
+    ['light', true],
+    ['light', false],
+    ['dark', true],
+    ['dark', false],
+  ] as const)('shows %s whatever the machine asked for', (preference, systemPrefersDark) => {
+    expect(effectiveTheme(preference, systemPrefersDark)).toBe(preference);
+  });
+
+  /*
+   * The composable hands this string to `matchMedia`, and `main.css` leaves the
+   * same question to `color-scheme: light dark`. A literal here is what notices
+   * the two parting company.
+   */
+  it('asks the browser the question the server cannot answer', () => {
+    expect(SYSTEM_DARK_QUERY).toBe('(prefers-color-scheme: dark)');
   });
 });

@@ -21,14 +21,29 @@ export const SPANISH_MESSAGES = {
   'common.sending': 'Enviando',
   'common.required': '(obligatorio)',
   'common.dismiss': 'Cerrar aviso',
-  'common.historyLink': 'historial',
 
   /* The two preference controls. */
   'preferences.theme': 'Tema',
-  'preferences.theme.light': 'Claro',
-  'preferences.theme.dark': 'Oscuro',
+  /*
+   * The switch is named for what turning it on *does*, not for the value it
+   * holds. "Oscuro" beside a switch reads as a label on a state — is it the
+   * current one, or the one I would get? — and "Modo oscuro" cannot be read
+   * either way.
+   */
+  'preferences.theme.darkMode': 'Modo oscuro',
+  /*
+   * The way back to the machine, which a two-position switch cannot express
+   * on its own. It is a third control rather than a third position because a
+   * switch with three states is not a switch.
+   */
   'preferences.theme.system': 'Como el sistema',
   'preferences.language': 'Idioma',
+  /*
+   * Read out where the flag is the only thing on screen. A flag is a country
+   * and a language is not, so the button that shows one has to say which
+   * language it means to anybody who is not looking at it.
+   */
+  'preferences.language.current': 'Idioma: {language}',
   /*
    * A language is named in its own language in both catalogues, deliberately.
    * Somebody looking for the way out of a language they cannot read has to
@@ -46,6 +61,12 @@ export const SPANISH_MESSAGES = {
   'nav.history': 'Historial',
   'session.signOut': 'Cerrar sesión',
   'session.signingOut': 'Cerrando sesión',
+  /*
+   * The name of the button that opens the account menu. It carries the address
+   * because the button itself shows only an initial, and "Cuenta" repeated in
+   * a list of links tells a screen reader user nothing about whose it is.
+   */
+  'session.account': 'Cuenta de {email}',
 
   /*
    * The language spoken in a recording — not the language of the interface.
@@ -159,8 +180,10 @@ export const SPANISH_MESSAGES = {
   'file.title': 'Transcribir un archivo',
   'file.description':
     'Sube una grabación y la convertiremos en texto. El archivo se envía directamente al almacenamiento seguro, sin pasar por nuestros servidores.',
-  'file.historyPrefix': 'Puedes consultar todas tus transcripciones en el',
   'file.heading': 'Transcribir un archivo de audio',
+  'file.resultHeading': 'Transcripción',
+  'file.resultPlaceholder':
+    'El texto aparecerá aquí en cuanto termine la transcripción. También quedará guardado en tu historial.',
   'file.chooseFirst': 'Elige primero un archivo de audio para transcribirlo.',
   'file.failureTitle': 'No se ha podido transcribir',
   'file.language': 'Idioma del audio',
@@ -180,8 +203,8 @@ export const SPANISH_MESSAGES = {
   'dictation.title': 'Dictar por micrófono',
   'dictation.description':
     'Habla y verás el texto aparecer mientras dictas. Al detener el dictado guardaremos la transcripción junto al resto de tu historial.',
-  'dictation.historyPrefix': 'Puedes consultar todos tus dictados en el',
   'dictation.heading': 'Dictar por micrófono',
+  'dictation.transcriptHeading': 'Transcripción en directo',
   'dictation.failureTitle': 'Se ha interrumpido el dictado',
   'dictation.saved': 'La transcripción se ha guardado. Puedes consultarla en el historial.',
   'dictation.language': 'Idioma del dictado',

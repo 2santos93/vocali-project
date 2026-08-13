@@ -1,5 +1,6 @@
 import { ConnectionTicketResponseSchema, TranscriptionUpdateEventSchema } from '@vocali/contracts';
 import type { Transcription } from '@vocali/contracts';
+import type { ApiRequester } from '../utils/api-request';
 import { CONNECTION_TICKETS_PATH } from '../utils/api-routes';
 
 /**
@@ -58,13 +59,6 @@ export class UpdateStreamError extends Error {
     this.name = 'UpdateStreamError';
   }
 }
-
-export interface ApiRequestOptions {
-  readonly method: 'GET' | 'POST';
-  readonly body?: Record<string, unknown>;
-}
-
-export type ApiRequester = (path: string, options: ApiRequestOptions) => Promise<unknown>;
 
 export type UpdateStreamOpener = (
   handlers: UpdateStreamHandlers,

@@ -29,13 +29,12 @@ export const ENGLISH_MESSAGES: Record<MessageKey, string> = {
   'common.sending': 'Sending',
   'common.required': '(required)',
   'common.dismiss': 'Dismiss notice',
-  'common.historyLink': 'history',
 
   'preferences.theme': 'Theme',
-  'preferences.theme.light': 'Light',
-  'preferences.theme.dark': 'Dark',
+  'preferences.theme.darkMode': 'Dark mode',
   'preferences.theme.system': 'Match my system',
   'preferences.language': 'Language',
+  'preferences.language.current': 'Language: {language}',
   // Each language names itself, in both catalogues. See the note in `es.ts`.
   'preferences.language.es': 'Español',
   'preferences.language.en': 'English',
@@ -47,6 +46,7 @@ export const ENGLISH_MESSAGES: Record<MessageKey, string> = {
   'nav.history': 'History',
   'session.signOut': 'Sign out',
   'session.signingOut': 'Signing out',
+  'session.account': 'Account for {email}',
 
   'audioLanguage.es': 'Spanish',
   'audioLanguage.en': 'English',
@@ -132,8 +132,10 @@ export const ENGLISH_MESSAGES: Record<MessageKey, string> = {
   'file.title': 'Transcribe a file',
   'file.description':
     'Upload a recording and we will turn it into text. The file goes straight to secure storage, without passing through our servers.',
-  'file.historyPrefix': 'You can find all your transcriptions in your',
   'file.heading': 'Transcribe an audio file',
+  'file.resultHeading': 'Transcription',
+  'file.resultPlaceholder':
+    'The text will appear here as soon as the transcription finishes. It is saved to your history too.',
   'file.chooseFirst': 'Choose an audio file first, then we can transcribe it.',
   'file.failureTitle': 'We could not transcribe it',
   'file.language': 'Language of the audio',
@@ -152,8 +154,8 @@ export const ENGLISH_MESSAGES: Record<MessageKey, string> = {
   'dictation.title': 'Dictate into the microphone',
   'dictation.description':
     'Speak and you will see the text appear as you dictate. When you stop, we will save the transcription alongside the rest of your history.',
-  'dictation.historyPrefix': 'You can find all your dictations in your',
   'dictation.heading': 'Dictate into the microphone',
+  'dictation.transcriptHeading': 'Live transcript',
   'dictation.failureTitle': 'The dictation was interrupted',
   'dictation.saved': 'The transcription has been saved. You can find it in your history.',
   'dictation.language': 'Language of the dictation',

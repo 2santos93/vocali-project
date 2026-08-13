@@ -8,6 +8,7 @@ const COMPONENTS_DIR = path.join(import.meta.dirname, 'app/components/');
 const SERVER_DIR = path.join(import.meta.dirname, 'server/');
 const SHELL_RULES_DIR = path.join(import.meta.dirname, 'app/utils/');
 const MESSAGES_DIR = path.join(import.meta.dirname, 'app/i18n/');
+const COMPOSABLES_DIR = path.join(import.meta.dirname, 'app/composables/');
 
 export default {
   rootDir: import.meta.dirname,
@@ -72,6 +73,15 @@ export default {
     // The catalogues and the translator. Pure, and the one place every
     // user-facing sentence in the application is written down.
     'app/i18n/**/*.ts',
+    // The composables are where the front end decides things rather than
+    // displays them: how a transfer to S3 reports its progress, what the
+    // provider's wire protocol is allowed to say, when a transcription has
+    // settled, and which sentence a clinician reads when a socket drops or a
+    // session expires. Components render those decisions; they do not make
+    // them. Left out of this list the directory reported no rows at all, so
+    // the branch deciding whether a dictation is offered back after a dropped
+    // connection was neither covered nor visibly uncovered.
+    'app/composables/**/*.ts',
     'server/**/*.ts',
     '!**/*.test.ts',
 
@@ -138,5 +148,25 @@ export default {
      * those are the two ways a reader ends up looking at nothing.
      */
     [MESSAGES_DIR]: { statements: 100, branches: 100, functions: 100, lines: 100 },
+
+    /*
+     * Plain TypeScript, so no template-compilation penalty applies and the
+     * figure is held near the full one. These are the decisions behind the
+     * screens: whether a dropped socket costs a clinician their dictation or
+     * only their time, whether an expired session reads as an expired session
+     * or as a generic fault, and what a bar showing 98% of a 20 MB upload
+     * means. The measured figures are 99.83 / 98.75 / 100 / 99.82, and the
+     * thresholds sit just under them.
+     *
+     * Two branches are deliberately not chased, both of them defensive and
+     * neither reachable through the public surface. `settlement-watch.ts:114`
+     * throws if a promise executor did not run synchronously, which it cannot;
+     * it is written out rather than asserted away precisely so it is visible.
+     * `useAudioRecorder.ts:177` measures a duration to the present moment when
+     * the dictation has no recorded end, which every path through the
+     * controller sets before it can be read. Forcing either would mean testing
+     * the doubles instead of the behaviour.
+     */
+    [COMPOSABLES_DIR]: { statements: 99, branches: 98, functions: 100, lines: 99 },
   },
 };

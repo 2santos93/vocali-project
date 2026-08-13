@@ -10,6 +10,12 @@ import { buildTranscriptions } from '../support/transcriptions';
  * tests pin, is that pressing the control actually reaches the route that
  * makes that call, and that the application stops behaving as though anybody
  * is signed in either way.
+ *
+ * The control now lives inside the account menu rather than loose in the
+ * header, so each of these opens it first. That is not incidental to what is
+ * being tested: the address and the way out are behind one button, and a menu
+ * that stopped opening would leave a signed-in reader with no way to sign out
+ * at all.
  */
 
 describe('Signing out', () => {
@@ -27,6 +33,12 @@ describe('Signing out', () => {
     }).as('signOut');
 
     signInOnTheWayTo('/historial');
+
+    // Nothing about the account is on screen until it is asked for, which is
+    // the point of the menu: the header keeps one width whatever the address.
+    cy.get('[data-testid=signed-in-user]').should('not.exist');
+
+    cy.get('[data-testid=user-menu]').click();
     cy.get('[data-testid=signed-in-user]').should('be.visible');
 
     cy.get('[data-testid=sign-out]').click();
@@ -36,8 +48,9 @@ describe('Signing out', () => {
     cy.location('pathname').should('equal', '/login');
     cy.contains('h1', 'Iniciar sesión').should('be.visible');
 
-    // The application chrome goes with the session. A header still offering
-    // "Cerrar sesión" after signing out is a signed-in interface over nothing.
+    // The application chrome goes with the session. A header still offering an
+    // account menu after signing out is a signed-in interface over nothing.
+    cy.get('[data-testid=user-menu]').should('not.exist');
     cy.get('[data-testid=sign-out]').should('not.exist');
     cy.get('[data-testid=signed-in-user]').should('not.exist');
   });
@@ -54,12 +67,13 @@ describe('Signing out', () => {
 
     signInOnTheWayTo('/historial');
 
+    cy.get('[data-testid=user-menu]').click();
     cy.get('[data-testid=sign-out]').click();
     cy.wait('@signOut');
 
     // The route clears the cookies before it reports the failure, so leaving
     // the interface signed in would show a state the next request contradicts.
     cy.location('pathname').should('equal', '/login');
-    cy.get('[data-testid=sign-out]').should('not.exist');
+    cy.get('[data-testid=user-menu]').should('not.exist');
   });
 });

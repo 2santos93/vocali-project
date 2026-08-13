@@ -22,7 +22,7 @@ export type ListTranscriptionsRequest = (cursor: string | null) => Promise<unkno
 
 /**
  * A call to the BFF proxy with a query string, which is the one shape the two
- * history requests need and the upload flow's `ApiRequester` does not cover.
+ * history requests need and `ApiRequester` does not cover.
  * Named here rather than reaching for ofetch's own type so nothing below the
  * page mentions Nuxt — ts-jest compiles these files against a tsconfig with no
  * Nuxt types, and the reference only has to exist to break the build.
