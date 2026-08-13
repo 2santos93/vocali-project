@@ -9,8 +9,8 @@ import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
 import { AudioFile } from '../../domain/value-objects/audio-file.js';
 import { UPLOAD_URL_TTL_SECONDS } from '../constants.js';
-import type { CreateAudioUploadIntentError } from '../types/create-audio-upload-intent-error.js';
-import type { CreateAudioUploadIntentInput } from '../types/create-audio-upload-intent-input.js';
+import type { CreateAudioUploadIntentError } from '../types/transcription-errors.js';
+import type { CreateAudioUploadIntentInput } from '../types/transcription-inputs.js';
 import { buildAudioObjectKey } from './object-keys.js';
 
 /**

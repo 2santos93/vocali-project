@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useTranslations } from '../i18n/translations';
-import type { MessageKey } from '../i18n/types/MessageKey';
+import type { MessageKey } from '../i18n/types';
 
 /**
  * The application chrome every signed-in screen renders inside.

@@ -1,12 +1,14 @@
 import { computed, ref } from 'vue';
 import { ListTranscriptionsResponseSchema, TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
 import type { Transcription, TranscriptFormat } from '@vocali/contracts';
-import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
+import type { TranslatableMessage } from '../i18n/types';
 import { TRANSCRIPTIONS_PATH, transcriptionDownloadPath } from '../utils/api-routes';
 import { isSessionExpired, SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
-import type { ListTranscriptionsRequest } from './types/ListTranscriptionsRequest';
-import type { QueryRequester } from './types/QueryRequester';
-import type { TranscriptionHistory } from './types/TranscriptionHistory';
+import type {
+  ListTranscriptionsRequest,
+  QueryRequester,
+  TranscriptionHistory,
+} from './types/transcriptions';
 
 /**
  * Separated from the page for the same reason as `createUploadRequests`: a

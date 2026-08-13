@@ -1,4 +1,4 @@
-import type { RouteRedirect } from './types/RouteRedirect';
+import type { RouteRedirect } from './types/routing';
 
 /**
  * Decided as a value rather than a side effect, because `navigateTo` and

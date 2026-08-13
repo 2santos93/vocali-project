@@ -1,7 +1,0 @@
-export type FileUploadFailureCode =
-  | 'SESSION_EXPIRED'
-  | 'UNSUPPORTED_FORMAT'
-  | 'INTENT_REFUSED'
-  | 'STORAGE_REFUSED'
-  | 'NETWORK_FAILED'
-  | 'TRANSCRIPTION_FAILED';

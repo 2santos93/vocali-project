@@ -4,8 +4,8 @@ import { jsonResponse } from '../http/http-response.js';
 import { OK } from '../http/http-status.js';
 import { TranscriptionPathParametersSchema } from '../http/request-schemas.js';
 import { withValidatedPathParameters } from '../http/validation.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { GetTranscriptionDependencies } from '../types/get-transcription-dependencies.js';
+import type { ApiGatewayRequestHandler } from '../types/http.js';
+import type { GetTranscriptionDependencies } from '../types/dependencies.js';
 
 /**
  * `GET /transcriptions/{transcriptionId}`.

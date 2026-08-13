@@ -1,8 +1,7 @@
 import type { ConnectionTicketResponse, Transcription } from '@vocali/contracts';
-import type { ApiRequestOptions } from '../../utils/types/ApiRequestOptions';
+import type { ApiRequestOptions } from '../../utils/types/api';
 import { createUpdateStreamOpener, UpdateStreamError } from '../useTranscriptionUpdates';
-import type { SocketLike } from '../types/SocketLike';
-import type { UpdateStreamHandlers } from '../types/UpdateStreamHandlers';
+import type { SocketLike, UpdateStreamHandlers } from '../types/settlement';
 
 const TICKET: ConnectionTicketResponse = {
   ticket: 'Zx91QeRt44PLm_-abc',

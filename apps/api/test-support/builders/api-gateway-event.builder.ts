@@ -1,4 +1,4 @@
-import type { ApiGatewayRequestEvent } from '../../src/presentation/types/api-gateway-request-event.js';
+import type { ApiGatewayRequestEvent } from '../../src/presentation/types/http.js';
 
 type Authorizer = NonNullable<ApiGatewayRequestEvent['requestContext']['authorizer']>;
 

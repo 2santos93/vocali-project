@@ -1,9 +1,11 @@
 import { readAuthorizedUserId } from '../websocket/websocket-event.js';
 import { INTERNAL_SERVER_ERROR, OK, UNAUTHORIZED } from '../http/http-status.js';
-import type { HandleConnectionOpenedDependencies } from '../types/handle-connection-opened-dependencies.js';
-import type { WebSocketHandler } from '../types/websocket-handler.js';
-import type { WebSocketRequestEvent } from '../types/websocket-request-event.js';
-import type { WebSocketResponse } from '../types/websocket-response.js';
+import type { HandleConnectionOpenedDependencies } from '../types/dependencies.js';
+import type {
+  WebSocketHandler,
+  WebSocketRequestEvent,
+  WebSocketResponse,
+} from '../types/websocket.js';
 
 /**
  * `$connect` — records the socket so completions have somewhere to go.

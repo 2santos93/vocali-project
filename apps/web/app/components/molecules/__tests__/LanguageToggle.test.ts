@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import type { DOMWrapper, VueWrapper } from '@vue/test-utils';
 import { withTranslations } from '../../../i18n/testing';
-import type { InterfaceLanguage } from '../../../i18n/types/InterfaceLanguage';
+import type { InterfaceLanguage } from '../../../i18n/types';
 import LanguageToggle from '../LanguageToggle.vue';
 
 /**

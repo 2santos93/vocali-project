@@ -4,8 +4,8 @@ import { withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { CREATED } from '../http/http-status.js';
 import { withValidatedBody } from '../http/validation.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { SaveRealtimeTranscriptionDependencies } from '../types/save-realtime-transcription-dependencies.js';
+import type { ApiGatewayRequestHandler } from '../types/http.js';
+import type { SaveRealtimeTranscriptionDependencies } from '../types/dependencies.js';
 
 /**
  * `POST /transcriptions/realtime` — stores a finished microphone dictation.

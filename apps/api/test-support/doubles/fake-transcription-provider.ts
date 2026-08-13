@@ -1,9 +1,11 @@
 import type { Clock } from '../../src/domain/ports/clock.js';
 import type { TranscriptionProvider } from '../../src/domain/ports/transcription-provider.js';
-import type { ProviderCallback } from '../../src/domain/types/provider-callback.js';
-import type { ProviderJobOutcome } from '../../src/domain/types/provider-job-outcome.js';
-import type { RealtimeCredentials } from '../../src/domain/types/realtime-credentials.js';
-import type { SubmittedJob } from '../../src/domain/types/submitted-job.js';
+import type {
+  ProviderCallback,
+  ProviderJobOutcome,
+  RealtimeCredentials,
+  SubmittedJob,
+} from '../../src/domain/types/provider.js';
 
 type SubmitFileJobInput = Parameters<TranscriptionProvider['submitFileJob']>[0];
 type CreateRealtimeCredentialsInput = Parameters<

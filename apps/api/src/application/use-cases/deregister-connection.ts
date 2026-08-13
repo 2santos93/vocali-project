@@ -1,5 +1,5 @@
 import type { ConnectionRegistry } from '../../domain/ports/connection-registry.js';
-import type { DeregisterConnectionInput } from '../types/deregister-connection-input.js';
+import type { DeregisterConnectionInput } from '../types/connection-inputs.js';
 
 /**
  * `$disconnect` is not delivered when a connection dies with the network

@@ -7,10 +7,9 @@ import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FileDropZone from '../molecules/FileDropZone.vue';
-import type { FileRejection } from '../types/FileRejection';
-import type { FileUploadFailure } from '../../composables/types/FileUploadFailure';
-import type { FileUploadPhase } from '../../composables/types/FileUploadPhase';
-import type { TranslatableMessage } from '../../i18n/types/TranslatableMessage';
+import type { FileRejection } from '../types/files';
+import type { FileUploadFailure, FileUploadPhase } from '../../composables/types/upload';
+import type { TranslatableMessage } from '../../i18n/types';
 import { useTranslations } from '../../i18n/translations';
 import { transcriptionLanguageName } from '../transcription-languages';
 

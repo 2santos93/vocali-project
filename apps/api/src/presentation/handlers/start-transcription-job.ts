@@ -1,6 +1,5 @@
-import type { S3EventHandler } from '../types/s3-event-handler.js';
-import type { S3ObjectCreatedEvent } from '../types/s3-object-created-event.js';
-import type { StartTranscriptionJobDependencies } from '../types/start-transcription-job-dependencies.js';
+import type { S3EventHandler, S3ObjectCreatedEvent } from '../types/events.js';
+import type { StartTranscriptionJobDependencies } from '../types/dependencies.js';
 
 /**
  * An infrastructure failure is allowed to propagate so Lambda retries the whole

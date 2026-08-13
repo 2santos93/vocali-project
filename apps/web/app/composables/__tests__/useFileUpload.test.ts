@@ -9,13 +9,10 @@ import {
   StorageUploadError,
   uploadToPresignedPost,
 } from '../presigned-post-upload';
-import type { PresignedPostUpload } from '../types/PresignedPostUpload';
-import type { ApiRequestOptions } from '../../utils/types/ApiRequestOptions';
-import type { ApiRequester } from '../../utils/types/ApiRequester';
+import type { PresignedPostUpload, FileUploadGateway } from '../types/upload';
+import type { ApiRequestOptions, ApiRequester } from '../../utils/types/api';
 import { createUploadRequests, useFileUpload } from '../useFileUpload';
-import type { FileUploadGateway } from '../types/FileUploadGateway';
-import type { TranscriptionUpdateStream } from '../types/TranscriptionUpdateStream';
-import type { UpdateStreamHandlers } from '../types/UpdateStreamHandlers';
+import type { TranscriptionUpdateStream, UpdateStreamHandlers } from '../types/settlement';
 
 function fileOf(name: string, type: string, size: number): File {
   const file = new File(['audio'], name, { type });

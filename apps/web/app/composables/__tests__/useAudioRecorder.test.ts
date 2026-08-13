@@ -9,13 +9,10 @@ import {
   PCM_ENCODER_PROCESSOR_NAME,
   PCM_ENCODER_WORKLET_URL,
 } from '../audio-capture';
-import type { AudioCapture } from '../types/AudioCapture';
-import type { AudioCaptureDependencies } from '../types/AudioCaptureDependencies';
-import type { AudioCaptureOptions } from '../types/AudioCaptureOptions';
-import type { ApiRequestOptions } from '../../utils/types/ApiRequestOptions';
-import type { ApiRequester } from '../../utils/types/ApiRequester';
+import type { AudioCapture, AudioCaptureDependencies, AudioCaptureOptions } from '../types/audio';
+import type { ApiRequestOptions, ApiRequester } from '../../utils/types/api';
 import { createRealtimeRequests, useAudioRecorder } from '../useAudioRecorder';
-import type { AudioRecorderDependencies } from '../types/AudioRecorderDependencies';
+import type { AudioRecorderDependencies } from '../types/recording';
 
 const SESSION: RealtimeSessionResponse = {
   token: 'jwt-abc123',

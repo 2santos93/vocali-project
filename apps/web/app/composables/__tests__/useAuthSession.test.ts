@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import type { Ref } from 'vue';
 import { SIGN_IN_ROUTE } from '../../utils/route-access';
 import { readFailure, useAuthSession } from '../useAuthSession';
-import type { AuthenticatedUser } from '../types/AuthenticatedUser';
+import type { AuthenticatedUser } from '../types/session';
 
 /*
  * Auto-imports are plain global bindings once the module is compiled, so the

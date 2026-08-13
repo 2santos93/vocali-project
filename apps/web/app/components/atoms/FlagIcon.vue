@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { InterfaceLanguage } from '../../i18n/types/InterfaceLanguage';
+import type { InterfaceLanguage } from '../../i18n/types';
 
 /**
  * Drawn rather than the `🇪🇸` emoji: Windows ships no flag glyphs, so the emoji

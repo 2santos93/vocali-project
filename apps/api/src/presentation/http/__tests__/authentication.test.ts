@@ -1,8 +1,6 @@
 import { withAuthenticatedUser } from '../authentication.js';
 import { jsonResponse } from '../http-response.js';
-import type { AuthenticatedHttpRequest } from '../../types/authenticated-http-request.js';
-import type { HttpRequest } from '../../types/http-request.js';
-import type { HttpResponse } from '../../types/http-response.js';
+import type { AuthenticatedHttpRequest, HttpRequest, HttpResponse } from '../../types/http.js';
 import { SilentLogger } from '../../../../test-support/doubles/silent-logger.js';
 import {
   buildApiGatewayEvent,

@@ -1,5 +1,5 @@
 import { decodeS3ObjectKey, startTranscriptionJobHandler } from '../start-transcription-job.js';
-import type { S3ObjectCreatedEvent } from '../../types/s3-object-created-event.js';
+import type { S3ObjectCreatedEvent } from '../../types/events.js';
 import { StartFileTranscription } from '../../../application/use-cases/start-file-transcription.js';
 import { Transcription } from '../../../domain/entities/transcription.js';
 import { AudioFile } from '../../../domain/value-objects/audio-file.js';

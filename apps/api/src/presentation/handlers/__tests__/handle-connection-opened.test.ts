@@ -3,7 +3,7 @@ import { RegisterConnection } from '../../../application/use-cases/register-conn
 import { CapturingLogger } from '../../../../test-support/doubles/capturing-logger.js';
 import { FixedClock } from '../../../../test-support/doubles/fixed-clock.js';
 import { InMemoryConnectionRegistry } from '../../../../test-support/doubles/in-memory-connection-registry.js';
-import type { WebSocketRequestEvent } from '../../types/websocket-request-event.js';
+import type { WebSocketRequestEvent } from '../../types/websocket.js';
 import { handleConnectionClosedHandler } from '../handle-connection-closed.js';
 import { handleConnectionOpenedHandler } from '../handle-connection-opened.js';
 

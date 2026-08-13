@@ -1,5 +1,4 @@
-import type { Failure } from '../types/failure.js';
-import type { Success } from '../types/success.js';
+import type { Failure, Success } from '../types/result.js';
 
 export function ok<T>(value: T): Success<T> {
   return { success: true, value };

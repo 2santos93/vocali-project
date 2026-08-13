@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { ConnectionItem } from '../types/connection-item.js';
-import type { TicketItem } from '../types/ticket-item.js';
+import type { ConnectionItem, TicketItem } from '../types/dynamo-items.js';
 
 /**
  * **The partition is chosen for the IAM policy, not for the query.** DynamoDB

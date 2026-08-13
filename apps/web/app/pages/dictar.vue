@@ -2,7 +2,7 @@
 import type { TranscriptionLanguage } from '@vocali/contracts';
 import { computed } from 'vue';
 import { useTranslations } from '../i18n/translations';
-import type { ApiRequester } from '../utils/types/ApiRequester';
+import type { ApiRequester } from '../utils/types/api';
 
 /**
  * Dictating by microphone.

@@ -1,11 +1,13 @@
 import { ref } from 'vue';
 import { DownloadUrlResponseSchema } from '@vocali/contracts';
 import type { Transcription, TranscriptFormat } from '@vocali/contracts';
-import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
+import type { TranslatableMessage } from '../i18n/types';
 import { isSessionExpired, SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
-import type { FollowDownloadUrl } from './types/FollowDownloadUrl';
-import type { RequestDownloadUrl } from './types/RequestDownloadUrl';
-import type { TranscriptionDownload } from './types/TranscriptionDownload';
+import type {
+  FollowDownloadUrl,
+  RequestDownloadUrl,
+  TranscriptionDownload,
+} from './types/transcriptions';
 
 export const DOWNLOAD_FAILURE_MESSAGE: TranslatableMessage = { key: 'failure.download' };
 

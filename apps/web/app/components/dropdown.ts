@@ -1,5 +1,5 @@
 import { onScopeDispose, ref } from 'vue';
-import type { Dropdown } from './types/Dropdown';
+import type { Dropdown } from './types/controls';
 
 /**
  * Shared so that the three ways a panel has to close — a click elsewhere,

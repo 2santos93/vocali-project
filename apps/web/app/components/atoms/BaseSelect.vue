@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { SelectOption } from '../types/SelectOption';
+import type { SelectOption } from '../types/controls';
 
 interface Props {
   /** Required, because a control with no id cannot be joined to a label. */

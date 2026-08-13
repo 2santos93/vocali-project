@@ -7,7 +7,7 @@ import {
   CLOSE_NOT_AUTHORISED,
   CLOSE_QUOTA_EXCEEDED,
 } from './realtime-provider-protocol';
-import type { RecordingFailure } from './types/RecordingFailure';
+import type { RecordingFailure } from './types/recording';
 
 /**
  * Gathered here so `recoverable` — the flag deciding whether a clinician is

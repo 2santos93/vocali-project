@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { AlertVariant } from '../types/AlertVariant';
+import type { AlertVariant } from '../types/controls';
 
 interface Props {
   variant?: AlertVariant;

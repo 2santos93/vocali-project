@@ -1,6 +1,6 @@
 import type { Clock } from '../../src/domain/ports/clock.js';
 import type { FileStorage } from '../../src/domain/ports/file-storage.js';
-import type { PresignedUpload } from '../../src/domain/types/presigned-upload.js';
+import type { PresignedUpload } from '../../src/domain/types/audio.js';
 
 type PresignedUploadInput = Parameters<FileStorage['createPresignedUpload']>[0];
 type PresignedReadInput = Parameters<FileStorage['createPresignedRead']>[0];

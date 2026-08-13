@@ -1,7 +1,9 @@
-import type { ProviderCallback } from '../types/provider-callback.js';
-import type { ProviderJobOutcome } from '../types/provider-job-outcome.js';
-import type { RealtimeCredentials } from '../types/realtime-credentials.js';
-import type { SubmittedJob } from '../types/submitted-job.js';
+import type {
+  ProviderCallback,
+  ProviderJobOutcome,
+  RealtimeCredentials,
+  SubmittedJob,
+} from '../types/provider.js';
 
 export interface TranscriptionProvider {
   /**

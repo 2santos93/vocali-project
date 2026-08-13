@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { FileUploadGateway } from '../composables/types/FileUploadGateway';
+import type { FileUploadGateway } from '../composables/types/upload';
 import { useTranslations } from '../i18n/translations';
-import type { ApiRequester } from '../utils/types/ApiRequester';
+import type { ApiRequester } from '../utils/types/api';
 
 /**
  * Transcribing an audio file.

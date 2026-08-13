@@ -15,7 +15,7 @@ import type { StartFileTranscription } from '../application/use-cases/start-file
 import type { Logger } from '../domain/ports/logger.js';
 import type { SecretsProvider } from '../domain/ports/secrets-provider.js';
 import type { TranscriptionProvider } from '../domain/ports/transcription-provider.js';
-import type { AppConfig } from '../infrastructure/types/app-config.js';
+import type { AppConfig } from '../infrastructure/types/config.js';
 
 /**
  * Everything a handler is allowed to reach for, declared as ports. That is what

@@ -5,15 +5,19 @@ import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { errorResponse, jsonResponse } from '../http/http-response.js';
 import { BAD_REQUEST, OK, UNAUTHORIZED } from '../http/http-status.js';
 import { withValidatedQuery } from '../http/validation.js';
-import type { ApiGatewayRequestEvent } from '../types/api-gateway-request-event.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { CallbackQuery } from '../types/callback-query.js';
-import type { CompletedOutcome } from '../types/completed-outcome.js';
-import type { FailedOutcome } from '../types/failed-outcome.js';
-import type { HandleProviderCallbackDependencies } from '../types/handle-provider-callback-dependencies.js';
-import type { HttpRequest } from '../types/http-request.js';
-import type { HttpResponse } from '../types/http-response.js';
-import type { UnrecognisedOutcome } from '../types/unrecognised-outcome.js';
+import type {
+  ApiGatewayRequestEvent,
+  ApiGatewayRequestHandler,
+  HttpRequest,
+  HttpResponse,
+} from '../types/http.js';
+import type {
+  CallbackQuery,
+  CompletedOutcome,
+  FailedOutcome,
+  UnrecognisedOutcome,
+} from '../types/events.js';
+import type { HandleProviderCallbackDependencies } from '../types/dependencies.js';
 
 const UNAUTHENTICATED_CODE = 'UNAUTHENTICATED';
 const UNAUTHENTICATED_MESSAGE = 'This request requires a valid callback credential';

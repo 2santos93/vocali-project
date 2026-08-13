@@ -1,7 +1,7 @@
 import type { ApiGatewayManagementApiClient } from '@aws-sdk/client-apigatewaymanagementapi';
 import { GoneException, PostToConnectionCommand } from '@aws-sdk/client-apigatewaymanagementapi';
 import type { ConnectionPublisher } from '../../domain/ports/connection-publisher.js';
-import type { PublishOutcome } from '../../domain/types/publish-outcome.js';
+import type { PublishOutcome } from '../../domain/types/connection.js';
 
 /**
  * Not a contradiction of the rule that a Lambda cannot hold a duplex socket —

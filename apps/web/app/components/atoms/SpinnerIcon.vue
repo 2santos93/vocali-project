@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { ControlSize } from '../types/ControlSize';
+import type { ControlSize } from '../types/controls';
 
 interface Props {
   size?: ControlSize;

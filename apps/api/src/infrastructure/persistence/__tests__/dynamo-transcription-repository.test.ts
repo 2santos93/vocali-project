@@ -22,7 +22,7 @@ import { MalformedTranscriptionRecordError, toTranscriptionItem } from '../trans
 import { buildTranscription } from '../../../../test-support/builders/transcription.builder.js';
 import { InMemoryTranscriptionRepository } from '../../../../test-support/doubles/in-memory-transcription-repository.js';
 import type { InvalidCursorError } from '../../../domain/errors/domain-error.js';
-import type { TranscriptionPage } from '../../../domain/types/transcription-page.js';
+import type { TranscriptionPage } from '../../../domain/types/transcription.js';
 import type { Result } from '../../../domain/types/result.js';
 
 const TABLE = 'vocali-transcriptions-test';

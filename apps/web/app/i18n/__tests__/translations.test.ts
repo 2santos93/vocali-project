@@ -3,7 +3,7 @@ import { computed, defineComponent } from 'vue';
 import type { PropType } from 'vue';
 import { withTranslations } from '../testing';
 import { createInterfaceI18n } from '../translate';
-import type { TranslatableMessage } from '../types/TranslatableMessage';
+import type { TranslatableMessage } from '../types';
 import { useTranslations } from '../translations';
 
 /**

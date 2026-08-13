@@ -9,8 +9,7 @@ import {
   UnsupportedAudioFormatError,
 } from '../errors/domain-error.js';
 import { err, ok } from '../shared/result.js';
-import type { AudioFileError } from '../types/audio-file-error.js';
-import type { AudioFileInput } from '../types/audio-file-input.js';
+import type { AudioFileError, AudioFileInput } from '../types/audio.js';
 import type { Result } from '../types/result.js';
 
 const MAX_FILE_NAME_LENGTH = 255;

@@ -1,11 +1,13 @@
 import type { TranscriptionStatus } from '@vocali/contracts/constants';
 import { InvalidStatusTransitionError } from '../errors/domain-error.js';
 import { err, ok } from '../shared/result.js';
-import type { CompletionInput } from '../types/completion-input.js';
-import type { FileUploadInput } from '../types/file-upload-input.js';
-import type { RealtimeSessionInput } from '../types/realtime-session-input.js';
+import type {
+  CompletionInput,
+  FileUploadInput,
+  RealtimeSessionInput,
+  TranscriptionPrimitives,
+} from '../types/transcription.js';
 import type { Result } from '../types/result.js';
-import type { TranscriptionPrimitives } from '../types/transcription-primitives.js';
 import { canTransition } from '../value-objects/transcription-status.js';
 
 const TEXT_PREVIEW_LENGTH = 200;

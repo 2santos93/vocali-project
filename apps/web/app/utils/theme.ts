@@ -1,5 +1,4 @@
-import type { EffectiveTheme } from './types/EffectiveTheme';
-import type { ThemePreference } from './types/ThemePreference';
+import type { EffectiveTheme, ThemePreference } from './types/theme';
 
 /**
  * The rule, kept apart from the composable that applies it: a rule in a

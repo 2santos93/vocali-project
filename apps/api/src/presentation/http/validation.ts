@@ -1,9 +1,7 @@
 import type { z } from 'zod';
 import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
-import type { ApiGatewayRequestEvent } from '../types/api-gateway-request-event.js';
-import type { HttpRequest } from '../types/http-request.js';
-import type { HttpResponse } from '../types/http-response.js';
+import type { ApiGatewayRequestEvent, HttpRequest, HttpResponse } from '../types/http.js';
 import { readRawBody } from './api-gateway-request.js';
 import { errorResponse } from './http-response.js';
 import { BAD_REQUEST } from './http-status.js';

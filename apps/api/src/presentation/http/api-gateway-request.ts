@@ -1,4 +1,4 @@
-import type { ApiGatewayRequestEvent } from '../types/api-gateway-request-event.js';
+import type { ApiGatewayRequestEvent } from '../types/http.js';
 
 /**
  * API Gateway base64-encodes the body whenever the content type is not on its

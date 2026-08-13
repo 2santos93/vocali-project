@@ -1,4 +1,4 @@
-import type { UserConnection } from '../types/user-connection.js';
+import type { UserConnection } from '../types/connection.js';
 
 export interface ConnectionRegistry {
   /**

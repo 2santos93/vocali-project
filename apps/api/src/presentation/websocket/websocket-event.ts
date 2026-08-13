@@ -1,4 +1,4 @@
-import type { WebSocketRequestEvent } from '../types/websocket-request-event.js';
+import type { WebSocketRequestEvent } from '../types/websocket.js';
 
 /**
  * The only identity a websocket route may use. Nothing reads a user id from the

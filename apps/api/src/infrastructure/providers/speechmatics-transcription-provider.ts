@@ -7,10 +7,12 @@ import type { Clock } from '../../domain/ports/clock.js';
 import type { Logger } from '../../domain/ports/logger.js';
 import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
 import type { TranscriptionProvider } from '../../domain/ports/transcription-provider.js';
-import type { ProviderCallback } from '../../domain/types/provider-callback.js';
-import type { ProviderJobOutcome } from '../../domain/types/provider-job-outcome.js';
-import type { RealtimeCredentials } from '../../domain/types/realtime-credentials.js';
-import type { SubmittedJob } from '../../domain/types/submitted-job.js';
+import type {
+  ProviderCallback,
+  ProviderJobOutcome,
+  RealtimeCredentials,
+  SubmittedJob,
+} from '../../domain/types/provider.js';
 import {
   AUTOMATIC_LANGUAGE,
   BATCH_JOBS_URL,
@@ -29,11 +31,9 @@ import {
   REPEATABLE_OPERATION_RETRY_POLICY,
 } from './retry-policy.js';
 import { interpretSpeechmaticsCallback } from './speechmatics-callback.js';
-import type { AttemptResult } from '../types/attempt-result.js';
-import type { RequestInitWithHeaders } from '../types/request-init-with-headers.js';
-import type { RetryPolicy } from '../types/retry-policy.js';
-import type { SpeechmaticsProviderOptions } from '../types/speechmatics-provider-options.js';
-import type { SpeechmaticsRuntimeHooks } from '../types/speechmatics-runtime-hooks.js';
+import type { AttemptResult, RequestInitWithHeaders, RetryPolicy } from '../types/http-retry.js';
+import type { SpeechmaticsProviderOptions } from '../types/config.js';
+import type { SpeechmaticsRuntimeHooks } from '../types/speechmatics.js';
 
 /**
  * The API key is fetched per operation, used to build one `Authorization`

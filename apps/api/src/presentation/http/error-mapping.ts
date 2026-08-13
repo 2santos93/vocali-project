@@ -1,10 +1,12 @@
 import { DOMAIN_ERROR_CODES, type DomainErrorCode } from '@vocali/contracts/constants';
 import type { Logger } from '../../domain/ports/logger.js';
-import type { ApiGatewayRequestEvent } from '../types/api-gateway-request-event.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { HttpRequest } from '../types/http-request.js';
-import type { HttpResponse } from '../types/http-response.js';
-import type { RecognisedDomainError } from '../types/recognised-domain-error.js';
+import type {
+  ApiGatewayRequestEvent,
+  ApiGatewayRequestHandler,
+  HttpRequest,
+  HttpResponse,
+  RecognisedDomainError,
+} from '../types/http.js';
 import { errorResponse } from './http-response.js';
 import { BAD_REQUEST, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND } from './http-status.js';
 

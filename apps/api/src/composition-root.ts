@@ -18,7 +18,7 @@ import { RegisterConnection } from './application/use-cases/register-connection.
 import { SaveRealtimeTranscription } from './application/use-cases/save-realtime-transcription.js';
 import { StartFileTranscription } from './application/use-cases/start-file-transcription.js';
 import { loadConfig } from './infrastructure/config/environment.js';
-import type { AppConfig } from './infrastructure/types/app-config.js';
+import type { AppConfig } from './infrastructure/types/config.js';
 import type { Container } from './types/container.js';
 import { CryptoTokenGenerator } from './infrastructure/id/crypto-token-generator.js';
 import { UlidIdGenerator } from './infrastructure/id/ulid-id-generator.js';

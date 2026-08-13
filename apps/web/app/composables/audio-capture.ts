@@ -1,8 +1,6 @@
-import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
-import type { AudioCapture } from './types/AudioCapture';
-import type { AudioCaptureDependencies } from './types/AudioCaptureDependencies';
-import type { AudioCaptureOptions } from './types/AudioCaptureOptions';
-import type { MicrophoneFailureCode } from './types/MicrophoneFailureCode';
+import type { TranslatableMessage } from '../i18n/types';
+import type { AudioCapture, AudioCaptureDependencies, AudioCaptureOptions } from './types/audio';
+import type { MicrophoneFailureCode } from './types/recording';
 
 /** `public/` is served at the site root. */
 export const PCM_ENCODER_WORKLET_URL = '/worklets/pcm-encoder.js';

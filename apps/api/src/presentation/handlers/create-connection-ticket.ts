@@ -2,8 +2,8 @@ import { withAuthenticatedUser } from '../http/authentication.js';
 import { withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { CREATED } from '../http/http-status.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { CreateConnectionTicketDependencies } from '../types/create-connection-ticket-dependencies.js';
+import type { ApiGatewayRequestHandler } from '../types/http.js';
+import type { CreateConnectionTicketDependencies } from '../types/dependencies.js';
 
 /**
  * `POST /connection-tickets` — exchanges a proven session for a credential

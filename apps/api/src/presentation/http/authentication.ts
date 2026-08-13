@@ -1,7 +1,9 @@
-import type { ApiGatewayRequestEvent } from '../types/api-gateway-request-event.js';
-import type { AuthenticatedHttpRequest } from '../types/authenticated-http-request.js';
-import type { HttpRequest } from '../types/http-request.js';
-import type { HttpResponse } from '../types/http-response.js';
+import type {
+  ApiGatewayRequestEvent,
+  AuthenticatedHttpRequest,
+  HttpRequest,
+  HttpResponse,
+} from '../types/http.js';
 import { errorResponse } from './http-response.js';
 import { UNAUTHORIZED } from './http-status.js';
 

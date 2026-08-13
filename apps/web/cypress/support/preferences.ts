@@ -1,4 +1,4 @@
-import type { InterfaceLanguage } from '../../app/i18n/types/InterfaceLanguage';
+import type { InterfaceLanguage } from '../../app/i18n/types';
 import { DARK_PAGE_BACKGROUND } from './appearance';
 
 /**

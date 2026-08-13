@@ -1,7 +1,9 @@
-import type { AuthorizeConnectionDependencies } from '../types/authorize-connection-dependencies.js';
-import type { ConnectionAuthorizer } from '../types/connection-authorizer.js';
-import type { ConnectionAuthorizerEvent } from '../types/connection-authorizer-event.js';
-import type { ConnectionAuthorizerResult } from '../types/connection-authorizer-result.js';
+import type { AuthorizeConnectionDependencies } from '../types/dependencies.js';
+import type {
+  ConnectionAuthorizer,
+  ConnectionAuthorizerEvent,
+  ConnectionAuthorizerResult,
+} from '../types/websocket.js';
 
 export const TICKET_QUERY_PARAMETER = 'ticket';
 

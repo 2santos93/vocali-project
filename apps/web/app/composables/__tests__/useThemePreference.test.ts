@@ -3,7 +3,7 @@ import { defineComponent, h, ref } from 'vue';
 import type { Ref, VNode } from 'vue';
 import { SYSTEM_DARK_STATE_KEY } from '../useSystemColorScheme';
 import { THEME_STATE_KEY, useThemePreference } from '../useThemePreference';
-import type { ThemeControl } from '../types/ThemeControl';
+import type { ThemeControl } from '../types/preferences';
 
 /*
  * The Nuxt runtime stood in for by globals of the same names, as in

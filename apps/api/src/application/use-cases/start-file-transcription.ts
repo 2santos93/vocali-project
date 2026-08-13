@@ -8,9 +8,11 @@ import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
 import { canTransition } from '../../domain/value-objects/transcription-status.js';
 import { AUDIO_READ_URL_TTL_SECONDS } from '../constants.js';
-import type { StartFileTranscriptionConfig } from '../types/start-file-transcription-config.js';
-import type { StartFileTranscriptionError } from '../types/start-file-transcription-error.js';
-import type { StartFileTranscriptionInput } from '../types/start-file-transcription-input.js';
+import type {
+  StartFileTranscriptionConfig,
+  StartFileTranscriptionInput,
+} from '../types/transcription-inputs.js';
+import type { StartFileTranscriptionError } from '../types/transcription-errors.js';
 import { parseAudioObjectKey } from './object-keys.js';
 
 /**

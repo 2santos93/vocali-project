@@ -1,5 +1,4 @@
-import type { MessageKey } from '../i18n/types/MessageKey';
-import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
+import type { MessageKey, TranslatableMessage } from '../i18n/types';
 import type { AuthFailureCode } from '../../server/utils/auth-failures';
 
 /**

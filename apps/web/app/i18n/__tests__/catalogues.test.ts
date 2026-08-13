@@ -1,6 +1,6 @@
 import { ENGLISH_MESSAGES } from '../en';
 import { SPANISH_MESSAGES } from '../es';
-import type { MessageKey } from '../types/MessageKey';
+import type { MessageKey } from '../types';
 
 /**
  * The catalogues as data, checked for the mistakes a compiler cannot see.

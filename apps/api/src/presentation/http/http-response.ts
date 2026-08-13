@@ -1,5 +1,5 @@
 import type { ApiError } from '@vocali/contracts';
-import type { HttpResponse } from '../types/http-response.js';
+import type { HttpResponse } from '../types/http.js';
 
 /**
  * `no-store` because a presigned URL in a shared cache is a credential in a

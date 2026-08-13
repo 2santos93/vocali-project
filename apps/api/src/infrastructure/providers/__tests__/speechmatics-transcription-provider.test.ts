@@ -1,8 +1,8 @@
 import { MockAgent } from 'undici';
 import type { SecretsProvider } from '../../../domain/ports/secrets-provider.js';
 import { SpeechmaticsTranscriptionProvider } from '../speechmatics-transcription-provider.js';
-import type { SpeechmaticsProviderOptions } from '../../types/speechmatics-provider-options.js';
-import type { SpeechmaticsRuntimeHooks } from '../../types/speechmatics-runtime-hooks.js';
+import type { SpeechmaticsProviderOptions } from '../../types/config.js';
+import type { SpeechmaticsRuntimeHooks } from '../../types/speechmatics.js';
 import { CapturingLogger } from '../../../../test-support/doubles/capturing-logger.js';
 import { FixedClock } from '../../../../test-support/doubles/fixed-clock.js';
 

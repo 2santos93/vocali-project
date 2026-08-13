@@ -1,6 +1,6 @@
 import { pino, type DestinationStream, type Logger as Pino } from 'pino';
 import type { Logger } from '../../domain/ports/logger.js';
-import type { LogLevel } from '../types/log-level.js';
+import type { LogLevel } from '../types/config.js';
 
 /**
  * Pino's set without `fatal`. The `Logger` port emits nothing above `error`, so

@@ -7,8 +7,8 @@ import {
   themeClass,
   toThemePreference,
 } from '../utils/theme';
-import type { ThemePreference } from '../utils/types/ThemePreference';
-import type { ThemeControl } from './types/ThemeControl';
+import type { ThemePreference } from '../utils/types/theme';
+import type { ThemeControl } from './types/preferences';
 import { useSystemPrefersDark } from './useSystemColorScheme';
 
 /**

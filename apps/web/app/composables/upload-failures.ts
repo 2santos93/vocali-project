@@ -5,7 +5,7 @@ import {
   HTTP_UNSUPPORTED_MEDIA_TYPE,
 } from '../utils/http-status';
 import { StorageUploadError } from './presigned-post-upload';
-import type { FileUploadFailure } from './types/FileUploadFailure';
+import type { FileUploadFailure } from './types/upload';
 
 /**
  * The counterpart of `recording-failures`, gathered here so the answer to

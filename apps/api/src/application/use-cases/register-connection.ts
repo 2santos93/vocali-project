@@ -1,7 +1,7 @@
 import type { Clock } from '../../domain/ports/clock.js';
 import type { ConnectionRegistry } from '../../domain/ports/connection-registry.js';
 import { CONNECTION_TTL_SECONDS } from '../constants.js';
-import type { RegisterConnectionInput } from '../types/register-connection-input.js';
+import type { RegisterConnectionInput } from '../types/connection-inputs.js';
 
 /**
  * Deliberately separate from the authorizer, which also sees the connection id.

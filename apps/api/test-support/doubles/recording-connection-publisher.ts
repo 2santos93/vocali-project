@@ -1,5 +1,5 @@
 import type { ConnectionPublisher } from '../../src/domain/ports/connection-publisher.js';
-import type { PublishOutcome } from '../../src/domain/types/publish-outcome.js';
+import type { PublishOutcome } from '../../src/domain/types/connection.js';
 
 type PublishInput = Parameters<ConnectionPublisher['publish']>[0];
 

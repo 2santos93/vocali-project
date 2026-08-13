@@ -1,8 +1,7 @@
 import { SUPPORTED_TRANSCRIPTION_LANGUAGES } from '@vocali/contracts';
 import type { TranscriptionLanguage } from '@vocali/contracts';
-import type { MessageKey } from '../i18n/types/MessageKey';
-import type { Translate } from '../i18n/types/Translate';
-import type { SelectOption } from './types/SelectOption';
+import type { MessageKey, Translate } from '../i18n/types';
+import type { SelectOption } from './types/controls';
 
 /**
  * The languages the platform **transcribes**. Nothing to do with the language

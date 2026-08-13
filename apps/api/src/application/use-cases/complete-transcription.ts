@@ -8,8 +8,8 @@ import type { TranscriptionRepository } from '../../domain/ports/transcription-r
 import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
 import { canTransition } from '../../domain/value-objects/transcription-status.js';
-import type { CompleteTranscriptionError } from '../types/complete-transcription-error.js';
-import type { CompleteTranscriptionInput } from '../types/complete-transcription-input.js';
+import type { CompleteTranscriptionError } from '../types/transcription-errors.js';
+import type { CompleteTranscriptionInput } from '../types/transcription-inputs.js';
 import { buildTranscriptObjectKey } from './object-keys.js';
 
 /**

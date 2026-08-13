@@ -2,12 +2,14 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { localeTag } from './language';
 import { translateWith } from './translate';
-import type { InterfaceLanguage } from './types/InterfaceLanguage';
-import type { MessageKey } from './types/MessageKey';
-import type { MessageSchema } from './types/MessageSchema';
-import type { MessageValues } from './types/MessageValues';
-import type { TranslatableMessage } from './types/TranslatableMessage';
-import type { Translations } from './types/Translations';
+import type {
+  InterfaceLanguage,
+  MessageKey,
+  MessageSchema,
+  MessageValues,
+  TranslatableMessage,
+  Translations,
+} from './types';
 
 /**
  * Plain Vue injection all the way down, which is the rule the design system is

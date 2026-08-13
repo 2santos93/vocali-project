@@ -1,10 +1,8 @@
 import { SUPPORTED_TRANSCRIPTION_LANGUAGES } from '@vocali/contracts/constants';
 import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import { z } from 'zod';
-import type { ProviderCallback } from '../../domain/types/provider-callback.js';
-import type { ProviderJobOutcome } from '../../domain/types/provider-job-outcome.js';
-import type { SpeechmaticsTranscript } from '../types/speechmatics-transcript.js';
-import type { TranscriptResult } from '../types/transcript-result.js';
+import type { ProviderCallback, ProviderJobOutcome } from '../../domain/types/provider.js';
+import type { SpeechmaticsTranscript, TranscriptResult } from '../types/speechmatics.js';
 
 /**
  * The provider appends `?id=<jobId>&status=<status>` to the callback URL the

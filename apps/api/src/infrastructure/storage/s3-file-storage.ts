@@ -4,7 +4,7 @@ import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
-import type { PresignedUpload } from '../../domain/types/presigned-upload.js';
+import type { PresignedUpload } from '../../domain/types/audio.js';
 
 /**
  * Anything that could close the quote of a `Content-Disposition` value, escape

@@ -10,7 +10,7 @@ import {
   InvalidCursorError,
 } from '../../domain/errors/domain-error.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import type { TranscriptionPage } from '../../domain/types/transcription-page.js';
+import type { TranscriptionPage } from '../../domain/types/transcription.js';
 import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
 import { decodeCursor, encodeCursor } from './pagination-cursor.js';

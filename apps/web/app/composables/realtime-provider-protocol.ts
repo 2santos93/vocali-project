@@ -1,5 +1,5 @@
 import type { RealtimeSessionResponse, TranscriptionLanguage } from '@vocali/contracts';
-import type { ProviderFrame } from './types/ProviderFrame';
+import type { ProviderFrame } from './types/recording';
 
 /**
  * The socket is a trust boundary: frames arrive from a third party, so every

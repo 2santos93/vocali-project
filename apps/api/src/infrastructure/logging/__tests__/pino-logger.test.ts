@@ -1,6 +1,6 @@
 import type { DestinationStream } from 'pino';
 import { createLogger } from '../pino-logger.js';
-import type { LogLevel } from '../../types/log-level.js';
+import type { LogLevel } from '../../types/config.js';
 
 interface CapturedStream extends DestinationStream {
   readonly lines: Record<string, unknown>[];

@@ -1,5 +1,6 @@
-import type { Failure } from './failure.js';
-import type { Success } from './success.js';
+export type Success<T> = { readonly success: true; readonly value: T };
+
+export type Failure<E> = { readonly success: false; readonly error: E };
 
 /**
  * Expected failures are returned as values so that callers must handle them.

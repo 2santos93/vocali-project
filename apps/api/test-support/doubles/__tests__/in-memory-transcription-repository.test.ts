@@ -1,7 +1,7 @@
 import { InMemoryTranscriptionRepository } from '../in-memory-transcription-repository.js';
 import { buildTranscription } from '../../builders/transcription.builder.js';
 import { InvalidCursorError } from '../../../src/domain/errors/domain-error.js';
-import type { TranscriptionPage } from '../../../src/domain/types/transcription-page.js';
+import type { TranscriptionPage } from '../../../src/domain/types/transcription.js';
 import type { Result } from '../../../src/domain/types/result.js';
 
 function expectOk(result: Result<TranscriptionPage, InvalidCursorError>): TranscriptionPage {

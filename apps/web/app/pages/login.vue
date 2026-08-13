@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import type { SignedInUser } from '../../server/api/auth/login.post';
 import { useTranslations } from '../i18n/translations';
-import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
+import type { TranslatableMessage } from '../i18n/types';
 
 definePageMeta({ layout: 'auth' });
 

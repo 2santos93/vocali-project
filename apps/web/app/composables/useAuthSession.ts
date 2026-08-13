@@ -1,7 +1,6 @@
 import type { SessionState } from '../../server/api/auth/session.get';
-import type { AuthenticatedUser } from './types/AuthenticatedUser';
-import type { AuthSession } from './types/AuthSession';
-import type { FailureDetail } from './types/FailureDetail';
+import type { AuthenticatedUser, AuthSession } from './types/session';
+import type { FailureDetail } from './types/upload';
 
 /**
  * `useState` rather than a module-level ref: a module-level ref on a server

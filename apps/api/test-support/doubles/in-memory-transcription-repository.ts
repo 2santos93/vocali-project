@@ -1,12 +1,14 @@
 import type { Transcription } from '../../src/domain/entities/transcription.js';
-import type { TranscriptionPrimitives } from '../../src/domain/types/transcription-primitives.js';
+import type {
+  TranscriptionPrimitives,
+  TranscriptionPage,
+} from '../../src/domain/types/transcription.js';
 import { Transcription as TranscriptionEntity } from '../../src/domain/entities/transcription.js';
 import {
   ConcurrentModificationError,
   InvalidCursorError,
 } from '../../src/domain/errors/domain-error.js';
 import type { TranscriptionRepository } from '../../src/domain/ports/transcription-repository.js';
-import type { TranscriptionPage } from '../../src/domain/types/transcription-page.js';
 import { err, ok } from '../../src/domain/shared/result.js';
 import type { Result } from '../../src/domain/types/result.js';
 

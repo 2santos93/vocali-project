@@ -1,4 +1,4 @@
-import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
+import type { TranslatableMessage } from '../i18n/types';
 import { HTTP_UNAUTHORIZED } from './http-status';
 
 /**

@@ -11,7 +11,7 @@ import type {
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import { REALTIME_SESSIONS_PATH, REALTIME_TRANSCRIPTIONS_PATH } from '../utils/api-routes';
-import type { ApiRequester } from '../utils/types/ApiRequester';
+import type { ApiRequester } from '../utils/types/api';
 import {
   buildEndOfStream,
   buildStartRecognition,
@@ -29,10 +29,12 @@ import {
   describeSessionFailure,
   NOTHING_TO_SAVE,
 } from './recording-failures';
-import type { AudioRecorderController } from './types/AudioRecorderController';
-import type { AudioRecorderDependencies } from './types/AudioRecorderDependencies';
-import type { RecordingFailure } from './types/RecordingFailure';
-import type { RecordingPhase } from './types/RecordingPhase';
+import type {
+  AudioRecorderController,
+  AudioRecorderDependencies,
+  RecordingFailure,
+  RecordingPhase,
+} from './types/recording';
 
 /**
  * Nothing here opens a connection of its own: the session request, the socket

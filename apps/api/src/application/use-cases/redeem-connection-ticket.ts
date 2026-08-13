@@ -1,6 +1,6 @@
 import type { Clock } from '../../domain/ports/clock.js';
 import type { ConnectionTicketStore } from '../../domain/ports/connection-ticket-store.js';
-import type { RedeemConnectionTicketInput } from '../types/redeem-connection-ticket-input.js';
+import type { RedeemConnectionTicketInput } from '../types/connection-inputs.js';
 
 /**
  * Deliberately not a `Result` with a reason. "Already used" and "never existed"

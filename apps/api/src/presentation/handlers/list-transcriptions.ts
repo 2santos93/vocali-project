@@ -4,8 +4,8 @@ import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { OK } from '../http/http-status.js';
 import { withValidatedQuery } from '../http/validation.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { ListTranscriptionsDependencies } from '../types/list-transcriptions-dependencies.js';
+import type { ApiGatewayRequestHandler } from '../types/http.js';
+import type { ListTranscriptionsDependencies } from '../types/dependencies.js';
 
 /**
  * `GET /transcriptions` — the signed-in user's history, newest first.

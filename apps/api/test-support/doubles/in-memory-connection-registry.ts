@@ -1,5 +1,5 @@
 import type { ConnectionRegistry } from '../../src/domain/ports/connection-registry.js';
-import type { UserConnection } from '../../src/domain/types/user-connection.js';
+import type { UserConnection } from '../../src/domain/types/connection.js';
 
 type AddInput = Parameters<ConnectionRegistry['add']>[0];
 

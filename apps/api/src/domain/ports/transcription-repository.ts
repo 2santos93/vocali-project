@@ -1,7 +1,7 @@
 import type { Transcription } from '../entities/transcription.js';
 import type { ConcurrentModificationError, InvalidCursorError } from '../errors/domain-error.js';
 import type { Result } from '../types/result.js';
-import type { TranscriptionPage } from '../types/transcription-page.js';
+import type { TranscriptionPage } from '../types/transcription.js';
 
 export interface TranscriptionRepository {
   /**

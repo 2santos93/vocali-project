@@ -2,11 +2,13 @@ import { createI18n } from 'vue-i18n';
 import { ENGLISH_MESSAGES } from './en';
 import { SPANISH_MESSAGES } from './es';
 import { DEFAULT_INTERFACE_LANGUAGE } from './language';
-import type { InterfaceI18n } from './types/InterfaceI18n';
-import type { InterfaceLanguage } from './types/InterfaceLanguage';
-import type { MessageKey } from './types/MessageKey';
-import type { MessageSchema } from './types/MessageSchema';
-import type { MessageValues } from './types/MessageValues';
+import type {
+  InterfaceI18n,
+  InterfaceLanguage,
+  MessageKey,
+  MessageSchema,
+  MessageValues,
+} from './types';
 
 /**
  * `vue-i18n` rather than `@nuxtjs/i18n`: this is a Vue plugin, so components

@@ -4,9 +4,8 @@ import {
   TRANSCRIPTION_STATUSES,
 } from '@vocali/contracts/constants';
 import { z } from 'zod';
-import type { TranscriptionPrimitives } from '../../domain/types/transcription-primitives.js';
-import type { ClientSessionItem } from '../types/client-session-item.js';
-import type { TranscriptionItem } from '../types/transcription-item.js';
+import type { TranscriptionPrimitives } from '../../domain/types/transcription.js';
+import type { ClientSessionItem, TranscriptionItem } from '../types/dynamo-items.js';
 
 /** `PK = USER#<userId>`, `SK = TRANS#<transcriptionId>`. */
 export const PARTITION_KEY_PREFIX = 'USER#';

@@ -1,7 +1,7 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { DeleteCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import type { ConnectionRegistry } from '../../domain/ports/connection-registry.js';
-import type { UserConnection } from '../../domain/types/user-connection.js';
+import type { UserConnection } from '../../domain/types/connection.js';
 import { buildConnectionPartitionKey, toConnectionItem } from './connection.mapper.js';
 
 /**

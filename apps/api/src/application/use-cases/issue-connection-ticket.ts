@@ -3,7 +3,7 @@ import type { Clock } from '../../domain/ports/clock.js';
 import type { ConnectionTicketStore } from '../../domain/ports/connection-ticket-store.js';
 import type { TokenGenerator } from '../../domain/ports/token-generator.js';
 import { CONNECTION_TICKET_TTL_SECONDS } from '../constants.js';
-import type { IssueConnectionTicketInput } from '../types/issue-connection-ticket-input.js';
+import type { IssueConnectionTicketInput } from '../types/connection-inputs.js';
 
 /**
  * Turns the proven identity behind the JWT authorizer into something safe to

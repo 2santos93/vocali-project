@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { ThemePreference } from '../../utils/types/ThemePreference';
+import type { ThemePreference } from '../../utils/types/theme';
 import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import { useDropdown } from '../dropdown';
 import ThemeSwitch from './ThemeSwitch.vue';

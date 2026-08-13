@@ -1,6 +1,5 @@
 import { MissingMessageError, createInterfaceI18n, translate } from '../translate';
-import type { MessageKey } from '../types/MessageKey';
-import type { MessageSchema } from '../types/MessageSchema';
+import type { MessageKey, MessageSchema } from '../types';
 
 /*
  * Real keys and real sentences throughout. Asserting that `translate` returns

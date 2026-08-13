@@ -9,8 +9,8 @@ import type { TranscriptionRepository } from '../../domain/ports/transcription-r
 import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
 import { DOWNLOAD_URL_TTL_SECONDS } from '../constants.js';
-import type { GetTranscriptionDownloadUrlError } from '../types/get-transcription-download-url-error.js';
-import type { GetTranscriptionDownloadUrlInput } from '../types/get-transcription-download-url-input.js';
+import type { GetTranscriptionDownloadUrlError } from '../types/transcription-errors.js';
+import type { GetTranscriptionDownloadUrlInput } from '../types/transcription-inputs.js';
 import { buildTranscriptObjectKey } from './object-keys.js';
 
 export class GetTranscriptionDownloadUrl {

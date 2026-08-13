@@ -5,7 +5,7 @@ import { handleProviderCallbackHandler } from '../handle-provider-callback.js';
 import { CompleteTranscription } from '../../../application/use-cases/complete-transcription.js';
 import { FailTranscription } from '../../../application/use-cases/fail-transcription.js';
 import { Transcription } from '../../../domain/entities/transcription.js';
-import type { ProviderJobOutcome } from '../../../domain/types/provider-job-outcome.js';
+import type { ProviderJobOutcome } from '../../../domain/types/provider.js';
 import { AudioFile } from '../../../domain/value-objects/audio-file.js';
 import {
   buildApiGatewayEvent,

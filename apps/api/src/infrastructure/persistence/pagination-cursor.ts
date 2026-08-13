@@ -1,7 +1,7 @@
 import { InvalidCursorError } from '../../domain/errors/domain-error.js';
 import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
-import type { CursorPayload } from '../types/cursor-payload.js';
+import type { CursorPayload } from '../types/dynamo-items.js';
 
 /**
  * The raw DynamoDB key never leaves the adapter: the client is handed an opaque

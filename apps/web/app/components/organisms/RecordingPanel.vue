@@ -8,10 +8,9 @@ import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FormField from '../molecules/FormField.vue';
-import type { RecordingFailure } from '../../composables/types/RecordingFailure';
-import type { RecordingPhase } from '../../composables/types/RecordingPhase';
+import type { RecordingFailure, RecordingPhase } from '../../composables/types/recording';
 import { useTranslations } from '../../i18n/translations';
-import type { SelectOption } from '../types/SelectOption';
+import type { SelectOption } from '../types/controls';
 import { transcriptionLanguageOptions, toTranscriptionLanguage } from '../transcription-languages';
 
 interface Props {

@@ -4,7 +4,7 @@ import type { InvalidCursorError } from '../../domain/errors/domain-error.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import type { Result } from '../../domain/types/result.js';
 import { ok } from '../../domain/shared/result.js';
-import type { ListUserTranscriptionsInput } from '../types/list-user-transcriptions-input.js';
+import type { ListUserTranscriptionsInput } from '../types/transcription-inputs.js';
 import { toPublicTranscription } from './public-transcription.js';
 
 export class ListUserTranscriptions {

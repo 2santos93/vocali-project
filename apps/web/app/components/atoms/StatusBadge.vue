@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TranscriptionStatus } from '@vocali/contracts';
 import { computed } from 'vue';
-import type { MessageKey } from '../../i18n/types/MessageKey';
+import type { MessageKey } from '../../i18n/types';
 import { useTranslations } from '../../i18n/translations';
 
 interface Props {

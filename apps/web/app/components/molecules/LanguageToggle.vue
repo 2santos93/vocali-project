@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { INTERFACE_LANGUAGES } from '../../i18n/language';
-import type { InterfaceLanguage } from '../../i18n/types/InterfaceLanguage';
+import type { InterfaceLanguage, MessageKey } from '../../i18n/types';
 import { useTranslations } from '../../i18n/translations';
-import type { MessageKey } from '../../i18n/types/MessageKey';
 import FlagIcon from '../atoms/FlagIcon.vue';
 import { useDropdown } from '../dropdown';
 

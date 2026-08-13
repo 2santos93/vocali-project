@@ -1,4 +1,4 @@
-import type { InterfaceLanguage } from './types/InterfaceLanguage';
+import type { InterfaceLanguage } from './types';
 
 /**
  * The **interface** language, never `TranscriptionLanguage` from

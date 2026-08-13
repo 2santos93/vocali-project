@@ -1,5 +1,5 @@
 import type { Transcription as TranscriptionDto } from '@vocali/contracts';
-import type { TranscriptionPrimitives } from '../../domain/types/transcription-primitives.js';
+import type { TranscriptionPrimitives } from '../../domain/types/transcription.js';
 
 /**
  * Maps each field by name rather than spreading `TranscriptionPrimitives`.

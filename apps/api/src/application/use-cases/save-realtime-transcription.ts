@@ -4,7 +4,7 @@ import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { IdGenerator } from '../../domain/ports/id-generator.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import type { SaveRealtimeTranscriptionInput } from '../types/save-realtime-transcription-input.js';
+import type { SaveRealtimeTranscriptionInput } from '../types/transcription-inputs.js';
 import { buildTranscriptObjectKey } from './object-keys.js';
 import { toPublicTranscription } from './public-transcription.js';
 

@@ -1,7 +1,9 @@
 import type { Transcription } from '@vocali/contracts';
-import type { SettlementOutcome } from './types/SettlementOutcome';
-import type { SettlementWatch } from './types/SettlementWatch';
-import type { TranscriptionUpdateStream } from './types/TranscriptionUpdateStream';
+import type {
+  SettlementOutcome,
+  SettlementWatch,
+  TranscriptionUpdateStream,
+} from './types/settlement';
 
 /**
  * How long to wait on the socket before deciding the push is not coming.

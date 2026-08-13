@@ -1,9 +1,11 @@
 import { readAuthorizedUserId } from '../websocket/websocket-event.js';
 import { OK } from '../http/http-status.js';
-import type { HandleConnectionClosedDependencies } from '../types/handle-connection-closed-dependencies.js';
-import type { WebSocketHandler } from '../types/websocket-handler.js';
-import type { WebSocketRequestEvent } from '../types/websocket-request-event.js';
-import type { WebSocketResponse } from '../types/websocket-response.js';
+import type { HandleConnectionClosedDependencies } from '../types/dependencies.js';
+import type {
+  WebSocketHandler,
+  WebSocketRequestEvent,
+  WebSocketResponse,
+} from '../types/websocket.js';
 
 /**
  * `$disconnect` — forgets a socket the client closed.

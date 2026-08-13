@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useTranslations } from '../../i18n/translations';
-import type { ThemePreference } from '../../utils/types/ThemePreference';
+import type { ThemePreference } from '../../utils/types/theme';
 import ToggleSwitch from '../atoms/ToggleSwitch.vue';
 
 /**

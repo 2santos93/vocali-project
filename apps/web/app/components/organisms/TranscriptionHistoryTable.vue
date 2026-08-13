@@ -7,8 +7,7 @@ import BaseButton from '../atoms/BaseButton.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import EmptyState from '../molecules/EmptyState.vue';
 import PaginationControls from '../molecules/PaginationControls.vue';
-import type { MessageKey } from '../../i18n/types/MessageKey';
-import type { TranslatableMessage } from '../../i18n/types/TranslatableMessage';
+import type { MessageKey, TranslatableMessage } from '../../i18n/types';
 import { useTranslations } from '../../i18n/translations';
 import { formatDateTime, formatDuration, formatFileSize } from '../format';
 

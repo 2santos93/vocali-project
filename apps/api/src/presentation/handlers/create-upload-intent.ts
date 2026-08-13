@@ -4,8 +4,8 @@ import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { CREATED } from '../http/http-status.js';
 import { withValidatedBody } from '../http/validation.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { CreateUploadIntentDependencies } from '../types/create-upload-intent-dependencies.js';
+import type { ApiGatewayRequestHandler } from '../types/http.js';
+import type { CreateUploadIntentDependencies } from '../types/dependencies.js';
 
 /**
  * `POST /uploads` — issues a presigned upload and creates the record it will

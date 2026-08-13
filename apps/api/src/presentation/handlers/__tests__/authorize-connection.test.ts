@@ -5,7 +5,7 @@ import { FixedClock } from '../../../../test-support/doubles/fixed-clock.js';
 import { InMemoryConnectionTicketStore } from '../../../../test-support/doubles/in-memory-connection-ticket-store.js';
 import { SequentialTokenGenerator } from '../../../../test-support/doubles/sequential-token-generator.js';
 import { authorizeConnectionHandler } from '../authorize-connection.js';
-import type { ConnectionAuthorizerEvent } from '../../types/connection-authorizer-event.js';
+import type { ConnectionAuthorizerEvent } from '../../types/websocket.js';
 
 const NOW = new Date('2026-08-12T09:00:00.000Z');
 const METHOD_ARN = 'arn:aws:execute-api:eu-west-1:111122223333:abc123/prod/$connect';

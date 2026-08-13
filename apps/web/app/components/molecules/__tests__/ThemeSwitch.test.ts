@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils';
 import type { DOMWrapper, VueWrapper } from '@vue/test-utils';
 import ThemeSwitch from '../ThemeSwitch.vue';
 import { withTranslations } from '../../../i18n/testing';
-import type { InterfaceLanguage } from '../../../i18n/types/InterfaceLanguage';
+import type { InterfaceLanguage } from '../../../i18n/types';
 
 function mountSwitch(
   props: Record<string, unknown> = {},

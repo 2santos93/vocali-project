@@ -7,10 +7,12 @@ import {
   TranscriptionPathParametersSchema,
 } from '../http/request-schemas.js';
 import { withValidatedPathParameters, withValidatedQuery } from '../http/validation.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { AuthenticatedHttpRequest } from '../types/authenticated-http-request.js';
-import type { GetTranscriptionDownloadUrlDependencies } from '../types/get-transcription-download-url-dependencies.js';
-import type { HttpResponse } from '../types/http-response.js';
+import type {
+  ApiGatewayRequestHandler,
+  AuthenticatedHttpRequest,
+  HttpResponse,
+} from '../types/http.js';
+import type { GetTranscriptionDownloadUrlDependencies } from '../types/dependencies.js';
 
 /**
  * `GET /transcriptions/{transcriptionId}/download?format=txt|json`.

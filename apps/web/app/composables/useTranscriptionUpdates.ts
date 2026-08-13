@@ -1,12 +1,14 @@
 import { ConnectionTicketResponseSchema, TranscriptionUpdateEventSchema } from '@vocali/contracts';
 import type { Transcription } from '@vocali/contracts';
 import { CONNECTION_TICKETS_PATH } from '../utils/api-routes';
-import type { ApiRequester } from '../utils/types/ApiRequester';
-import type { SocketFactory } from './types/SocketFactory';
-import type { SocketLike } from './types/SocketLike';
-import type { TranscriptionUpdateStream } from './types/TranscriptionUpdateStream';
-import type { UpdateStreamHandlers } from './types/UpdateStreamHandlers';
-import type { UpdateStreamOpener } from './types/UpdateStreamOpener';
+import type { ApiRequester } from '../utils/types/api';
+import type {
+  SocketFactory,
+  SocketLike,
+  TranscriptionUpdateStream,
+  UpdateStreamHandlers,
+  UpdateStreamOpener,
+} from './types/settlement';
 
 /**
  * The request function and the socket constructor are both injected, so the

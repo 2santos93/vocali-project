@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { LOG_LEVELS } from '../logging/pino-logger.js';
-import type { AppConfig } from '../types/app-config.js';
+import type { AppConfig } from '../types/config.js';
 
 /**
  * Backoff shape, not deployment configuration: an operator reaches for the

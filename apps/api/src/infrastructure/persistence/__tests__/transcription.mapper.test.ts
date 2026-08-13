@@ -1,4 +1,4 @@
-import type { TranscriptionPrimitives } from '../../../domain/types/transcription-primitives.js';
+import type { TranscriptionPrimitives } from '../../../domain/types/transcription.js';
 import {
   buildPartitionKey,
   buildTranscriptionSortKey,

@@ -1,4 +1,4 @@
-import type { PresignedUpload } from '../types/presigned-upload.js';
+import type { PresignedUpload } from '../types/audio.js';
 
 export interface FileStorage {
   createPresignedUpload(input: {

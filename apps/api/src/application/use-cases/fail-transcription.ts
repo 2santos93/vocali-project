@@ -4,8 +4,8 @@ import type { TranscriptionRepository } from '../../domain/ports/transcription-r
 import { err, ok } from '../../domain/shared/result.js';
 import type { Result } from '../../domain/types/result.js';
 import { canTransition } from '../../domain/value-objects/transcription-status.js';
-import type { FailTranscriptionError } from '../types/fail-transcription-error.js';
-import type { FailTranscriptionInput } from '../types/fail-transcription-input.js';
+import type { FailTranscriptionError } from '../types/transcription-errors.js';
+import type { FailTranscriptionInput } from '../types/transcription-inputs.js';
 
 /**
  * Looked up by primary key for the same reason as `CompleteTranscription`: the

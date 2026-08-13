@@ -4,8 +4,7 @@
  * call site declares its own policy instead of inheriting a global rule.
  */
 
-import type { BackoffSchedule } from '../types/backoff-schedule.js';
-import type { RetryPolicy } from '../types/retry-policy.js';
+import type { BackoffSchedule, RetryPolicy } from '../types/http-retry.js';
 
 /**
  * 408 and 429 say the request was never accepted, so neither can have been

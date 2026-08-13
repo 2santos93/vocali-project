@@ -1,7 +1,6 @@
-import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
+import type { TranslatableMessage } from '../i18n/types';
 import { HTTP_FORBIDDEN, HTTP_MULTIPLE_CHOICES, HTTP_OK } from '../utils/http-status';
-import type { PresignedPostUpload } from './types/PresignedPostUpload';
-import type { StorageUploadFailureCode } from './types/StorageUploadFailureCode';
+import type { PresignedPostUpload, StorageUploadFailureCode } from './types/upload';
 
 /**
  * The only part of the upload flow that leaves the application: everything

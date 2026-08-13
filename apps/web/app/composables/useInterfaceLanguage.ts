@@ -6,8 +6,8 @@ import {
   localeTag,
   toInterfaceLanguage,
 } from '../i18n/language';
-import type { InterfaceLanguage } from '../i18n/types/InterfaceLanguage';
-import type { InterfaceLanguageControl } from './types/InterfaceLanguageControl';
+import type { InterfaceLanguage } from '../i18n/types';
+import type { InterfaceLanguageControl } from './types/preferences';
 
 /**
  * A cookie rather than a route prefix — `/en/historial` doubles every URL and

@@ -3,7 +3,7 @@ import type { ConnectionRegistry } from '../../domain/ports/connection-registry.
 import type { ConnectionPublisher } from '../../domain/ports/connection-publisher.js';
 import type { Logger } from '../../domain/ports/logger.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import type { PublishTranscriptionUpdateInput } from '../types/publish-transcription-update-input.js';
+import type { PublishTranscriptionUpdateInput } from '../types/connection-inputs.js';
 import { toPublicTranscription } from './public-transcription.js';
 
 /**

@@ -2,8 +2,8 @@ import { withAuthenticatedUser } from '../http/authentication.js';
 import { withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { OK } from '../http/http-status.js';
-import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
-import type { CreateRealtimeSessionDependencies } from '../types/create-realtime-session-dependencies.js';
+import type { ApiGatewayRequestHandler } from '../types/http.js';
+import type { CreateRealtimeSessionDependencies } from '../types/dependencies.js';
 
 /**
  * `POST /realtime-sessions` — mints a short-lived provider credential for the

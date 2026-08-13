@@ -10,13 +10,15 @@ import type {
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import { transcriptionPath, UPLOADS_PATH } from '../utils/api-routes';
-import type { ApiRequester } from '../utils/types/ApiRequester';
+import type { ApiRequester } from '../utils/types/api';
 import { watchUntilSettled } from './settlement-watch';
-import type { FileUploadController } from './types/FileUploadController';
-import type { FileUploadFailure } from './types/FileUploadFailure';
-import type { FileUploadGateway } from './types/FileUploadGateway';
-import type { FileUploadPhase } from './types/FileUploadPhase';
-import type { SocketFactory } from './types/SocketFactory';
+import type {
+  FileUploadController,
+  FileUploadFailure,
+  FileUploadGateway,
+  FileUploadPhase,
+} from './types/upload';
+import type { SocketFactory } from './types/settlement';
 import {
   describeIntentFailure,
   describeUnsupportedFormat,
