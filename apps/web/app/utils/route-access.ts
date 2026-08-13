@@ -70,3 +70,32 @@ export function decideRouteAccess(
    */
   return { path: SIGN_IN_ROUTE, query: { redirect: fullPath } };
 }
+
+/**
+ * Where to send someone after they sign in, if it is somewhere in this
+ * application.
+ *
+ * The other half of the redirect above, and here rather than in `login.vue`
+ * for the same reason `decideRouteAccess` is: a page is the one layer Jest
+ * never mounts, so this rule could only be checked by driving a browser, and
+ * it is not a rule that may go unchecked. The value arrives in the URL, so it
+ * is chosen by whoever wrote the link — a sign-in page that forwards to any
+ * address it is handed is a phishing primitive, because the victim sees a
+ * genuine form on the genuine domain and is delivered elsewhere afterwards.
+ *
+ * Only a local path is accepted. `//host` is rejected explicitly because it is
+ * a path by the loosest reading and an absolute URL to the browser, and a
+ * backslash because some browsers have historically normalised it to a slash.
+ *
+ * @param value the raw query value, which may be absent, a string, or an array
+ *              when the parameter was repeated
+ */
+export function safeRedirectTarget(value: unknown): string | null {
+  if (typeof value !== 'string' || value === '') return null;
+
+  if (!value.startsWith('/')) return null;
+  if (value.startsWith('//')) return null;
+  if (value.includes('\\')) return null;
+
+  return value;
+}

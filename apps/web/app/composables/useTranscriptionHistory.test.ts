@@ -1,8 +1,9 @@
 import { TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
 import type { Transcription } from '@vocali/contracts';
+import { SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
 import {
+  createHistoryRequests,
   HISTORY_LOAD_FAILURE_MESSAGE,
-  SESSION_EXPIRED_MESSAGE,
   useTranscriptionHistory,
 } from './useTranscriptionHistory';
 
@@ -312,5 +313,52 @@ describe('useTranscriptionHistory', () => {
 
     pending.resolve({ items: [], nextCursor: null });
     await inFlight;
+  });
+});
+
+/**
+ * The two paths the history screen calls, which were previously written inside
+ * the page and therefore asserted nowhere: a page is the one layer Jest never
+ * mounts, so a path living only in a page is a path nothing checks until it
+ * 404s on a deployed environment.
+ *
+ * The paths are written out as literals rather than imported from
+ * `utils/api-routes`. Importing the constant under test would assert that it
+ * equals itself and would stay green through a path being changed to one the
+ * API does not serve; written out, changing a path takes two deliberate edits.
+ */
+describe('createHistoryRequests', () => {
+  it('reads a page from GET /api/transcriptions', async () => {
+    const request = jest.fn().mockResolvedValue({ items: [], nextCursor: null });
+
+    await createHistoryRequests(request).listTranscriptions(null);
+
+    expect(request).toHaveBeenCalledWith('/api/transcriptions', {});
+  });
+
+  it('sends the cursor as a query parameter when there is one', async () => {
+    const request = jest.fn().mockResolvedValue({ items: [], nextCursor: null });
+
+    await createHistoryRequests(request).listTranscriptions('opaque-cursor');
+
+    // Sent verbatim: the cursor is an opaque DynamoDB key and does not survive
+    // being parsed and rebuilt.
+    expect(request).toHaveBeenCalledWith('/api/transcriptions', { cursor: 'opaque-cursor' });
+  });
+
+  it("asks for a download URL at the transcription's own download path", async () => {
+    const request = jest.fn().mockResolvedValue({ url: 'https://storage.test/x', format: 'txt' });
+
+    await createHistoryRequests(request).requestDownloadUrl('01ABC', 'txt');
+
+    expect(request).toHaveBeenCalledWith('/api/transcriptions/01ABC/download', { format: 'txt' });
+  });
+
+  it('carries the requested format through', async () => {
+    const request = jest.fn().mockResolvedValue({ url: 'https://storage.test/x', format: 'json' });
+
+    await createHistoryRequests(request).requestDownloadUrl('01ABC', 'json');
+
+    expect(request).toHaveBeenCalledWith('/api/transcriptions/01ABC/download', { format: 'json' });
   });
 });

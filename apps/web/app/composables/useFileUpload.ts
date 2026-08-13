@@ -12,6 +12,16 @@ import type {
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import type { ComputedRef, DeepReadonly, Ref } from 'vue';
+import { TRANSCRIPTIONS_PATH, UPLOADS_PATH } from '../utils/api-routes';
+import { readStatusCode } from '../utils/http-failure';
+import {
+  HTTP_FORBIDDEN,
+  HTTP_MULTIPLE_CHOICES,
+  HTTP_OK,
+  HTTP_PAYLOAD_TOO_LARGE,
+  HTTP_UNAUTHORIZED,
+  HTTP_UNSUPPORTED_MEDIA_TYPE,
+} from '../utils/http-status';
 
 /**
  * Uploading an audio file and following it until it has been transcribed.
@@ -29,13 +39,6 @@ import type { ComputedRef, DeepReadonly, Ref } from 'vue';
 
 /** The percentage denominator, named so the arithmetic below reads as intent. */
 const PERCENT = 100;
-
-const HTTP_OK = 200;
-const HTTP_MULTIPLE_CHOICES = 300;
-const HTTP_UNAUTHORIZED = 401;
-const HTTP_FORBIDDEN = 403;
-const HTTP_PAYLOAD_TOO_LARGE = 413;
-const HTTP_UNSUPPORTED_MEDIA_TYPE = 415;
 
 /**
  * Three seconds apart, twenty times: a minute of watching.
@@ -202,24 +205,8 @@ export function uploadToPresignedPost(
   });
 }
 
-/**
- * Reads an HTTP status off a rejected request without importing the client
- * that produced it.
- *
- * ofetch attaches `statusCode` to the error it throws. Checking for the
- * property rather than for the class keeps this file free of a Nuxt import,
- * and it is a runtime check on an unknown value, not an assertion about one.
- */
-function statusCodeOf(error: unknown): number | null {
-  if (typeof error !== 'object' || error === null) {
-    return null;
-  }
-  const candidate: unknown = (error as { statusCode?: unknown }).statusCode;
-  return typeof candidate === 'number' ? candidate : null;
-}
-
 function describeIntentFailure(error: unknown): FileUploadFailure {
-  const status = statusCodeOf(error);
+  const status = readStatusCode(error);
 
   if (status === HTTP_UNAUTHORIZED) {
     return {
@@ -301,9 +288,9 @@ export type ApiRequester = (path: string, options: ApiRequestOptions) => Promise
  * exercised by the test suite. A path spelled wrong is a 404 that appears only
  * on a deployed environment, and a page is the one layer Jest never mounts.
  *
- * The paths are the ones the API serves: `POST /uploads` and
- * `GET /transcriptions`, documented on both the Lambda entry points and the
- * request handlers, with `/api` prefixed for the proxy.
+ * The paths come from `utils/api-routes`, which is where every path this front
+ * end calls is written down: `POST /uploads` and `GET /transcriptions` as the
+ * API serves them, with `/api` prefixed for the proxy.
  */
 export function createUploadRequests(
   request: ApiRequester,
@@ -312,7 +299,7 @@ export function createUploadRequests(
     async createUploadIntent(
       intent: CreateUploadIntentRequest,
     ): Promise<CreateUploadIntentResponse> {
-      const response = await request('/api/uploads', { method: 'POST', body: { ...intent } });
+      const response = await request(UPLOADS_PATH, { method: 'POST', body: { ...intent } });
       /*
        * Parsed, not asserted. A type argument on the request tells the
        * compiler what to assume and checks nothing at run time; this is data
@@ -323,7 +310,7 @@ export function createUploadRequests(
     },
 
     async listTranscriptions(): Promise<ListTranscriptionsResponse> {
-      const response = await request('/api/transcriptions', { method: 'GET' });
+      const response = await request(TRANSCRIPTIONS_PATH, { method: 'GET' });
       return ListTranscriptionsResponseSchema.parse(response);
     },
   };

@@ -6,8 +6,7 @@ import type {
   HttpRequest,
 } from './api-gateway-request.js';
 import { errorResponse, type HttpResponse } from './http-response.js';
-
-const INTERNAL_ERROR_STATUS = 500;
+import { BAD_REQUEST, CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND } from './http-status.js';
 
 /**
  * One code and one sentence for everything the client cannot act on. The
@@ -34,15 +33,15 @@ const INTERNAL_ERROR_MESSAGE = 'The request could not be completed';
  * Both are answered with the generic body below, so neither message escapes.
  */
 const STATUS_BY_DOMAIN_ERROR_CODE: Record<DomainErrorCode, number> = {
-  UNSUPPORTED_AUDIO_FORMAT: 400,
-  INVALID_AUDIO_FILE_SIZE: 400,
-  AUDIO_FILE_TOO_LARGE: 400,
-  INVALID_AUDIO_FILE_NAME: 400,
-  INVALID_CURSOR: 400,
-  TRANSCRIPTION_NOT_FOUND: 404,
-  TRANSCRIPTION_NOT_READY: 409,
-  INVALID_STATUS_TRANSITION: INTERNAL_ERROR_STATUS,
-  TRANSCRIPTION_PROVIDER_FAILED: INTERNAL_ERROR_STATUS,
+  UNSUPPORTED_AUDIO_FORMAT: BAD_REQUEST,
+  INVALID_AUDIO_FILE_SIZE: BAD_REQUEST,
+  AUDIO_FILE_TOO_LARGE: BAD_REQUEST,
+  INVALID_AUDIO_FILE_NAME: BAD_REQUEST,
+  INVALID_CURSOR: BAD_REQUEST,
+  TRANSCRIPTION_NOT_FOUND: NOT_FOUND,
+  TRANSCRIPTION_NOT_READY: CONFLICT,
+  INVALID_STATUS_TRANSITION: INTERNAL_SERVER_ERROR,
+  TRANSCRIPTION_PROVIDER_FAILED: INTERNAL_SERVER_ERROR,
 };
 
 interface RecognisedDomainError {
@@ -64,7 +63,7 @@ export function toErrorResponse(error: unknown, requestId: string): HttpResponse
   if (domainError === null) return internalErrorResponse(requestId);
 
   const statusCode = STATUS_BY_DOMAIN_ERROR_CODE[domainError.code];
-  if (statusCode >= INTERNAL_ERROR_STATUS) return internalErrorResponse(requestId);
+  if (statusCode >= INTERNAL_SERVER_ERROR) return internalErrorResponse(requestId);
 
   // Safe to forward: domain error messages are written for the person who
   // made the request, and each is built from validated input or from the
@@ -79,7 +78,7 @@ export function toErrorResponse(error: unknown, requestId: string): HttpResponse
 }
 
 export function internalErrorResponse(requestId: string): HttpResponse {
-  return errorResponse(INTERNAL_ERROR_STATUS, {
+  return errorResponse(INTERNAL_SERVER_ERROR, {
     code: INTERNAL_ERROR_CODE,
     message: INTERNAL_ERROR_MESSAGE,
     requestId,

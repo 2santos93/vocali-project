@@ -75,7 +75,10 @@ describe('CreateAudioUploadIntent', () => {
     expect(storage.calls.presignedUploads[0]?.objectKey).toBe('audio/user-1/01ID001/visit.mp3');
     expect(storage.calls.presignedUploads[0]?.contentType).toBe('audio/mpeg');
     // Hardcoded, not re-imported from UPLOAD_URL_TTL_SECONDS: a change to
-    // that constant must be caught here, not silently absorbed.
+    // that constant must be caught here, not silently absorbed. It stays a
+    // literal now that the constant lives in application/constants.ts and is
+    // one import away — importing it would make this
+    // `expect(constant).toBe(constant)`, which pins nothing.
     expect(storage.calls.presignedUploads[0]?.expiresInSeconds).toBe(900);
   });
 

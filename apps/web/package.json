@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
+    "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "typecheck": "nuxt prepare && vue-tsc --noEmit && vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.cypress.json",
     "test": "node ../../node_modules/jest/bin/jest.js",

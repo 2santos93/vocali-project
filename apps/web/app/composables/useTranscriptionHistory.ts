@@ -1,7 +1,9 @@
 import { computed, ref } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { ListTranscriptionsResponseSchema, TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
-import type { Transcription } from '@vocali/contracts';
+import type { Transcription, TranscriptFormat } from '@vocali/contracts';
+import { TRANSCRIPTIONS_PATH, transcriptionDownloadPath } from '../utils/api-routes';
+import { isSessionExpired, SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
 
 /**
  * The single network call this composable makes, taken as a collaborator
@@ -16,6 +18,41 @@ import type { Transcription } from '@vocali/contracts';
  * shape.
  */
 export type ListTranscriptionsRequest = (cursor: string | null) => Promise<unknown>;
+
+/**
+ * A call to the BFF proxy with a query string, which is the one shape the two
+ * history requests need and the upload flow's `ApiRequester` does not cover.
+ * Named here rather than reaching for ofetch's own type so nothing below the
+ * page mentions Nuxt — ts-jest compiles these files against a tsconfig with no
+ * Nuxt types, and the reference only has to exist to break the build.
+ */
+export type QueryRequester = (path: string, query: Record<string, string>) => Promise<unknown>;
+
+/**
+ * The two calls the history screen makes, bound to their paths.
+ *
+ * Separated from the page for the same reason as `createUploadRequests` and
+ * `createRealtimeRequests`: a page is the one layer Jest never mounts, so a
+ * path that lives only in a page is a path nothing asserts until it 404s on a
+ * deployed environment. This screen was the one that still built its requests
+ * inline.
+ */
+export function createHistoryRequests(request: QueryRequester): {
+  listTranscriptions: ListTranscriptionsRequest;
+  requestDownloadUrl: (transcriptionId: string, format: TranscriptFormat) => Promise<unknown>;
+} {
+  return {
+    listTranscriptions(cursor: string | null): Promise<unknown> {
+      // Omitted rather than sent empty: the API validates the cursor it is
+      // given, and `?cursor=` is a malformed cursor rather than no cursor.
+      return request(TRANSCRIPTIONS_PATH, cursor === null ? {} : { cursor });
+    },
+
+    requestDownloadUrl(transcriptionId: string, format: TranscriptFormat): Promise<unknown> {
+      return request(transcriptionDownloadPath(transcriptionId), { format });
+    },
+  };
+}
 
 export interface TranscriptionHistory {
   readonly transcriptions: ComputedRef<readonly Transcription[]>;
@@ -44,29 +81,6 @@ export interface TranscriptionHistory {
 
 export const HISTORY_LOAD_FAILURE_MESSAGE =
   'No hemos podido cargar tu historial. Comprueba tu conexión y vuelve a intentarlo.';
-
-export const SESSION_EXPIRED_MESSAGE = 'Tu sesión ha caducado. Vuelve a iniciar sesión.';
-
-/**
- * Reads an HTTP status off a rejected request without asserting a type onto it.
- *
- * The BFF proxy passes the API's status through and refreshes an expired
- * access token before it would ever surface, so a 401 reaching this side means
- * the session is genuinely over — not merely stale. That is a different fact
- * from "the request failed", and telling a clinician to check their connection
- * when they simply need to sign in again sends them to the wrong remedy.
- */
-export function readStatusCode(error: unknown): number | null {
-  if (typeof error !== 'object' || error === null || !('statusCode' in error)) {
-    return null;
-  }
-  const { statusCode } = error;
-  return typeof statusCode === 'number' ? statusCode : null;
-}
-
-export function isSessionExpired(error: unknown): boolean {
-  return readStatusCode(error) === 401;
-}
 
 export function useTranscriptionHistory(
   requestPage: ListTranscriptionsRequest,

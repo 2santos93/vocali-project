@@ -18,6 +18,7 @@ const container = getContainer();
 export const handler: APIGatewayProxyHandlerV2 = handleProviderCallbackHandler({
   completeTranscription: container.completeTranscription,
   failTranscription: container.failTranscription,
+  transcriptionProvider: container.transcriptionProvider,
   secrets: container.secrets,
   webhookSecretName: container.config.speechmatics.webhookSecretName,
   logger: container.logger,

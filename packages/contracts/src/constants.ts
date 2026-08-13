@@ -34,6 +34,24 @@ export const SUPPORTED_TRANSCRIPTION_LANGUAGES = ['es', 'en', 'ca', 'eu', 'gl'] 
 
 export type TranscriptionLanguage = (typeof SUPPORTED_TRANSCRIPTION_LANGUAGES)[number];
 
+/**
+ * The audio a live dictation streams to the provider, in the provider's own
+ * vocabulary.
+ *
+ * It is not negotiated per session and it is not a rendering detail: the
+ * browser builds its `AudioContext` at this rate rather than resampling
+ * afterwards, the API returns it in the session response, and the provider is
+ * told it once the socket opens. A disagreement between any two of those three
+ * does not fail — it transcribes noise, convincingly enough that nothing
+ * downstream can tell. So the number is stated once, here, and the realtime
+ * schema builds its literals from it exactly as the enums above are built.
+ */
+export const REALTIME_AUDIO_FORMAT = {
+  type: 'raw',
+  encoding: 'pcm_s16le',
+  sampleRate: 16_000,
+} as const;
+
 export const TRANSCRIPTION_SOURCES = ['FILE', 'MICROPHONE'] as const;
 
 export type TranscriptionSource = (typeof TRANSCRIPTION_SOURCES)[number];

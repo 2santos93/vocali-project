@@ -87,7 +87,7 @@ export function useAuthSession(): AuthSession {
        */
       user.value = null;
       loaded.value = true;
-      await navigateTo('/login');
+      await navigateTo(SIGN_IN_ROUTE);
     }
   }
 

@@ -5,9 +5,8 @@ import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
+import { OK } from '../http/http-status.js';
 import { withValidatedQuery } from '../http/validation.js';
-
-const OK_STATUS = 200;
 
 interface Dependencies {
   readonly useCase: ListUserTranscriptions;
@@ -33,7 +32,7 @@ export function listTranscriptionsHandler(dependencies: Dependencies): ApiGatewa
         });
 
         return result.success
-          ? jsonResponse(OK_STATUS, result.value, request.requestId)
+          ? jsonResponse(OK, result.value, request.requestId)
           : toErrorResponse(result.error, request.requestId);
       }),
     ),

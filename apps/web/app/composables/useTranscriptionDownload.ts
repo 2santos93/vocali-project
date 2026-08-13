@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import type { Ref } from 'vue';
 import { DownloadUrlResponseSchema } from '@vocali/contracts';
 import type { Transcription, TranscriptFormat } from '@vocali/contracts';
-import { SESSION_EXPIRED_MESSAGE, isSessionExpired } from './useTranscriptionHistory';
+import { isSessionExpired, SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
 
 /**
  * Asks the API for a signed URL for one transcript, as a collaborator so the

@@ -65,6 +65,53 @@ jobs:
             packages/contracts/coverage
           retention-days: 7
 
+  e2e:
+    name: End-to-end journeys
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # The Cypress binary is fetched by the package's own install script,
+      # which `onlyBuiltDependencies` in pnpm-workspace.yaml allows to run.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the application
+        run: pnpm --filter @vocali/web build
+
+      # A separate job from `verify` because it needs a built application and a
+      # running server, which the other checks do not, and because a browser
+      # failure should report on its own line rather than behind a lint error.
+      #
+      # No AWS credentials and no configuration are supplied, and none are
+      # needed: every call the browser makes to `/api/**` is answered by
+      # `cy.intercept`, and the two routes the server answers by itself before
+      # reading any configuration — the session probe and the guard's redirect
+      # — are the only ones that reach it.
+      - name: Run the seven journeys
+        run: |
+          pnpm --filter @vocali/web preview &
+          timeout 120 bash -c 'until curl -sf http://localhost:3000/login > /dev/null; do sleep 2; done'
+          pnpm e2e
+
+      # Only written when something failed, which is exactly when the run needs
+      # explaining and the log alone does not.
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: apps/web/cypress/screenshots
+          retention-days: 7
+          if-no-files-found: ignore
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest

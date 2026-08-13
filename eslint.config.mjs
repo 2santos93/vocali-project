@@ -94,6 +94,50 @@ export default tseslint.config(
     },
   },
   {
+    files: ['apps/api/src/infrastructure/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/presentation/**'],
+              message: 'The infrastructure layer must not depend on the HTTP layer.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // The rule the other three protect the value of. Without it a handler can
+  // hold a repository and write to DynamoDB directly, stepping over the
+  // application layer entirely — the one thing this arrangement of
+  // directories exists to prevent, and the one thing nothing was checking.
+  //
+  // No exception is needed for the composition root: it lives at
+  // `apps/api/src/composition-root.ts`, outside every layer, which is what
+  // makes it the one place allowed to name concrete adapters. The entry
+  // points in `src/lambda/` sit outside for the same reason. If either ever
+  // moves inside `presentation/`, this rule will fail the build rather than
+  // quietly stop meaning anything.
+  {
+    files: ['apps/api/src/presentation/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/infrastructure/**'],
+              message: 'The presentation layer must delegate to use cases, not reach for adapters.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.test.ts', 'apps/api/test/**/*.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },

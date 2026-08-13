@@ -13,6 +13,7 @@ import { SaveRealtimeTranscription } from './application/use-cases/save-realtime
 import { StartFileTranscription } from './application/use-cases/start-file-transcription.js';
 import type { Logger } from './domain/ports/logger.js';
 import type { SecretsProvider } from './domain/ports/secrets-provider.js';
+import type { TranscriptionProvider } from './domain/ports/transcription-provider.js';
 import { loadConfig, type AppConfig } from './infrastructure/config/environment.js';
 import { UlidIdGenerator } from './infrastructure/id/ulid-id-generator.js';
 import { createLogger } from './infrastructure/logging/pino-logger.js';
@@ -23,15 +24,21 @@ import { S3FileStorage } from './infrastructure/storage/s3-file-storage.js';
 import { SystemClock } from './infrastructure/time/system-clock.js';
 
 /**
- * Everything a handler is allowed to reach for. Use cases and the two
- * cross-cutting services they cannot express — the logger, and the secret the
- * webhook authenticates against — and no adapters: a handler that could see
- * `S3Client` would eventually use it.
+ * Everything a handler is allowed to reach for. Use cases and the three
+ * services no use case can express on a handler's behalf — the logger, the
+ * secret the webhook authenticates against, and the provider that alone can
+ * say what its own callback meant.
+ *
+ * All three are declared as ports, which is what keeps this list from becoming
+ * a way in for adapters: a handler that could see `S3Client` would eventually
+ * use it, and `SpeechmaticsTranscriptionProvider` named here would put one
+ * vendor back inside the HTTP layer.
  */
 export interface Container {
   readonly config: AppConfig;
   readonly logger: Logger;
   readonly secrets: SecretsProvider;
+  readonly transcriptionProvider: TranscriptionProvider;
   readonly createAudioUploadIntent: CreateAudioUploadIntent;
   readonly listUserTranscriptions: ListUserTranscriptions;
   readonly getTranscription: GetTranscription;
@@ -99,6 +106,7 @@ export function buildContainer(config: AppConfig): Container {
     config,
     logger,
     secrets,
+    transcriptionProvider: provider,
     createAudioUploadIntent: new CreateAudioUploadIntent(
       repository,
       audioStorage,

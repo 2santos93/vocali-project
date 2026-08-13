@@ -4,10 +4,9 @@ import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
+import { OK } from '../http/http-status.js';
 import { TranscriptionPathParametersSchema } from '../http/request-schemas.js';
 import { withValidatedPathParameters } from '../http/validation.js';
-
-const OK_STATUS = 200;
 
 interface Dependencies {
   readonly useCase: GetTranscription;
@@ -36,7 +35,7 @@ export function getTranscriptionHandler(dependencies: Dependencies): ApiGatewayR
           });
 
           return result.success
-            ? jsonResponse(OK_STATUS, result.value, request.requestId)
+            ? jsonResponse(OK, result.value, request.requestId)
             : toErrorResponse(result.error, request.requestId);
         },
       ),

@@ -1,4 +1,10 @@
-import { ANONYMOUS_ROUTES, decideRouteAccess, HOME_ROUTE, SIGN_IN_ROUTE } from './route-access';
+import {
+  ANONYMOUS_ROUTES,
+  decideRouteAccess,
+  HOME_ROUTE,
+  safeRedirectTarget,
+  SIGN_IN_ROUTE,
+} from './route-access';
 
 const PROTECTED_ROUTES = ['/historial', '/transcribir', '/dictar'];
 
@@ -65,5 +71,42 @@ describe('the routes themselves', () => {
 
   it('does not treat a path that merely starts with an anonymous one as anonymous', () => {
     expect(decideRouteAccess('/login-secreto', '/login-secreto', false)?.path).toBe(SIGN_IN_ROUTE);
+  });
+});
+
+describe('the destination a sign-in may forward to', () => {
+  it('accepts the local path the middleware put in the query', () => {
+    // The round trip that has to work: the redirect above is read back here.
+    const redirect = decideRouteAccess('/historial', '/historial?cursor=abc', false);
+
+    expect(safeRedirectTarget(redirect?.query?.['redirect'])).toBe('/historial?cursor=abc');
+  });
+
+  it.each([
+    ['an absolute URL', 'https://evil.example/steal'],
+    ['a protocol-relative URL', '//evil.example/steal'],
+    ['a scheme-less host', 'evil.example/steal'],
+    ['a javascript URL', 'javascript:alert(1)'],
+    ['a backslash path some browsers normalise to a slash', '/\\evil.example'],
+  ])('refuses %s', (_description, target) => {
+    /*
+     * Each of these delivers a user who has just typed their password to
+     * somewhere that is not this application, from a genuine form on the
+     * genuine domain — which is the whole of the phishing primitive an open
+     * redirect provides. They are refused rather than sanitised: there is no
+     * repair that turns another origin into this one.
+     */
+    expect(safeRedirectTarget(target)).toBeNull();
+  });
+
+  it.each([
+    ['absent', undefined],
+    ['empty', ''],
+    ['repeated, so the router reports an array', ['/historial', '/dictar']],
+  ])('reports no destination when the parameter is %s', (_description, value) => {
+    // A query value is whatever was in the URL: repeating `?redirect=` makes
+    // it an array, and asserting a string onto it would put an array where a
+    // path is about to be navigated to.
+    expect(safeRedirectTarget(value)).toBeNull();
   });
 });

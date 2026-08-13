@@ -37,7 +37,7 @@ async function onSubmit(): Promise<void> {
     // shows an empty header while it runs.
     session.adopt(user);
 
-    await navigateTo(safeRedirectTarget(route.query['redirect']) ?? '/historial');
+    await navigateTo(safeRedirectTarget(route.query['redirect']) ?? HOME_ROUTE);
   } catch (cause) {
     const failure = readFailure(cause);
 
@@ -58,29 +58,15 @@ async function onSubmit(): Promise<void> {
   }
 }
 
+/**
+ * Only used for the prefilled address, which is display state: an address that
+ * arrives as anything but a non-empty string leaves the field empty. The
+ * `redirect` parameter is a different matter and is checked by
+ * `safeRedirectTarget`, which lives in `utils/route-access` where a test can
+ * reach it.
+ */
 function readQueryValue(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
-}
-
-/**
- * Where to go after signing in, if it is somewhere in this application.
- *
- * The value arrives in the URL, so it is chosen by whoever wrote the link. A
- * sign-in page that will forward to any address it is handed is a phishing
- * primitive: the victim sees a genuine sign-in form on the genuine domain and
- * is delivered to the attacker afterwards. Only a local path is accepted, and
- * `//host` is rejected explicitly because it is a path by the loosest reading
- * and an absolute URL to the browser.
- */
-function safeRedirectTarget(value: unknown): string | null {
-  const target = readQueryValue(value);
-  if (target === null) return null;
-
-  if (!target.startsWith('/')) return null;
-  if (target.startsWith('//')) return null;
-  if (target.includes('\\')) return null;
-
-  return target;
 }
 </script>
 

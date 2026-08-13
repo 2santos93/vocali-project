@@ -1,26 +1,24 @@
 <script setup lang="ts">
-import type { Transcription, TranscriptFormat } from '@vocali/contracts';
+import type { Transcription } from '@vocali/contracts';
 
 /*
- * The only file on this screen that touches the Nuxt runtime.
+ * The only file on this screen that touches the Nuxt runtime, and it supplies
+ * `$fetch` and nothing else.
  *
  * Both calls go to `/api/*` on this origin, where the BFF proxy attaches the
  * bearer token from the httpOnly cookie. Nothing here holds a token, and
- * nothing here knows the API's address.
- *
- * The requests are handed to the composables rather than made inside them, so
- * the pagination and download rules can be driven under Jest against a
- * substitute with no server, no Nuxt and no network.
+ * nothing here knows the API's address — or, now, which paths it serves: the
+ * requests are built in `createHistoryRequests`, so the paths and the response
+ * validation are exercised by the test suite rather than living in a page Jest
+ * never mounts.
  */
-const history = useTranscriptionHistory((cursor: string | null): Promise<unknown> => {
-  const query: Record<string, string> = cursor === null ? {} : { cursor };
-  return $fetch<unknown>('/api/transcriptions', { query });
-});
-
-const download = useTranscriptionDownload(
-  (transcriptionId: string, format: TranscriptFormat): Promise<unknown> =>
-    $fetch<unknown>(`/api/transcriptions/${transcriptionId}/download`, { query: { format } }),
+const requests = createHistoryRequests((path: string, query: Record<string, string>) =>
+  $fetch<unknown>(path, { query }),
 );
+
+const history = useTranscriptionHistory(requests.listTranscriptions);
+
+const download = useTranscriptionDownload(requests.requestDownloadUrl);
 
 /*
  * Loaded on mount rather than during render, so the history is fetched in the
@@ -47,7 +45,7 @@ function retryCurrentPage(): void {
 }
 
 function goToSignIn(): void {
-  void navigateTo('/login');
+  void navigateTo(SIGN_IN_ROUTE);
 }
 
 function goToFileTranscription(): void {

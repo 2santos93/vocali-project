@@ -18,6 +18,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:coverage": "pnpm -r test:coverage",
+    "e2e": "pnpm --filter @vocali/web e2e",
     "prepare": "husky"
   },
   "devDependencies": {

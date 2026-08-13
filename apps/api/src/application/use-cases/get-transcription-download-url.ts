@@ -7,10 +7,8 @@ import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import { err, ok, type Result } from '../../domain/shared/result.js';
+import { DOWNLOAD_URL_TTL_SECONDS } from '../constants.js';
 import { buildTranscriptObjectKey } from './object-keys.js';
-
-/** How long a download link stays valid before the client must request a new one. */
-const DOWNLOAD_URL_TTL_SECONDS = 900;
 
 interface GetTranscriptionDownloadUrlInput {
   readonly userId: string;

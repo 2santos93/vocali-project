@@ -7,6 +7,7 @@ import BaseButton from '../atoms/BaseButton.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import EmptyState from '../molecules/EmptyState.vue';
 import PaginationControls from '../molecules/PaginationControls.vue';
+import { formatDateTime, formatDuration, formatFileSize } from '../format';
 
 interface Props {
   transcriptions: readonly Transcription[];
@@ -63,56 +64,18 @@ const SOURCE_LABELS: Record<TranscriptionSource, string> = {
   MICROPHONE: 'Micrófono',
 };
 
-const SECONDS_PER_MINUTE = 60;
-const SECONDS_PER_HOUR = 3600;
-const BYTES_PER_KILOBYTE = 1024;
-const BYTES_PER_MEGABYTE = 1024 * 1024;
-
-const DATE_FORMATTER = new Intl.DateTimeFormat('es-ES', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-function padded(value: number): string {
-  return String(value).padStart(2, '0');
-}
-
 /**
  * A record that is still uploading or has failed has no duration and no size
- * yet. An em dash says "not yet"; a zero would say "silent audio".
+ * yet. An em dash says "not yet"; a zero would say "silent audio". How the
+ * numbers themselves are written is the design system's business, not this
+ * table's, so only the absence is decided here.
  */
-function formatDuration(seconds: number | null): string {
-  if (seconds === null) {
-    return NOT_AVAILABLE;
-  }
-  const total = Math.round(seconds);
-  const minutes = Math.floor((total % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
-  const remainder = total % SECONDS_PER_MINUTE;
-  if (total >= SECONDS_PER_HOUR) {
-    return `${String(Math.floor(total / SECONDS_PER_HOUR))}:${padded(minutes)}:${padded(remainder)}`;
-  }
-  return `${String(minutes)}:${padded(remainder)}`;
+function durationCell(seconds: number | null): string {
+  return seconds === null ? NOT_AVAILABLE : formatDuration(seconds);
 }
 
-function formatDecimal(value: number, fractionDigits: number): string {
-  return new Intl.NumberFormat('es-ES', { maximumFractionDigits: fractionDigits }).format(value);
-}
-
-function formatSize(bytes: number | null): string {
-  if (bytes === null) {
-    return NOT_AVAILABLE;
-  }
-  if (bytes < BYTES_PER_MEGABYTE) {
-    return `${formatDecimal(bytes / BYTES_PER_KILOBYTE, 0)} kB`;
-  }
-  return `${formatDecimal(bytes / BYTES_PER_MEGABYTE, 1)} MB`;
-}
-
-function formatDate(isoDate: string): string {
-  return DATE_FORMATTER.format(new Date(isoDate));
+function sizeCell(bytes: number | null): string {
+  return bytes === null ? NOT_AVAILABLE : formatFileSize(bytes);
 }
 
 function sourceLabel(source: TranscriptionSource): string {
@@ -285,13 +248,13 @@ const showsPagination = computed<boolean>(
             <td class="px-4 py-3 text-ink-muted">{{ sourceLabel(transcription.source) }}</td>
             <td class="px-4 py-3"><StatusBadge :status="transcription.status" /></td>
             <td class="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
-              {{ formatDuration(transcription.durationSeconds) }}
+              {{ durationCell(transcription.durationSeconds) }}
             </td>
             <td class="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
-              {{ formatSize(transcription.sizeBytes) }}
+              {{ sizeCell(transcription.sizeBytes) }}
             </td>
             <td class="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
-              {{ formatDate(transcription.createdAt) }}
+              {{ formatDateTime(transcription.createdAt) }}
             </td>
             <td class="px-4 py-3">
               <!-- A button, not a link. The signed URL is short-lived, so it

@@ -4,8 +4,7 @@ import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
-
-const OK_STATUS = 200;
+import { OK } from '../http/http-status.js';
 
 interface Dependencies {
   readonly useCase: CreateRealtimeSession;
@@ -29,7 +28,7 @@ export function createRealtimeSessionHandler(dependencies: Dependencies): ApiGat
     withAuthenticatedUser(async (request) => {
       const session = await dependencies.useCase.execute();
 
-      return jsonResponse(OK_STATUS, session, request.requestId);
+      return jsonResponse(OK, session, request.requestId);
     }),
   );
 }

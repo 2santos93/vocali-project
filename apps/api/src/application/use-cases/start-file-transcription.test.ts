@@ -1,8 +1,4 @@
-import {
-  buildProviderCallbackUrl,
-  parseAudioObjectKey,
-  StartFileTranscription,
-} from './start-file-transcription.js';
+import { buildProviderCallbackUrl, StartFileTranscription } from './start-file-transcription.js';
 import { buildTranscription } from '../../../test/builders/transcription.builder.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
@@ -48,46 +44,6 @@ describe('buildProviderCallbackUrl', () => {
   });
 });
 
-describe('parseAudioObjectKey', () => {
-  it('extracts the user and transcription ids from a well-formed key', () => {
-    expect(parseAudioObjectKey('audio/user-1/01A/visit.mp3')).toEqual({
-      userId: 'user-1',
-      transcriptionId: '01A',
-    });
-  });
-
-  it('returns null for a key without the audio prefix', () => {
-    expect(parseAudioObjectKey('transcripts/user-1/01A/visit.txt')).toBeNull();
-  });
-
-  it('returns null for a key missing the transcription id segment', () => {
-    expect(parseAudioObjectKey('audio/user-1')).toBeNull();
-  });
-
-  it('returns null for a key with fewer than four segments even with a prefix and ids', () => {
-    expect(parseAudioObjectKey('audio/user-1/01A')).toBeNull();
-  });
-
-  it('returns null for a key with an empty user id segment', () => {
-    expect(parseAudioObjectKey('audio//01A/visit.mp3')).toBeNull();
-  });
-
-  it('returns null for a key of entirely empty segments', () => {
-    expect(parseAudioObjectKey('audio///')).toBeNull();
-  });
-
-  it('parses a key with extra trailing segments structurally, leaving rejection to the caller', () => {
-    // The parser is deliberately permissive here: it has at least four
-    // non-empty segments, so it parses. `StartFileTranscription.execute`
-    // is what actually rejects this, by comparing the full key against the
-    // record's own `audioObjectKey`.
-    expect(parseAudioObjectKey('audio/user-1/01A/sub/dir/visit.mp3')).toEqual({
-      userId: 'user-1',
-      transcriptionId: '01A',
-    });
-  });
-});
-
 describe('StartFileTranscription', () => {
   it('submits the job with a readable audio url and records the job id', async () => {
     const { useCase, repository, storage, provider } = buildUseCase();
@@ -112,6 +68,9 @@ describe('StartFileTranscription', () => {
     // Hardcoded, not re-imported from the source constant: if
     // AUDIO_READ_URL_TTL_SECONDS were ever changed without updating this
     // assertion, this must fail rather than silently track the change.
+    // It stays a literal now that the constant lives in application/constants.ts
+    // and is one import away: importing it here would make this
+    // `expect(constant).toBe(constant)`, which pins nothing.
     expect(storage.calls.presignedReads[0]?.expiresInSeconds).toBe(3_600);
 
     const stored = await repository.findById('user-1', '01A');

@@ -1,5 +1,5 @@
 import type { Transcription, TranscriptionStatus } from '@vocali/contracts';
-import { SESSION_EXPIRED_MESSAGE } from './useTranscriptionHistory';
+import { SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
 import {
   DOWNLOAD_FAILURE_MESSAGE,
   DOWNLOAD_NOT_READY_MESSAGE,

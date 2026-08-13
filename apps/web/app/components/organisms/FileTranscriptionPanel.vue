@@ -12,7 +12,10 @@ import FileDropZone from '../molecules/FileDropZone.vue';
 import FormField from '../molecules/FormField.vue';
 import type { FileRejection } from '../types';
 import type { FileUploadFailure, FileUploadPhase } from '../../composables/useFileUpload';
-import { TRANSCRIPTION_LANGUAGE_OPTIONS, toTranscriptionLanguage } from './transcriptionLanguages';
+import {
+  TRANSCRIPTION_LANGUAGE_OPTIONS,
+  toTranscriptionLanguage,
+} from '../transcription-languages';
 
 /**
  * Choosing an audio file, sending it, and watching it become a transcription.

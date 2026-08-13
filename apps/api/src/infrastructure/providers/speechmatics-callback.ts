@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import type {
+  ProviderCallback,
+  ProviderJobOutcome,
+} from '../../domain/ports/transcription-provider.js';
 
 /**
  * The provider appends `?id=<jobId>&status=<status>` to whatever callback URL
@@ -6,7 +10,16 @@ import { z } from 'zod';
  * transcript is in the body; every other value describes a job that produced
  * none.
  */
-export const SPEECHMATICS_SUCCESS_STATUS = 'success';
+const JOB_ID_PARAMETER = 'id';
+const STATUS_PARAMETER = 'status';
+const SPEECHMATICS_SUCCESS_STATUS = 'success';
+
+/**
+ * Both values travel onward — the job id into a storage comparison, the status
+ * into a log line — so both are bounded here, at the edge, rather than trusted
+ * because they came from a caller that knew the shared secret.
+ */
+const MAX_PARAMETER_LENGTH = 128;
 
 /**
  * The transcript as the provider posts it when `contents` names a single
@@ -34,6 +47,79 @@ export const SpeechmaticsTranscriptSchema = z.object({
 export type SpeechmaticsTranscript = z.infer<typeof SpeechmaticsTranscriptSchema>;
 
 type TranscriptResult = z.infer<typeof TranscriptResultSchema>;
+
+/**
+ * Everything this platform needs to know about a Speechmatics callback, and
+ * the only place that knowledge lives.
+ *
+ * An unusable job id is `unrecognised` rather than `failed`, even though the
+ * callback may well be reporting a real failure: the id is what proves the
+ * callback belongs to the record it names, and marking a transcription failed
+ * on a callback that cannot be tied to it is a write the sender did not earn.
+ */
+export function interpretSpeechmaticsCallback(callback: ProviderCallback): ProviderJobOutcome {
+  const externalJobId = readParameter(callback.query, JOB_ID_PARAMETER);
+  if (externalJobId === null) {
+    return { kind: 'unrecognised', reason: 'The callback did not name a provider job' };
+  }
+
+  const providerStatus = readParameter(callback.query, STATUS_PARAMETER);
+  if (providerStatus === null) {
+    return { kind: 'unrecognised', reason: 'The callback did not report a job status' };
+  }
+
+  // Anything other than the one success word is a job that produced no
+  // transcript. Read this way round on purpose: a status the provider adds
+  // later becomes a failure, which ruling R2 allows a later completion to
+  // recover from, where guessing the other way would complete a transcription
+  // out of whatever the body happened to hold.
+  if (providerStatus !== SPEECHMATICS_SUCCESS_STATUS) {
+    return { kind: 'failed', externalJobId, providerStatus };
+  }
+
+  const transcript = readTranscript(callback.body);
+  if (transcript === null) {
+    return { kind: 'unrecognised', reason: 'The callback body is not a transcript' };
+  }
+
+  return {
+    kind: 'completed',
+    externalJobId,
+    text: buildTranscriptText(transcript.results),
+    durationSeconds: resolveDurationSeconds(transcript),
+  };
+}
+
+function readParameter(
+  query: Readonly<Record<string, string | undefined>>,
+  name: string,
+): string | null {
+  const value = query[name];
+
+  return value === undefined || value === '' || value.length > MAX_PARAMETER_LENGTH ? null : value;
+}
+
+/**
+ * An absent body is read as an empty payload rather than refused, for the same
+ * reason the schema above is loose: `results` defaults, so a success callback
+ * that carried nothing records an empty recording instead of being rejected
+ * and redelivered until the provider gives up.
+ */
+function readTranscript(body: string | undefined): SpeechmaticsTranscript | null {
+  let payload: unknown = {};
+
+  if (body !== undefined && body !== '') {
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      return null;
+    }
+  }
+
+  const parsed = SpeechmaticsTranscriptSchema.safeParse(payload);
+
+  return parsed.success ? parsed.data : null;
+}
 
 /**
  * Flattens the provider's token list into the plain text the platform stores

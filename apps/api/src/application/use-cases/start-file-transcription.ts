@@ -6,9 +6,8 @@ import type { TranscriptionProvider } from '../../domain/ports/transcription-pro
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import { err, ok, type Result } from '../../domain/shared/result.js';
 import { canTransition } from '../../domain/value-objects/transcription-status.js';
-
-/** The provider needs long enough to fetch the audio, but no longer than necessary. */
-const AUDIO_READ_URL_TTL_SECONDS = 3_600;
+import { AUDIO_READ_URL_TTL_SECONDS } from '../constants.js';
+import { parseAudioObjectKey } from './object-keys.js';
 
 interface StartFileTranscriptionInput {
   readonly audioObjectKey: string;
@@ -20,39 +19,6 @@ interface StartFileTranscriptionConfig {
 }
 
 type StartFileTranscriptionError = TranscriptionNotFoundError;
-
-/**
- * Object keys follow `audio/{userId}/{transcriptionId}/{fileName}`. Requires
- * at least four non-empty segments; anything shorter, or with an empty
- * segment, is rejected as unparseable rather than silently coerced.
- *
- * This is a structural check only — it does not verify that `userId` or
- * `transcriptionId` correspond to a real record, and it tolerates extra
- * segments after the file name. That verification is the caller's job: see
- * the exact-match check against the record's own `audioObjectKey` in
- * `StartFileTranscription.execute`.
- *
- * S3 event notifications percent-and-plus-encode object keys (a space
- * becomes `+`, accented characters are percent-escaped), so whatever calls
- * this with a raw S3 event key must `decodeURIComponent` it first — an
- * un-decoded key silently fails to match the stored `audioObjectKey` and the
- * file is never transcribed.
- */
-export function parseAudioObjectKey(
-  objectKey: string,
-): { userId: string; transcriptionId: string } | null {
-  const segments = objectKey.split('/');
-  if (segments.length < 4 || segments.some((segment) => segment.length === 0)) {
-    return null;
-  }
-
-  const [prefix, userId, transcriptionId] = segments;
-  if (prefix !== 'audio' || userId === undefined || transcriptionId === undefined) {
-    return null;
-  }
-
-  return { userId, transcriptionId };
-}
 
 /**
  * Appends the transcription's identity to the callback URL as query

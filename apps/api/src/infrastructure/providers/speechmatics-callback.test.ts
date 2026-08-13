@@ -1,5 +1,6 @@
 import {
   buildTranscriptText,
+  interpretSpeechmaticsCallback,
   resolveDurationSeconds,
   SpeechmaticsTranscriptSchema,
 } from './speechmatics-callback.js';
@@ -130,5 +131,134 @@ describe('SpeechmaticsTranscriptSchema', () => {
 
   it('rejects a body that is not an object at all', () => {
     expect(SpeechmaticsTranscriptSchema.safeParse('a transcript').success).toBe(false);
+  });
+});
+
+describe('interpretSpeechmaticsCallback', () => {
+  const TRANSCRIPT_BODY = JSON.stringify({
+    format: '2.9',
+    job: { id: 'job-1', duration: 42 },
+    results: [
+      word('el', 0.5),
+      word('paciente', 0.9),
+      word('refiere', 1.4),
+      word('dolor', 1.9),
+      { type: 'punctuation', end_time: 1.9, alternatives: [{ content: '.' }] },
+    ],
+  });
+
+  function callbackQuery(overrides: Record<string, string | undefined> = {}): {
+    query: Record<string, string | undefined>;
+    body: string | undefined;
+  } {
+    return {
+      query: {
+        transcriptionId: '01ID001',
+        userId: 'user-1',
+        id: 'job-1',
+        status: 'success',
+        ...overrides,
+      },
+      body: TRANSCRIPT_BODY,
+    };
+  }
+
+  /**
+   * The whole translation, end to end: a real payload in, and platform terms
+   * out. This is the assertion the webhook handler used to carry, and it lives
+   * here now because the shape it depends on is one vendor's.
+   */
+  it('reports a success callback as a completion with the flattened text', () => {
+    expect(interpretSpeechmaticsCallback(callbackQuery())).toEqual({
+      kind: 'completed',
+      externalJobId: 'job-1',
+      text: 'el paciente refiere dolor.',
+      durationSeconds: 42,
+    });
+  });
+
+  it('reports a failure status as a failure, carrying the job id and the status word', () => {
+    expect(interpretSpeechmaticsCallback(callbackQuery({ status: 'error' }))).toEqual({
+      kind: 'failed',
+      externalJobId: 'job-1',
+      providerStatus: 'error',
+    });
+  });
+
+  /**
+   * Guessing the other way would complete a transcription out of whatever the
+   * body happened to hold. FAILED is recoverable — ruling R2 allows FAILED to
+   * COMPLETED — so this is the direction that can be undone.
+   */
+  it('treats a status it has never seen as a failure rather than as a completion', () => {
+    const outcome = interpretSpeechmaticsCallback(callbackQuery({ status: 'something-new' }));
+
+    expect(outcome.kind).toBe('failed');
+  });
+
+  it.each([
+    ['no job id', { id: undefined }],
+    ['an empty job id', { id: '' }],
+    ['a job id longer than the bound', { id: 'j'.repeat(129) }],
+  ])('refuses to interpret a callback with %s', (_description, overrides) => {
+    // Not a failure. The job id is what proves the callback belongs to the
+    // record it names, so without a usable one there is nothing to check a
+    // forged delivery against, and marking a transcription failed would be a
+    // write the sender never earned.
+    expect(interpretSpeechmaticsCallback(callbackQuery(overrides))).toEqual({
+      kind: 'unrecognised',
+      reason: 'The callback did not name a provider job',
+    });
+  });
+
+  it.each([
+    ['no status', { status: undefined }],
+    ['an empty status', { status: '' }],
+    ['a status longer than the bound', { status: 's'.repeat(129) }],
+  ])('refuses to interpret a callback with %s', (_description, overrides) => {
+    // The status reaches a log line, so its length is bounded here rather than
+    // trusted because the caller knew the shared secret.
+    expect(interpretSpeechmaticsCallback(callbackQuery(overrides))).toEqual({
+      kind: 'unrecognised',
+      reason: 'The callback did not report a job status',
+    });
+  });
+
+  it.each([
+    ['is not valid JSON', 'not json at all'],
+    ['is JSON but not a transcript', '"a transcript"'],
+    ['carries results of the wrong shape', JSON.stringify({ results: 'everything' })],
+  ])('refuses to interpret a success callback whose body %s', (_description, body) => {
+    expect(interpretSpeechmaticsCallback({ ...callbackQuery(), body })).toEqual({
+      kind: 'unrecognised',
+      reason: 'The callback body is not a transcript',
+    });
+  });
+
+  /**
+   * An empty recording produced no tokens, and the provider may send no body
+   * for it at all. Refusing that would leave the job redelivered until the
+   * provider gives up and the record stuck in PROCESSING for ever, which is a
+   * worse answer than a transcription with nothing in it.
+   */
+  it.each([
+    ['an absent body', undefined],
+    ['an empty body', ''],
+  ])('completes an empty recording from %s', (_description, body) => {
+    expect(interpretSpeechmaticsCallback({ ...callbackQuery(), body })).toEqual({
+      kind: 'completed',
+      externalJobId: 'job-1',
+      text: '',
+      durationSeconds: 0,
+    });
+  });
+
+  it('reads the status before the body, so a failure needs no transcript', () => {
+    const outcome = interpretSpeechmaticsCallback({
+      ...callbackQuery({ status: 'error' }),
+      body: 'not json at all',
+    });
+
+    expect(outcome.kind).toBe('failed');
   });
 });

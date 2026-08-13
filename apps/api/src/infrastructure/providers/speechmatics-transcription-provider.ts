@@ -3,10 +3,13 @@ import type { Clock } from '../../domain/ports/clock.js';
 import type { Logger } from '../../domain/ports/logger.js';
 import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
 import type {
+  ProviderCallback,
+  ProviderJobOutcome,
   RealtimeCredentials,
   SubmittedJob,
   TranscriptionProvider,
 } from '../../domain/ports/transcription-provider.js';
+import { interpretSpeechmaticsCallback } from './speechmatics-callback.js';
 
 /**
  * The EU regional hosts, chosen to match the `eu-west-1` deployment: clinical
@@ -237,6 +240,16 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       websocketUrl: REALTIME_WEBSOCKET_URL,
       expiresAt: new Date(this.clock.now().getTime() + ttlSeconds * 1_000),
     };
+  }
+
+  /**
+   * Speechmatics posts the transcript in the callback body, so answering needs
+   * no second request and the whole translation is the pure function this
+   * delegates to — which is where the vendor's payload shape stays, and where
+   * it is tested against real payloads rather than through an HTTP handler.
+   */
+  interpretCallback(callback: ProviderCallback): Promise<ProviderJobOutcome> {
+    return Promise.resolve(interpretSpeechmaticsCallback(callback));
   }
 
   /**

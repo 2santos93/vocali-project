@@ -4,8 +4,8 @@ import type {
   HttpRequest,
 } from './api-gateway-request.js';
 import { errorResponse, type HttpResponse } from './http-response.js';
+import { UNAUTHORIZED } from './http-status.js';
 
-const UNAUTHENTICATED_STATUS = 401;
 const UNAUTHENTICATED_CODE = 'UNAUTHENTICATED';
 const UNAUTHENTICATED_MESSAGE = 'This request requires a signed-in user';
 
@@ -34,7 +34,7 @@ export function withAuthenticatedUser(
     const userId = readSubjectClaim(request.event);
     if (userId === null) {
       return Promise.resolve(
-        errorResponse(UNAUTHENTICATED_STATUS, {
+        errorResponse(UNAUTHORIZED, {
           code: UNAUTHENTICATED_CODE,
           message: UNAUTHENTICATED_MESSAGE,
           requestId: request.requestId,

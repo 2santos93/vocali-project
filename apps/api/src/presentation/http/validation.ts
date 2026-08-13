@@ -1,9 +1,13 @@
 import type { z } from 'zod';
 import { err, ok, type Result } from '../../domain/shared/result.js';
-import type { ApiGatewayRequestEvent, HttpRequest } from './api-gateway-request.js';
+import {
+  readRawBody,
+  type ApiGatewayRequestEvent,
+  type HttpRequest,
+} from './api-gateway-request.js';
 import { errorResponse, type HttpResponse } from './http-response.js';
+import { BAD_REQUEST } from './http-status.js';
 
-const INVALID_REQUEST_STATUS = 400;
 const INVALID_REQUEST_CODE = 'INVALID_REQUEST';
 
 /**
@@ -79,17 +83,11 @@ function validateAndRun<Schema extends z.ZodTypeAny, Request extends HttpRequest
  * being told its JSON is malformed. The second message is true and useless.
  */
 function readJsonBody(event: ApiGatewayRequestEvent): Result<unknown, string> {
-  const raw = event.body;
+  const raw = readRawBody(event);
   if (raw === undefined || raw === '') return ok({});
 
-  // API Gateway base64-encodes the body whenever the content type is not on
-  // its text list. A client sending JSON under an unexpected content type
-  // would otherwise arrive as a string of base64 that fails to parse.
-  const decoded =
-    event.isBase64Encoded === true ? Buffer.from(raw, 'base64').toString('utf8') : raw;
-
   try {
-    return ok(JSON.parse(decoded));
+    return ok(JSON.parse(raw));
   } catch {
     return err('Request body is not valid JSON');
   }
@@ -113,7 +111,7 @@ function describeIssues(error: z.ZodError): string {
 }
 
 function invalidRequestResponse(requestId: string, message: string): HttpResponse {
-  return errorResponse(INVALID_REQUEST_STATUS, {
+  return errorResponse(BAD_REQUEST, {
     code: INVALID_REQUEST_CODE,
     message,
     requestId,

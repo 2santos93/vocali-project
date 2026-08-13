@@ -1,6 +1,6 @@
 import { SUPPORTED_TRANSCRIPTION_LANGUAGES } from '@vocali/contracts';
 import type { TranscriptionLanguage } from '@vocali/contracts';
-import type { SelectOption } from '../types';
+import type { SelectOption } from './types';
 
 /**
  * The Spanish name of every language the platform transcribes, and the select
@@ -11,6 +11,9 @@ import type { SelectOption } from '../types';
  * contract's union, so a language added to the platform stops this compiling
  * until someone has written the word a clinician will read — a plain
  * `Record<string, string>` would silently render the code instead.
+ *
+ * Beside `types.ts` rather than inside `organisms/`, which holds components:
+ * this is a list and a narrowing function, shared by two of them.
  */
 const LANGUAGE_LABELS: Record<TranscriptionLanguage, string> = {
   es: 'Español',

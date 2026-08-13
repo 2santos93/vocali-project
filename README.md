@@ -6,22 +6,38 @@ Targets AWS Lambda, DynamoDB, S3 and Cognito, defined end to end in Terraform, w
 
 ## Status
 
-The work is staged so that each layer is finished and tested before the next one depends on it.
+Every capability the brief asks for is implemented and tested. Nothing has been deployed yet.
 
-| Stage    | Contents                                                     | State                    |
-| -------- | ------------------------------------------------------------ | ------------------------ |
-| Phase 1  | Shared contracts, domain model, all eight use cases          | **Complete** — 118 tests |
-| Phase 2A | AWS and provider adapters, Lambda handlers, composition root | Not started              |
-| Phase 2B | Terraform, CI/CD, deployment                                 | In progress              |
-| Phase 3  | Nuxt front end                                               | Not started              |
+| Stage    | Contents                                                     | State                                   |
+| -------- | ------------------------------------------------------------ | --------------------------------------- |
+| Phase 1  | Shared contracts, domain model, every use case               | **Complete**                            |
+| Phase 2A | AWS and provider adapters, Lambda handlers, composition root | **Complete**                            |
+| Phase 2B | Terraform, CI/CD                                             | **Written and validated**, not deployed |
+| Phase 3  | Nuxt front end                                               | **Complete**                            |
 
-**What you can run today:** `pnpm install && pnpm typecheck && pnpm test`. The entire business layer is exercised against in-memory doubles, so there is nothing to configure and no AWS account involved.
+**What you can run today:**
 
-**What does not exist yet:** `apps/web`, any Lambda handler. The Architecture, Deployment and Testing sections below describe the target design; where a section covers something not yet built, it says so.
+```bash
+pnpm install
+pnpm typecheck
+pnpm test
+```
 
-`infra/` holds the Cognito user pool, the DynamoDB table, both buckets, one IAM role and log group per function, and the remote state bootstrap. Nothing has been deployed: it is validated offline, and the functions, the API and the front-end hosting arrive with the handlers they depend on.
+955 tests across the API, the front end and the shared contracts, none of which
+touch the network or an AWS account. There is nothing to configure.
 
-The reason for the split is that the ports are the hard part. Once the domain and the use cases are pinned by tests that run in about a second, the adapters behind those ports are mechanical and the design cannot quietly drift while they are written.
+**What you cannot do yet:** use it. Signing in calls Cognito, and no
+infrastructure exists, so the screens render but the first real action has
+nothing behind it. `infra/` is validated offline — `terraform fmt`, `init
+-backend=false` and `validate` pass in every module and environment — and the
+function bundles have been built and imported to confirm each exports a handler
+and refuses to boot without its configuration. None of that is the same as
+applied.
+
+The work was staged so that each layer was finished and tested before the next
+depended on it. The ports are the hard part: once the domain and the use cases
+are pinned by tests that run in about a second, the adapters behind those ports
+are mechanical and the design cannot quietly drift while they are written.
 
 ## Contents
 
@@ -45,11 +61,11 @@ The reason for the split is that the ports are the hard part. Once the domain an
 | Browse transcription history        | Ten per page, newest first, cursor paginated                |
 | Download a transcription            | Short-lived signed URL, plain text or JSON                  |
 
-The business rules behind every row — validation, state transitions, pagination, ownership — are implemented and tested. What is missing is the HTTP layer in front of them and the infrastructure underneath.
+The business rules behind every row — validation, state transitions, pagination, ownership — are implemented and tested, and so are the screens in front of them. What is missing is an AWS account to apply the infrastructure to.
 
 ## Architecture
 
-Target design. The functions and buckets below are Phase 2A and 2B.
+Everything below is written and validated. None of it has been applied to an AWS account.
 
 ```mermaid
 graph TB
@@ -99,17 +115,18 @@ Three constraints shaped almost everything else.
 ## Repository layout
 
 ```
-apps/api           Backend: domain, application (infrastructure and presentation are Phase 2A)
+apps/api           Backend: domain, application, infrastructure, presentation
+apps/web           Nuxt front end: components, pages, server routes
 packages/contracts Zod schemas shared by both sides
 infra              Terraform: bootstrap, modules, one directory per environment
 docs/adr           Decision records
 ```
 
-Planned for a later phase: `apps/web` (Nuxt).
-
-The backend follows a hexagonal structure. `domain` depends only on the shared contracts package, and only on its Zod-free constants entry point. `application` depends on `domain` and on port interfaces. `infrastructure` and `presentation` will depend inwards and never the other way.
+The backend follows a hexagonal structure. `domain` depends only on the shared contracts package, and only on its Zod-free constants entry point. `application` depends on `domain` and on port interfaces. `infrastructure` and `presentation` depend inwards and never the other way.
 
 That rule is not a convention in a document — it is enforced by ESLint and breaks the build. Importing an AWS SDK from the domain layer fails `pnpm lint`, with a message naming the layer that was violated.
+
+The front end follows Atomic Design, with one rule doing the same job: atoms, molecules and organisms are pure Vue and may not reach a Nuxt runtime composable. That is what lets them be mounted by Jest in milliseconds without booting Nuxt, and it is enforced the same way — a `useFetch` inside a component fails both the lint and the type check. Pages, layouts, middleware and server routes may use the runtime freely.
 
 The practical benefit is that every use case is tested against in-memory doubles with no AWS, no network and no SDK mocks, so the whole business suite runs in about a second.
 
@@ -126,16 +143,28 @@ pnpm test
 pnpm test:coverage
 ```
 
-No configuration is needed — nothing in the current suite reaches the network. Once the adapters land, secrets will be read from AWS Parameter Store at runtime; nothing sensitive belongs in the repository or in a plaintext environment variable.
+No configuration is needed — nothing in the suite reaches the network or an AWS account.
+
+The end-to-end suite needs a built front end and a server to drive, and no configuration either, because every call it makes to `/api/**` is answered in the browser:
+
+```bash
+pnpm --filter @vocali/web build
+pnpm --filter @vocali/web preview &
+pnpm e2e
+```
+
+Running the front end against real infrastructure needs the values in `.env.example`. Secrets themselves are read from AWS Parameter Store at runtime: nothing sensitive belongs in the repository or in a plaintext environment variable, so that file holds parameter paths and placeholders only.
 
 ## Testing
 
 | Layer                | Tool                         | What it covers                                                     | State    |
 | -------------------- | ---------------------------- | ------------------------------------------------------------------ | -------- |
 | Domain and use cases | Jest                         | Entities, value objects, every use case, against in-memory doubles | Complete |
-| Adapters             | Jest + `aws-sdk-client-mock` | DynamoDB, S3 and provider adapters, offline                        | Phase 2A |
-| Components           | Jest + Vue Test Utils        | Presentational components in isolation                             | Phase 3  |
-| End to end           | Cypress                      | The seven user journeys                                            | Phase 3  |
+| Adapters             | Jest + `aws-sdk-client-mock` | DynamoDB, S3 and provider adapters, offline                        | Complete |
+| Components           | Jest + Vue Test Utils        | Presentational components in isolation                             | Complete |
+| End to end           | Cypress                      | The seven user journeys, in a browser against a built front end    | Complete |
+
+The end-to-end suite answers every call to `/api/**` in the browser, and replaces the two capabilities that have no HTTP boundary — the microphone, through `getUserMedia`, and the provider's transcription stream, through the `WebSocket` constructor. It therefore proves what the browser does: the guarded routes and where a redirect lands, the multipart body the browser assembles for the presigned upload, the cursor the history pages by, and the signed URL asked for at click time. It proves nothing about AWS, which takes no part in it.
 
 Coverage thresholds are enforced by `pnpm test:coverage` and fail the build. They have never been lowered to make a build pass.
 
@@ -143,7 +172,9 @@ One standard is applied throughout: **a test that still passes when the behaviou
 
 ## Deployment
 
-Everything is defined in Terraform, under `infra/`. What exists today is the Cognito user pool, the DynamoDB table, both buckets with their CORS and lifecycle rules, an execution role and a log group for each function, and the remote state bootstrap. Still to come, with the handlers they depend on: the functions themselves, the API and its authorizer, and the CloudFront distribution in front of the front end.
+Everything is defined in Terraform, under `infra/`: the remote state bootstrap, the Cognito user pool, the DynamoDB table, both buckets with their CORS and lifecycle rules, the eight functions with an execution role and a log group each, the HTTP API and its Cognito authorizer, the CloudFront distribution in front of the renderer, the alarms, and a deployment role assumed through OIDC so no long-lived AWS credential exists anywhere.
+
+None of it has been applied. The gate it passes is offline: `terraform fmt`, `terraform init -backend=false` and `terraform validate` in every module and environment, plus a build of the eight function bundles to confirm each exports a handler and refuses to start without its configuration.
 
 Nothing has been deployed. Every module and environment passes `terraform fmt -check`, `terraform init -backend=false` and `terraform validate` offline; `plan` is the first command that needs an AWS account. `infra/README.md` covers how it is composed and what it decides.
 

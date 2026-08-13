@@ -36,6 +36,22 @@ export interface ApiGatewayRequestEvent {
 
 export type ApiGatewayRequestHandler = (event: ApiGatewayRequestEvent) => Promise<HttpResponse>;
 
+/**
+ * The body as the sender wrote it, with API Gateway's own encoding undone.
+ *
+ * Base64 is a transport detail of this integration and of nothing below it:
+ * API Gateway encodes the body whenever the content type is not on its text
+ * list, so a client sending JSON under an unexpected content type arrives as a
+ * string of base64. Decoding here means every reader downstream — a schema, or
+ * an adapter handed a raw payload — sees what was actually sent.
+ */
+export function readRawBody(event: ApiGatewayRequestEvent): string | undefined {
+  const raw = event.body;
+  if (raw === undefined || raw === '') return raw;
+
+  return event.isBase64Encoded === true ? Buffer.from(raw, 'base64').toString('utf8') : raw;
+}
+
 export interface HttpRequest {
   readonly event: ApiGatewayRequestEvent;
   /** The API Gateway request id, echoed to the client in the body and the header. */

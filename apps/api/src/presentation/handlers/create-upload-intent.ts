@@ -5,9 +5,8 @@ import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
+import { CREATED } from '../http/http-status.js';
 import { withValidatedBody } from '../http/validation.js';
-
-const CREATED_STATUS = 201;
 
 interface Dependencies {
   readonly useCase: CreateAudioUploadIntent;
@@ -44,7 +43,7 @@ export function createUploadIntentHandler(dependencies: Dependencies): ApiGatewa
         // because the value object owns those rules — it must not depend on
         // presentation code having run — and the two could drift apart.
         return result.success
-          ? jsonResponse(CREATED_STATUS, result.value, request.requestId)
+          ? jsonResponse(CREATED, result.value, request.requestId)
           : toErrorResponse(result.error, request.requestId);
       }),
     ),

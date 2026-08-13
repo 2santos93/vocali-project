@@ -2,6 +2,7 @@
 import { MAX_AUDIO_FILE_SIZE_BYTES, SUPPORTED_AUDIO_CONTENT_TYPES } from '@vocali/contracts';
 import { computed, ref } from 'vue';
 import BaseButton from '../atoms/BaseButton.vue';
+import { formatMegabytes } from '../format';
 import type { FileRejection } from '../types';
 
 interface Props {
@@ -32,8 +33,6 @@ const emit = defineEmits<{
   reject: [rejection: FileRejection];
 }>();
 
-const BYTES_PER_MEGABYTE = 1024 * 1024;
-
 const EXTENSION_LABELS: Record<string, string> = {
   'audio/wav': 'WAV',
   'audio/x-wav': 'WAV',
@@ -63,11 +62,6 @@ const acceptedFormatsText = computed<string>(() => {
   // under test, which is the worst place for a difference to live.
   return Array.from(new Set(labels)).join(', ');
 });
-
-function formatMegabytes(bytes: number): string {
-  const megabytes = bytes / BYTES_PER_MEGABYTE;
-  return `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 }).format(megabytes)} MB`;
-}
 
 const maxSizeText = computed<string>(() => formatMegabytes(props.maxSizeBytes));
 

@@ -14,10 +14,8 @@ import type { IdGenerator } from '../../domain/ports/id-generator.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
 import { err, ok, type Result } from '../../domain/shared/result.js';
 import { AudioFile } from '../../domain/value-objects/audio-file.js';
+import { UPLOAD_URL_TTL_SECONDS } from '../constants.js';
 import { buildAudioObjectKey } from './object-keys.js';
-
-/** How long the presigned POST stays valid before the client must retry. */
-const UPLOAD_URL_TTL_SECONDS = 900;
 
 interface CreateAudioUploadIntentInput {
   readonly userId: string;

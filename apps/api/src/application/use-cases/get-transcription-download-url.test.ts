@@ -55,6 +55,9 @@ describe('GetTranscriptionDownloadUrl', () => {
     // be silently tracked by it. The two must also agree — a link the client
     // believes lasts fifteen minutes while the signature expires sooner is a
     // download that fails after the user has already clicked it.
+    // They stay literals now that DOWNLOAD_URL_TTL_SECONDS lives in
+    // application/constants.ts and is one import away: importing it would make
+    // both of these `expect(constant).toBe(constant)`, which pins nothing.
     expect(result.value.expiresAt).toBe('2026-08-10T12:15:00.000Z');
 
     expect(storage.calls.presignedDownloads).toHaveLength(1);

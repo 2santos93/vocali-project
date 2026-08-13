@@ -703,4 +703,46 @@ describe('SpeechmaticsTranscriptionProvider', () => {
       expect(error.message).toContain('returned no key');
     });
   });
+
+  /**
+   * The port's third member, and the reason the webhook route no longer knows
+   * what a Speechmatics payload looks like. The translation itself is pinned
+   * against real payloads in `speechmatics-callback.test.ts`; what these two
+   * assert is that it is reachable through the port, because a translation
+   * nothing can call leaves the coupling exactly where it was.
+   */
+  describe('interpretCallback', () => {
+    it('answers a success callback in the platform terms the caller expects', async () => {
+      const { provider } = buildProvider();
+
+      const outcome = await provider.interpretCallback({
+        query: { id: 'job-1', status: 'success' },
+        body: JSON.stringify({
+          job: { duration: 12 },
+          results: [{ type: 'word', end_time: 1, alternatives: [{ content: 'hola' }] }],
+        }),
+      });
+
+      expect(outcome).toEqual({
+        kind: 'completed',
+        externalJobId: 'job-1',
+        text: 'hola',
+        durationSeconds: 12,
+      });
+    });
+
+    it('answers without going near the network', async () => {
+      // `disableNetConnect` is on for every test in this file, so a request
+      // here would fail rather than pass quietly — but the count is the honest
+      // assertion: reading a body must not cost a round trip to the provider.
+      const { provider, secrets } = buildProvider();
+
+      await provider.interpretCallback({ query: { id: 'job-1', status: 'error' }, body: '' });
+
+      expect(requests).toHaveLength(0);
+      // Nor a secret. Nothing here is authenticated against the provider; the
+      // callback's own credential was checked before this was ever called.
+      expect(secrets.requested).toHaveLength(0);
+    });
+  });
 });

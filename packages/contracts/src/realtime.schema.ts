@@ -1,14 +1,20 @@
 import { z } from 'zod';
-import { DEFAULT_TRANSCRIPTION_LANGUAGE, SUPPORTED_TRANSCRIPTION_LANGUAGES } from './constants.js';
+import {
+  DEFAULT_TRANSCRIPTION_LANGUAGE,
+  REALTIME_AUDIO_FORMAT,
+  SUPPORTED_TRANSCRIPTION_LANGUAGES,
+} from './constants.js';
 
 export const RealtimeSessionResponseSchema = z.object({
   token: z.string().min(1),
   websocketUrl: z.string().url(),
   expiresAt: z.string().datetime(),
+  // Built from REALTIME_AUDIO_FORMAT rather than restated, so the schema, the
+  // session the API mints and the rate the browser captures at cannot drift.
   audioFormat: z.object({
-    type: z.literal('raw'),
-    encoding: z.literal('pcm_s16le'),
-    sampleRate: z.literal(16_000),
+    type: z.literal(REALTIME_AUDIO_FORMAT.type),
+    encoding: z.literal(REALTIME_AUDIO_FORMAT.encoding),
+    sampleRate: z.literal(REALTIME_AUDIO_FORMAT.sampleRate),
   }),
 });
 

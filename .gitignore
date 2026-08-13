@@ -13,5 +13,11 @@ coverage/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-cypress/videos/
-cypress/screenshots/
+# What a Cypress run leaves behind. Written with a leading `**/` because the
+# suite lives in apps/web: a pattern containing a slash is anchored to this
+# file's directory, so the bare `cypress/screenshots/` these replace matched a
+# directory at the repository root that never existed, and every failing run
+# offered its screenshots to the next commit.
+**/cypress/videos/
+**/cypress/screenshots/
+**/cypress/downloads/

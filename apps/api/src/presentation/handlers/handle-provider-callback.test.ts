@@ -2,6 +2,7 @@ import { handleProviderCallbackHandler } from './handle-provider-callback.js';
 import { CompleteTranscription } from '../../application/use-cases/complete-transcription.js';
 import { FailTranscription } from '../../application/use-cases/fail-transcription.js';
 import { Transcription } from '../../domain/entities/transcription.js';
+import type { ProviderJobOutcome } from '../../domain/ports/transcription-provider.js';
 import { AudioFile } from '../../domain/value-objects/audio-file.js';
 import {
   buildApiGatewayEvent,
@@ -9,6 +10,7 @@ import {
 } from '../../../test/builders/api-gateway-event.builder.js';
 import { CapturingLogger } from '../../../test/doubles/capturing-logger.js';
 import { FakeSecretsProvider } from '../../../test/doubles/fake-secrets-provider.js';
+import { FakeTranscriptionProvider } from '../../../test/doubles/fake-transcription-provider.js';
 import { FixedClock } from '../../../test/doubles/fixed-clock.js';
 import { InMemoryFileStorage } from '../../../test/doubles/in-memory-file-storage.js';
 import { InMemoryTranscriptionRepository } from '../../../test/doubles/in-memory-transcription-repository.js';
@@ -19,37 +21,61 @@ const NOW = new Date('2026-08-11T09:00:00.000Z');
 const WEBHOOK_SECRET_NAME = '/vocali/test/speechmatics/webhook-secret';
 const WEBHOOK_SECRET = 'a-long-shared-webhook-secret-value';
 
-const TRANSCRIPT_BODY = JSON.stringify({
-  format: '2.9',
-  job: { id: 'job-1', duration: 42 },
-  results: [
-    { type: 'word', end_time: 0.5, alternatives: [{ content: 'el' }] },
-    { type: 'word', end_time: 0.9, alternatives: [{ content: 'paciente' }] },
-    { type: 'word', end_time: 1.4, alternatives: [{ content: 'refiere' }] },
-    { type: 'word', end_time: 1.9, alternatives: [{ content: 'dolor' }] },
-    { type: 'punctuation', end_time: 1.9, alternatives: [{ content: '.' }] },
-  ],
-});
+/**
+ * Opaque on purpose. What a provider posts is its adapter's business, and this
+ * handler is correct only if it can carry a body it cannot read — so the tests
+ * below never assert anything about the shape of this string, only that it
+ * arrives at the provider unchanged.
+ *
+ * The flattening of a real Speechmatics payload into this text is pinned in
+ * `infrastructure/providers/speechmatics-callback.test.ts`, which is where the
+ * knowledge of that payload now lives.
+ */
+const CALLBACK_BODY = '{"whatever":"the provider chose to post"}';
 
-const EXPECTED_TEXT = 'el paciente refiere dolor.';
+const TRANSCRIPT_TEXT = 'el paciente refiere dolor.';
+
+function completed(overrides: Partial<Omit<CompletedOutcome, 'kind'>> = {}): ProviderJobOutcome {
+  return {
+    kind: 'completed',
+    externalJobId: 'job-1',
+    text: TRANSCRIPT_TEXT,
+    durationSeconds: 42,
+    ...overrides,
+  };
+}
+
+type CompletedOutcome = Extract<ProviderJobOutcome, { kind: 'completed' }>;
+
+function failed(providerStatus = 'error'): ProviderJobOutcome {
+  return { kind: 'failed', externalJobId: 'job-1', providerStatus };
+}
 
 function buildSubject(): {
   handler: ReturnType<typeof handleProviderCallbackHandler>;
   repository: InMemoryTranscriptionRepository;
   storage: InMemoryFileStorage;
   secrets: FakeSecretsProvider;
+  provider: FakeTranscriptionProvider;
   logger: CapturingLogger;
 } {
   const clock = new FixedClock(NOW);
   const repository = new InMemoryTranscriptionRepository();
   const storage = new InMemoryFileStorage({ bucketName: TRANSCRIPTS_BUCKET, clock });
   const secrets = new FakeSecretsProvider({ [WEBHOOK_SECRET_NAME]: WEBHOOK_SECRET });
+  const provider = new FakeTranscriptionProvider(clock);
   const logger = new CapturingLogger();
+
+  // Completion is the common case, so it is the default; every test that means
+  // something else stages it. Nothing is staged implicitly — an unstaged
+  // provider answers `unrecognised`, which writes nothing at all.
+  provider.nextCallbackOutcome = completed();
 
   return {
     handler: handleProviderCallbackHandler({
       completeTranscription: new CompleteTranscription(repository, storage, clock),
       failTranscription: new FailTranscription(repository, clock),
+      transcriptionProvider: provider,
       secrets,
       webhookSecretName: WEBHOOK_SECRET_NAME,
       logger,
@@ -57,6 +83,7 @@ function buildSubject(): {
     repository,
     storage,
     secrets,
+    provider,
     logger,
   };
 }
@@ -83,7 +110,7 @@ function buildCallback(options: {
       id: options.jobId ?? 'job-1',
       status: options.status ?? 'success',
     },
-    body: options.body ?? TRANSCRIPT_BODY,
+    body: options.body ?? CALLBACK_BODY,
   });
 }
 
@@ -130,7 +157,7 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
    * history. Nothing may change on this path.
    */
   it('answers 401 and changes nothing for a wrong secret', async () => {
-    const { handler, repository, storage } = buildSubject();
+    const { handler, repository, storage, provider } = buildSubject();
     await saveProcessing(repository);
 
     const response = await handler(buildCallback({ secret: 'not-the-shared-secret-at-all-xxxx' }));
@@ -139,6 +166,10 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
     expect(parseResponseBody(response.body).code).toBe('UNAUTHENTICATED');
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
     expect(storage.calls.writes).toHaveLength(0);
+    // Not even read. An unauthenticated body is attacker-controlled input, and
+    // handing it to a parser is work done on behalf of someone who has proved
+    // nothing.
+    expect(provider.interpretedCallbacks).toHaveLength(0);
   });
 
   it('correlates the lines it writes with the request id the caller is given', async () => {
@@ -226,14 +257,100 @@ describe('handleProviderCallbackHandler — the shared secret', () => {
   });
 });
 
+describe('handleProviderCallbackHandler — asking the provider what the callback meant', () => {
+  /**
+   * The handler reads two query parameters, the two it appended itself, and
+   * passes the rest on untouched. If it started picking out the provider's own
+   * parameters instead, swapping provider would mean editing this route — the
+   * one that also carries the shared-secret check and the redelivery rules.
+   */
+  it('hands the provider the query and the body exactly as they arrived', async () => {
+    const { handler, repository, provider } = buildSubject();
+    await saveProcessing(repository);
+
+    await handler(buildCallback({ jobId: 'job-1', status: 'success' }));
+
+    expect(provider.interpretedCallbacks).toEqual([
+      {
+        query: {
+          transcriptionId: '01ID001',
+          userId: 'user-1',
+          id: 'job-1',
+          status: 'success',
+        },
+        body: CALLBACK_BODY,
+      },
+    ]);
+  });
+
+  /**
+   * API Gateway base64-encodes a body whenever the content type is not on its
+   * text list. Undoing that is this layer's job — it is a fact about the
+   * integration, not about the provider — and an adapter handed the encoded
+   * form would reject a perfectly good transcript as unparseable.
+   */
+  it('decodes a base64 body before handing it over', async () => {
+    const { handler, repository, provider } = buildSubject();
+    await saveProcessing(repository);
+
+    await handler(
+      buildApiGatewayEvent({
+        authorizer: null,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        queryStringParameters: { transcriptionId: '01ID001', userId: 'user-1' },
+        body: Buffer.from(CALLBACK_BODY, 'utf8').toString('base64'),
+        isBase64Encoded: true,
+      }),
+    );
+
+    expect(provider.interpretedCallbacks[0]?.body).toBe(CALLBACK_BODY);
+  });
+
+  it('answers 400 and writes nothing when the provider cannot interpret the callback', async () => {
+    const { handler, repository, storage, provider } = buildSubject();
+    await saveProcessing(repository);
+    provider.nextCallbackOutcome = {
+      kind: 'unrecognised',
+      reason: 'The callback body is not a transcript',
+    };
+
+    const response = await handler(buildCallback({}));
+
+    expect(response.statusCode).toBe(400);
+    expect(parseResponseBody(response.body).message).toBe('The callback body is not a transcript');
+    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
+    expect(storage.calls.writes).toHaveLength(0);
+  });
+
+  it('answers 400 when the query string is missing the identity we appended', async () => {
+    const { handler, repository, provider } = buildSubject();
+    await saveProcessing(repository);
+
+    const response = await handler(
+      buildApiGatewayEvent({
+        authorizer: null,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        queryStringParameters: { id: 'job-1', status: 'success' },
+        body: CALLBACK_BODY,
+      }),
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
+    // Ours are checked first: without a record to address there is nothing for
+    // an interpretation to be applied to.
+    expect(provider.interpretedCallbacks).toHaveLength(0);
+  });
+});
+
 describe('handleProviderCallbackHandler — completion', () => {
-  it('stores the flattened transcript and the reported duration', async () => {
+  it('stores the text and the duration the provider reported', async () => {
     const { handler, repository, storage } = buildSubject();
     await saveProcessing(repository);
 
     await handler(buildCallback({}));
 
-    expect(storage.objects.get('transcripts/user-1/01ID001.txt')).toBe(EXPECTED_TEXT);
+    expect(storage.objects.get('transcripts/user-1/01ID001.txt')).toBe(TRANSCRIPT_TEXT);
     const stored = await repository.findById('user-1', '01ID001');
     expect(stored?.toPrimitives().durationSeconds).toBe(42);
     expect(stored?.toPrimitives().textPreview).toContain('el paciente');
@@ -265,10 +382,15 @@ describe('handleProviderCallbackHandler — completion', () => {
    * in the callback URL instead.
    */
   it('completes a record whose job id was never persisted, and records it', async () => {
-    const { handler, repository } = buildSubject();
+    const { handler, repository, provider } = buildSubject();
     await repository.save(buildPendingUpload());
+    provider.nextCallbackOutcome = completed({ externalJobId: 'job-recovered' });
 
-    const response = await handler(buildCallback({ jobId: 'job-recovered' }));
+    // The query still carries the old id. What is recorded has to be the id
+    // the provider's own adapter reported, not a parameter this layer picked
+    // out of the URL — the two differ here so that reading the wrong one is
+    // visible rather than invisible.
+    const response = await handler(buildCallback({ jobId: 'job-1' }));
 
     expect(response.statusCode).toBe(200);
     const stored = await repository.findById('user-1', '01ID001');
@@ -277,10 +399,14 @@ describe('handleProviderCallbackHandler — completion', () => {
   });
 
   it('answers 404 for a job id that contradicts the one on record', async () => {
-    const { handler, repository, storage } = buildSubject();
+    const { handler, repository, storage, provider } = buildSubject();
     await saveProcessing(repository);
+    provider.nextCallbackOutcome = completed({ externalJobId: 'somebody-elses-job' });
 
-    const response = await handler(buildCallback({ jobId: 'somebody-elses-job' }));
+    // The query names the job the record is expecting and the interpretation
+    // does not. A handler that trusted the query string would answer 200 and
+    // write a stranger's transcript into this user's history.
+    const response = await handler(buildCallback({ jobId: 'job-1' }));
 
     expect(response.statusCode).toBe(404);
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
@@ -294,41 +420,15 @@ describe('handleProviderCallbackHandler — completion', () => {
 
     expect(response.statusCode).toBe(404);
   });
-
-  it('answers 400 when the query string is missing the identity we appended', async () => {
-    const { handler, repository } = buildSubject();
-    await saveProcessing(repository);
-
-    const response = await handler(
-      buildApiGatewayEvent({
-        authorizer: null,
-        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
-        queryStringParameters: { id: 'job-1', status: 'success' },
-        body: TRANSCRIPT_BODY,
-      }),
-    );
-
-    expect(response.statusCode).toBe(400);
-    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
-  });
-
-  it('answers 400 for a success callback whose body is not a transcript', async () => {
-    const { handler, repository } = buildSubject();
-    await saveProcessing(repository);
-
-    const response = await handler(buildCallback({ body: 'not json at all' }));
-
-    expect(response.statusCode).toBe(400);
-    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('PROCESSING');
-  });
 });
 
 describe('handleProviderCallbackHandler — failure', () => {
   it('marks the record failed with a reason written for a clinician', async () => {
-    const { handler, repository } = buildSubject();
+    const { handler, repository, provider } = buildSubject();
     await saveProcessing(repository);
+    provider.nextCallbackOutcome = failed();
 
-    const response = await handler(buildCallback({ status: 'error', body: '{}' }));
+    const response = await handler(buildCallback({ status: 'error' }));
 
     expect(response.statusCode).toBe(200);
     const stored = await repository.findById('user-1', '01ID001');
@@ -341,10 +441,11 @@ describe('handleProviderCallbackHandler — failure', () => {
   });
 
   it('records the raw provider status in the log rather than on the record', async () => {
-    const { handler, repository, logger } = buildSubject();
+    const { handler, repository, provider, logger } = buildSubject();
     await saveProcessing(repository);
+    provider.nextCallbackOutcome = failed('rejected');
 
-    await handler(buildCallback({ status: 'rejected', body: '{}' }));
+    await handler(buildCallback({ status: 'rejected' }));
 
     expect(logger.serialise()).toContain('rejected');
     expect(
@@ -352,47 +453,34 @@ describe('handleProviderCallbackHandler — failure', () => {
     ).not.toContain('rejected');
   });
 
-  it('treats an unrecognised status as a failure rather than as a completion', async () => {
-    const { handler, repository, storage } = buildSubject();
-    await saveProcessing(repository);
-
-    const response = await handler(buildCallback({ status: 'something-new', body: '{}' }));
-
-    expect(response.statusCode).toBe(200);
-    // Guessing the other way would complete a transcription with whatever the
-    // body happened to hold. FAILED is recoverable — ruling R2 allows
-    // FAILED to COMPLETED — so this is the direction that can be undone.
-    expect((await repository.findById('user-1', '01ID001'))?.status).toBe('FAILED');
-    expect(storage.calls.writes).toHaveLength(0);
-  });
-
   it('acknowledges a redelivered failure', async () => {
-    const { handler, repository } = buildSubject();
+    const { handler, repository, provider } = buildSubject();
     await saveProcessing(repository);
+    provider.nextCallbackOutcome = failed();
 
-    await handler(buildCallback({ status: 'error', body: '{}' }));
-    const response = await handler(buildCallback({ status: 'error', body: '{}' }));
+    await handler(buildCallback({ status: 'error' }));
+    const response = await handler(buildCallback({ status: 'error' }));
 
     expect(response.statusCode).toBe(200);
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('FAILED');
   });
 
   it('answers 404 for a failure callback naming a transcription that does not exist', async () => {
-    const { handler } = buildSubject();
+    const { handler, provider } = buildSubject();
+    provider.nextCallbackOutcome = failed();
 
-    const response = await handler(
-      buildCallback({ status: 'error', body: '{}', transcriptionId: '01ID404' }),
-    );
+    const response = await handler(buildCallback({ status: 'error', transcriptionId: '01ID404' }));
 
     expect(response.statusCode).toBe(404);
   });
 
   it('does not undo a completed transcription with a late failure signal', async () => {
-    const { handler, repository } = buildSubject();
+    const { handler, repository, provider } = buildSubject();
     await saveProcessing(repository);
     await handler(buildCallback({}));
 
-    const response = await handler(buildCallback({ status: 'error', body: '{}' }));
+    provider.nextCallbackOutcome = failed();
+    const response = await handler(buildCallback({ status: 'error' }));
 
     expect(response.statusCode).toBe(200);
     expect((await repository.findById('user-1', '01ID001'))?.status).toBe('COMPLETED');

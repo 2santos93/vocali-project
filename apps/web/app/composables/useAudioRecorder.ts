@@ -1,4 +1,8 @@
-import { RealtimeSessionResponseSchema, TranscriptionSchema } from '@vocali/contracts';
+import {
+  REALTIME_AUDIO_FORMAT,
+  RealtimeSessionResponseSchema,
+  TranscriptionSchema,
+} from '@vocali/contracts';
 import type {
   RealtimeSessionResponse,
   SaveRealtimeTranscriptionRequest,
@@ -7,6 +11,9 @@ import type {
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import type { ComputedRef, DeepReadonly, Ref } from 'vue';
+import { REALTIME_SESSIONS_PATH, REALTIME_TRANSCRIPTIONS_PATH } from '../utils/api-routes';
+import { readStatusCode } from '../utils/http-failure';
+import { HTTP_UNAUTHORIZED } from '../utils/http-status';
 import type { ApiRequester } from './useFileUpload';
 
 /**
@@ -24,20 +31,7 @@ export const PCM_ENCODER_WORKLET_URL = '/worklets/pcm-encoder.js';
 /** Must match the name `registerProcessor` is called with inside the worklet. */
 export const PCM_ENCODER_PROCESSOR_NAME = 'pcm-encoder';
 
-/**
- * Typed against the contract rather than written as a bare number, so a change
- * to `RealtimeSessionResponse` stops this file compiling instead of leaving
- * the capture quietly running at a rate the provider no longer expects.
- *
- * It is needed before a session exists because the `AudioContext` is
- * constructed at this rate rather than resampled afterwards — see
- * `createWorkletAudioCapture`.
- */
-const PROVIDER_SAMPLE_RATE: RealtimeSessionResponse['audioFormat']['sampleRate'] = 16_000;
-
 const MILLISECONDS_PER_SECOND = 1000;
-
-const HTTP_UNAUTHORIZED = 401;
 
 const WEBSOCKET_OPEN = 1;
 
@@ -285,7 +279,7 @@ export function createRealtimeRequests(
 ): Pick<AudioRecorderDependencies, 'createSession' | 'saveTranscription'> {
   return {
     async createSession(): Promise<RealtimeSessionResponse> {
-      const response = await request('/api/realtime-sessions', { method: 'POST' });
+      const response = await request(REALTIME_SESSIONS_PATH, { method: 'POST' });
       /*
        * Validation matters more here than anywhere else in the front end.
        * This response carries the credential and the sample rate the capture
@@ -296,7 +290,7 @@ export function createRealtimeRequests(
     },
 
     async saveTranscription(dictation: SaveRealtimeTranscriptionRequest): Promise<Transcription> {
-      const response = await request('/api/transcriptions/realtime', {
+      const response = await request(REALTIME_TRANSCRIPTIONS_PATH, {
         method: 'POST',
         body: { ...dictation },
       });
@@ -503,7 +497,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
         failure.value = {
           code: 'SAVE_FAILED',
           message:
-            statusCodeOf(error) === HTTP_UNAUTHORIZED
+            readStatusCode(error) === HTTP_UNAUTHORIZED
               ? 'Tu sesión ha caducado antes de guardar. Inicia sesión en otra pestaña y vuelve a pulsar «Guardar»: el texto sigue aquí.'
               : 'No hemos podido guardar la transcripción. El texto sigue en pantalla; vuelve a intentarlo.',
           recoverable: true,
@@ -560,7 +554,15 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
   async function beginCapture(): Promise<void> {
     try {
       await dependencies.capture.start({
-        sampleRate: PROVIDER_SAMPLE_RATE,
+        /*
+         * The contract's rate, not a number restated here. The `AudioContext`
+         * is constructed at it rather than resampled afterwards, and it is
+         * needed before a session exists — so it cannot be read off the
+         * session response, and a copy that drifted would not fail: it would
+         * transcribe noise, convincingly enough that nothing downstream could
+         * tell.
+         */
+        sampleRate: REALTIME_AUDIO_FORMAT.sampleRate,
         onFrame: (frame: ArrayBuffer) => {
           if (socket === null || socket.readyState !== WEBSOCKET_OPEN) {
             return;
@@ -596,7 +598,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
       session = await dependencies.createSession();
     } catch (error: unknown) {
       failure.value =
-        statusCodeOf(error) === HTTP_UNAUTHORIZED
+        readStatusCode(error) === HTTP_UNAUTHORIZED
           ? {
               code: 'SESSION_EXPIRED',
               message: 'Tu sesión ha caducado. Vuelve a iniciar sesión para dictar.',
@@ -750,14 +752,4 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     discard,
     dismissFailure,
   };
-}
-
-/**
- * The same structural read as in `useFileUpload`: ofetch attaches `statusCode`
- * to what it throws, and checking for the property rather than the class keeps
- * this file free of a Nuxt import.
- */
-function statusCodeOf(error: unknown): number | null {
-  const candidate = propertyOf(error, 'statusCode');
-  return typeof candidate === 'number' ? candidate : null;
 }

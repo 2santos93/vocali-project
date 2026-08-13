@@ -5,9 +5,8 @@ import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
+import { CREATED } from '../http/http-status.js';
 import { withValidatedBody } from '../http/validation.js';
-
-const CREATED_STATUS = 201;
 
 interface Dependencies {
   readonly useCase: SaveRealtimeTranscription;
@@ -37,7 +36,7 @@ export function saveRealtimeTranscriptionHandler(
           clientSessionId: body.clientSessionId,
         });
 
-        return jsonResponse(CREATED_STATUS, transcription, request.requestId);
+        return jsonResponse(CREATED, transcription, request.requestId);
       }),
     ),
   );

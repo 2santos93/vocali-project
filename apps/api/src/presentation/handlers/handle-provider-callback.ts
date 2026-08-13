@@ -4,25 +4,25 @@ import type { CompleteTranscription } from '../../application/use-cases/complete
 import type { FailTranscription } from '../../application/use-cases/fail-transcription.js';
 import type { Logger } from '../../domain/ports/logger.js';
 import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
-import {
-  buildTranscriptText,
-  resolveDurationSeconds,
-  SpeechmaticsTranscriptSchema,
-  SPEECHMATICS_SUCCESS_STATUS,
-} from '../../infrastructure/providers/speechmatics-callback.js';
 import type {
-  ApiGatewayRequestEvent,
-  ApiGatewayRequestHandler,
-  HttpRequest,
+  ProviderJobOutcome,
+  TranscriptionProvider,
+} from '../../domain/ports/transcription-provider.js';
+import {
+  readRawBody,
+  type ApiGatewayRequestEvent,
+  type ApiGatewayRequestHandler,
+  type HttpRequest,
 } from '../http/api-gateway-request.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { errorResponse, jsonResponse, type HttpResponse } from '../http/http-response.js';
-import { withValidatedBody, withValidatedQuery } from '../http/validation.js';
+import { BAD_REQUEST, OK, UNAUTHORIZED } from '../http/http-status.js';
+import { withValidatedQuery } from '../http/validation.js';
 
-const ACCEPTED_STATUS = 200;
-const UNAUTHENTICATED_STATUS = 401;
 const UNAUTHENTICATED_CODE = 'UNAUTHENTICATED';
 const UNAUTHENTICATED_MESSAGE = 'This request requires a valid callback credential';
+
+const INVALID_REQUEST_CODE = 'INVALID_REQUEST';
 
 /** Shown to the user; the provider's own status word goes to the log instead. */
 const PROVIDER_FAILURE_REASON = 'The transcription provider could not process this recording';
@@ -32,19 +32,22 @@ const MAX_IDENTIFIER_LENGTH = 128;
 /**
  * `transcriptionId` and `userId` are ours, appended to the callback URL when
  * the job was submitted (ruling R12), so the record resolves by primary key
- * rather than through an index. `id` and `status` are the provider's, which
- * it appends to whatever URL it was given.
+ * rather than through an index.
+ *
+ * Only ours. Whatever else the provider appended is passed on untouched for
+ * the provider's own adapter to read, because which parameter carries a job id
+ * and which carries a status is a fact about one vendor, and this route is the
+ * last place that should have to be edited when the vendor changes.
  */
 const ProviderCallbackQuerySchema = z.object({
   transcriptionId: z.string().min(1).max(MAX_IDENTIFIER_LENGTH),
   userId: z.string().min(1).max(MAX_IDENTIFIER_LENGTH),
-  id: z.string().min(1).max(MAX_IDENTIFIER_LENGTH),
-  status: z.string().min(1).max(MAX_IDENTIFIER_LENGTH),
 });
 
 interface Dependencies {
   readonly completeTranscription: CompleteTranscription;
   readonly failTranscription: FailTranscription;
+  readonly transcriptionProvider: TranscriptionProvider;
   readonly secrets: SecretsProvider;
   /** Parameter Store path of the shared secret the provider echoes back. */
   readonly webhookSecretName: string;
@@ -81,60 +84,77 @@ export function handleProviderCallbackHandler(
       // presented to.
       request.logger.warn('Rejected a provider callback with an invalid credential');
 
-      return errorResponse(UNAUTHENTICATED_STATUS, {
+      return errorResponse(UNAUTHORIZED, {
         code: UNAUTHENTICATED_CODE,
         message: UNAUTHENTICATED_MESSAGE,
         requestId: request.requestId,
       });
     }
 
-    return withValidatedQuery(ProviderCallbackQuerySchema, (validRequest, query) =>
-      query.status === SPEECHMATICS_SUCCESS_STATUS
-        ? applyCompletion(dependencies, validRequest, query)
-        : applyFailure(dependencies, validRequest, query),
-    )(request);
+    return withValidatedQuery(ProviderCallbackQuerySchema, async (validRequest, query) => {
+      // The body is handed over as it was sent. Reading it is the provider
+      // adapter's business, and a JSON parse here would already be an
+      // assumption about a payload format this layer has no reason to hold.
+      const outcome = await dependencies.transcriptionProvider.interpretCallback({
+        query: validRequest.event.queryStringParameters ?? {},
+        body: readRawBody(validRequest.event),
+      });
+
+      switch (outcome.kind) {
+        case 'completed':
+          return applyCompletion(dependencies, validRequest, query, outcome);
+        case 'failed':
+          return applyFailure(dependencies, validRequest, query, outcome);
+        case 'unrecognised':
+          return rejectUnrecognised(validRequest, outcome);
+      }
+    })(request);
   });
 }
 
 type CallbackQuery = z.infer<typeof ProviderCallbackQuerySchema>;
 
-function applyCompletion(
+type CompletedOutcome = Extract<ProviderJobOutcome, { kind: 'completed' }>;
+type FailedOutcome = Extract<ProviderJobOutcome, { kind: 'failed' }>;
+type UnrecognisedOutcome = Extract<ProviderJobOutcome, { kind: 'unrecognised' }>;
+
+async function applyCompletion(
   dependencies: Dependencies,
   request: HttpRequest,
   query: CallbackQuery,
+  outcome: CompletedOutcome,
 ): Promise<HttpResponse> {
-  return withValidatedBody(SpeechmaticsTranscriptSchema, async (bodyRequest, transcript) => {
-    const result = await dependencies.completeTranscription.execute({
-      userId: query.userId,
-      transcriptionId: query.transcriptionId,
-      externalJobId: query.id,
-      text: buildTranscriptText(transcript.results),
-      durationSeconds: resolveDurationSeconds(transcript),
-    });
+  const result = await dependencies.completeTranscription.execute({
+    userId: query.userId,
+    transcriptionId: query.transcriptionId,
+    externalJobId: outcome.externalJobId,
+    text: outcome.text,
+    durationSeconds: outcome.durationSeconds,
+  });
 
-    return result.success
-      ? acknowledged(bodyRequest.requestId)
-      : toErrorResponse(result.error, bodyRequest.requestId);
-  })(request);
+  return result.success
+    ? acknowledged(request.requestId)
+    : toErrorResponse(result.error, request.requestId);
 }
 
 async function applyFailure(
   dependencies: Dependencies,
   request: HttpRequest,
   query: CallbackQuery,
+  outcome: FailedOutcome,
 ): Promise<HttpResponse> {
   // The provider's own status word is operational detail. `reason` is stored
   // on the record and shown in the history, so it says something a clinician
   // can act on rather than repeating a third party's vocabulary.
   request.logger.warn('Provider reported a job it did not complete', {
     transcriptionId: query.transcriptionId,
-    providerStatus: query.status,
+    providerStatus: outcome.providerStatus,
   });
 
   const result = await dependencies.failTranscription.execute({
     userId: query.userId,
     transcriptionId: query.transcriptionId,
-    externalJobId: query.id,
+    externalJobId: outcome.externalJobId,
     reason: PROVIDER_FAILURE_REASON,
   });
 
@@ -143,8 +163,32 @@ async function applyFailure(
     : toErrorResponse(result.error, request.requestId);
 }
 
+/**
+ * A callback the provider's own adapter could not make sense of. Answered 400
+ * and never applied: the two writes below this point both need a job id to
+ * prove the callback belongs to the record it names, and without one there is
+ * nothing to check a forged or garbled delivery against.
+ *
+ * The reason is written by the adapter and is a fixed sentence, so nothing the
+ * sender chose is reflected back to it.
+ */
+function rejectUnrecognised(
+  request: HttpRequest,
+  outcome: UnrecognisedOutcome,
+): Promise<HttpResponse> {
+  request.logger.warn('Could not interpret a provider callback', { reason: outcome.reason });
+
+  return Promise.resolve(
+    errorResponse(BAD_REQUEST, {
+      code: INVALID_REQUEST_CODE,
+      message: outcome.reason,
+      requestId: request.requestId,
+    }),
+  );
+}
+
 function acknowledged(requestId: string): HttpResponse {
-  return jsonResponse(ACCEPTED_STATUS, { status: 'accepted' }, requestId);
+  return jsonResponse(OK, { status: 'accepted' }, requestId);
 }
 
 /**

@@ -9,7 +9,10 @@ import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FormField from '../molecules/FormField.vue';
 import type { RecordingFailure, RecordingPhase } from '../../composables/useAudioRecorder';
-import { TRANSCRIPTION_LANGUAGE_OPTIONS, toTranscriptionLanguage } from './transcriptionLanguages';
+import {
+  TRANSCRIPTION_LANGUAGE_OPTIONS,
+  toTranscriptionLanguage,
+} from '../transcription-languages';
 
 /**
  * Dictating into the microphone and watching the words appear.
