@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useTranslations } from '../../i18n/translations';
 import AlertBanner from '../molecules/AlertBanner.vue';
 
 /**
@@ -25,14 +26,19 @@ withDefaults(defineProps<Props>(), {
   error: null,
   notice: null,
 });
+
+const { t } = useTranslations();
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center px-4 py-10">
+  <!-- `flex-1` rather than `min-h-screen`: the panel now sits below the
+       preference controls, and a full viewport height under them would push
+       the form off the bottom of the screen by exactly their height. -->
+  <div class="flex flex-1 items-center justify-center px-4 py-10">
     <div class="w-full max-w-md">
       <div class="mb-6 text-center">
         <p class="text-lg font-semibold tracking-tight text-brand-700">Vocali</p>
-        <p class="text-sm text-ink-muted">Transcripción clínica</p>
+        <p class="text-sm text-ink-muted">{{ t('brand.tagline') }}</p>
       </div>
 
       <div class="rounded-panel border border-line bg-surface p-6 shadow-sm sm:p-8">

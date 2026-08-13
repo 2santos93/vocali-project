@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { TranscriptionLanguage } from '@vocali/contracts';
+import { computed } from 'vue';
+import { useTranslations } from '../i18n/translations';
 
 /**
  * Dictating by microphone.
@@ -12,7 +14,9 @@ import type { TranscriptionLanguage } from '@vocali/contracts';
  * the one thing on this screen that cannot afford it.
  */
 
-useHead({ title: 'Dictar por micrófono' });
+const { t } = useTranslations();
+
+useHead({ title: computed<string>(() => t('dictation.title')) });
 
 let pendingWait: ReturnType<typeof setTimeout> | null = null;
 
@@ -78,11 +82,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold text-ink">Dictar por micrófono</h1>
-      <p class="text-sm text-ink-muted">
-        Habla y verás el texto aparecer mientras dictas. Al detener el dictado guardaremos la
-        transcripción junto al resto de tu historial.
-      </p>
+      <h1 class="text-2xl font-semibold text-ink">{{ t('dictation.title') }}</h1>
+      <p class="text-sm text-ink-muted">{{ t('dictation.description') }}</p>
     </div>
 
     <RecordingPanel
@@ -99,8 +100,11 @@ onBeforeUnmount(() => {
     />
 
     <p class="text-sm text-ink-muted">
-      Puedes consultar todos tus dictados en el
-      <NuxtLink to="/historial" class="font-medium text-brand-700 underline">historial</NuxtLink>.
+      {{ t('dictation.historyPrefix') }}
+      <NuxtLink to="/historial" class="font-medium text-brand-700 underline">{{
+        t('common.historyLink')
+      }}</NuxtLink
+      >.
     </p>
   </div>
 </template>

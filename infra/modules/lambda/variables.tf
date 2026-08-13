@@ -220,3 +220,14 @@ variable "log_level" {
     error_message = "log_level must be one of the levels the application's logger accepts: fatal, error, warn, info, debug, trace."
   }
 }
+
+variable "max_memory_size_mb" {
+  description = "Upper bound applied to every function's chosen memory. Exists because a new AWS account is capped at 512 MB per function until the quota is raised, and the per-function sizing above is the intent worth keeping: capping it here records that the smaller value is an account limit rather than a decision, and raising the quota restores it by deleting one line."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.max_memory_size_mb == null || (var.max_memory_size_mb >= 128 && var.max_memory_size_mb <= 10240)
+    error_message = "max_memory_size_mb must be between 128 and 10240, or null for no cap."
+  }
+}

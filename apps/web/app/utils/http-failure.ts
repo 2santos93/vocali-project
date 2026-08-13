@@ -1,3 +1,4 @@
+import type { TranslatableMessage } from '../i18n/translate';
 import { HTTP_UNAUTHORIZED } from './http-status';
 
 /**
@@ -43,5 +44,12 @@ export function isSessionExpired(error: unknown): boolean {
   return readStatusCode(error) === HTTP_UNAUTHORIZED;
 }
 
-/** Shown on every screen that can meet an ended session, so it reads the same on each. */
-export const SESSION_EXPIRED_MESSAGE = 'Tu sesión ha caducado. Vuelve a iniciar sesión.';
+/**
+ * Shown on every screen that can meet an ended session, so it reads the same on
+ * each.
+ *
+ * A key rather than the sentence. Which language it is read in is settled when
+ * it reaches the screen, not when the request failed — and this file is
+ * imported by composables that have no way of knowing either.
+ */
+export const SESSION_EXPIRED_MESSAGE: TranslatableMessage = { key: 'failure.sessionExpired' };

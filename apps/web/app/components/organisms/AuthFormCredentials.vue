@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useTranslations } from '../../i18n/translations';
 import BaseButton from '../atoms/BaseButton.vue';
 import BaseInput from '../atoms/BaseInput.vue';
 import FormField from '../molecules/FormField.vue';
@@ -46,12 +47,14 @@ const emit = defineEmits<{
  */
 const submitted = ref(false);
 
+const { t } = useTranslations();
+
 const emailError = computed<string | null>(() =>
-  submitted.value && props.email.trim() === '' ? 'Introduce tu correo electrónico.' : null,
+  submitted.value && props.email.trim() === '' ? t('auth.emailMissing') : null,
 );
 
 const passwordError = computed<string | null>(() =>
-  submitted.value && props.password === '' ? 'Introduce tu contraseña.' : null,
+  submitted.value && props.password === '' ? t('auth.passwordMissing') : null,
 );
 
 function onSubmit(): void {
@@ -67,14 +70,14 @@ function onSubmit(): void {
   <!-- A real form element, so Enter submits from either field. A div with a
        click handler is a sign-in form that only works with a mouse. -->
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
-    <FormField id="auth-email" label="Correo electrónico" :error="emailError" required>
+    <FormField id="auth-email" :label="t('auth.email')" :error="emailError" required>
       <template #default="{ id, describedBy, invalid }">
         <BaseInput
           :id="id"
           type="email"
           :model-value="email"
           autocomplete="email"
-          placeholder="nombre@centro.es"
+          :placeholder="t('auth.emailPlaceholder')"
           :described-by="describedBy"
           :invalid="invalid"
           :disabled="busy"
@@ -86,7 +89,7 @@ function onSubmit(): void {
 
     <FormField
       id="auth-password"
-      label="Contraseña"
+      :label="t('auth.password')"
       :hint="passwordHint"
       :error="passwordError"
       required
@@ -106,7 +109,13 @@ function onSubmit(): void {
       </template>
     </FormField>
 
-    <BaseButton type="submit" block :loading="busy" loading-label="Enviando" class="mt-2">
+    <BaseButton
+      type="submit"
+      block
+      :loading="busy"
+      :loading-label="t('common.sending')"
+      class="mt-2"
+    >
       {{ submitLabel }}
     </BaseButton>
   </form>

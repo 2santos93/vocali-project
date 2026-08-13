@@ -1,12 +1,14 @@
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import AuthFormPanel from './AuthFormPanel.vue';
+import { withTranslations } from '../../i18n/testing';
 
 function mountPanel(
   props: Record<string, unknown> = {},
   slots: Record<string, string> = {},
 ): VueWrapper {
   return mount(AuthFormPanel, {
+    global: withTranslations(),
     props: { title: 'Iniciar sesión', ...props },
     slots: { default: '<form data-testid="fields"></form>', ...slots },
   });

@@ -3,6 +3,7 @@ import type { DOMWrapper, VueWrapper } from '@vue/test-utils';
 import { TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
 import type { Transcription } from '@vocali/contracts';
 import TranscriptionHistoryTable from './TranscriptionHistoryTable.vue';
+import { withTranslations } from '../../i18n/testing';
 
 function makeTranscription(overrides: Partial<Transcription> = {}): Transcription {
   return {
@@ -29,6 +30,7 @@ function makePageOf(count: number): Transcription[] {
 
 function mountTable(props: Record<string, unknown> = {}): VueWrapper {
   return mount(TranscriptionHistoryTable, {
+    global: withTranslations(),
     props: { transcriptions: [makeTranscription()], ...props },
   });
 }
@@ -201,7 +203,7 @@ describe('TranscriptionHistoryTable', () => {
 
   it('reports a failed download without disturbing the list', async () => {
     const wrapper = mountTable({
-      downloadErrorMessage: 'No hemos podido preparar la descarga. Vuelve a intentarlo.',
+      downloadErrorMessage: { key: 'failure.download' },
     });
 
     expect(wrapper.find('[data-testid="alert-banner"]').text()).toContain(
@@ -249,13 +251,13 @@ describe('TranscriptionHistoryTable', () => {
   it('reports a failed page as an error, with a way to retry it', async () => {
     const wrapper = mountTable({
       transcriptions: [],
-      loadErrorMessage: 'No hemos podido cargar tu historial. Comprueba tu conexión.',
+      loadErrorMessage: { key: 'failure.historyLoad' },
     });
     const emptyState = wrapper.find('[data-testid="empty-state"]');
 
     expect(emptyState.attributes('role')).toBe('alert');
     expect(emptyState.text()).toContain('No hemos podido cargar tu historial');
-    expect(emptyState.text()).toContain('Comprueba tu conexión');
+    expect(emptyState.text()).toContain('Comprueba tu conexión y vuelve a intentarlo');
     expect(wrapper.find('table').exists()).toBe(false);
     // Pagination over a page that failed to load would page over nothing.
     expect(wrapper.find('[data-testid="pagination-next"]').exists()).toBe(false);
@@ -270,7 +272,7 @@ describe('TranscriptionHistoryTable', () => {
   it('offers sign-in rather than retry when the session has ended', async () => {
     const wrapper = mountTable({
       transcriptions: [],
-      loadErrorMessage: 'Tu sesión ha caducado. Vuelve a iniciar sesión.',
+      loadErrorMessage: { key: 'failure.sessionExpired' },
       sessionExpired: true,
     });
     const emptyState = wrapper.find('[data-testid="empty-state"]');
@@ -342,5 +344,53 @@ describe('TranscriptionHistoryTable', () => {
     expect(wrapper.find('caption').text()).toBe('Historial de transcripciones');
     expect(wrapper.findAll('th[scope="col"]')).toHaveLength(7);
     expect(wrapper.find('th[scope="row"]').exists()).toBe(true);
+  });
+
+  /*
+   * The densest screen in the application, read by somebody working in
+   * English: every column heading, the invitation shown to a new user, and the
+   * dates and sizes beside them, which follow the interface rather than the
+   * machine's locale.
+   */
+  describe('read in English', () => {
+    function englishTable(props: Record<string, unknown> = {}): VueWrapper {
+      return mount(TranscriptionHistoryTable, {
+        global: withTranslations('en'),
+        props: { transcriptions: [makeTranscription()], ...props },
+      });
+    }
+
+    it('heads every column in English', () => {
+      const headings = englishTable()
+        .findAll('thead th')
+        .map((cell) => cell.text());
+
+      expect(headings).toEqual(['File', 'Source', 'Status', 'Length', 'Size', 'Date', 'Actions']);
+    });
+
+    it('invites a first upload in English', () => {
+      const wrapper = englishTable({ transcriptions: [] });
+
+      expect(wrapper.text()).toContain('You have no transcriptions yet');
+      expect(wrapper.find('[data-testid="empty-state"] button').text()).toBe('Transcribe a file');
+    });
+
+    /*
+     * `es-ES` and `en-GB` write the day first and the decimal separator
+     * differently, so the same row reads differently and correctly in each. It
+     * is deliberately never the browser's own locale: a clinic machine set to
+     * `en-US` would put 08/12 next to Spanish prose that meant 12/08.
+     */
+    it('writes dates and sizes the way the chosen language writes them', () => {
+      const spanish = mountTable().text();
+      const english = englishTable().text();
+
+      expect(spanish).toContain('11/08/2026');
+      expect(english).toContain('11/08/2026');
+      expect(spanish).toContain('2 MB');
+      expect(english).toContain('2 MB');
+      expect(spanish).toContain('Archivo');
+      expect(english).toContain('File');
+    });
   });
 });

@@ -39,6 +39,16 @@
   // Importing the `cypress` package installs Mocha and Chai globals, which
   // then shadow Jest's: `expect(...).toBe` stops existing and every component
   // test fails to compile against an assertion library it does not use.
-  "include": ["app/components/**/*.ts", "app/components/**/*.vue", "nuxt.config.ts"],
+  // `app/i18n` belongs to this project rather than to the shell's. The
+  // components import it, so it has to compile without Nuxt's types for the
+  // same reason they do — and being a root file here is what makes ESLint's
+  // project service resolve it, rather than reporting a parse error for a file
+  // that belongs to no program.
+  "include": [
+    "app/components/**/*.ts",
+    "app/components/**/*.vue",
+    "app/i18n/**/*.ts",
+    "nuxt.config.ts"
+  ],
   "exclude": ["node_modules", ".nuxt", ".output", "coverage", "cypress"]
 }

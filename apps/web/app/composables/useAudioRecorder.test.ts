@@ -534,12 +534,12 @@ describe('createWorkletAudioCapture', () => {
    * sends the user looking in the wrong one.
    */
   it.each([
-    ['NotAllowedError', 'PERMISSION_DENIED', 'ha denegado el permiso'],
-    ['SecurityError', 'PERMISSION_DENIED', 'ha denegado el permiso'],
-    ['NotFoundError', 'NO_MICROPHONE', 'No hemos encontrado ningún micrófono'],
-    ['OverconstrainedError', 'NO_MICROPHONE', 'No hemos encontrado ningún micrófono'],
-    ['NotReadableError', 'CAPTURE_FAILED', 'ninguna otra aplicación'],
-  ])('reports %s as %s, in Spanish', async (name, code, fragment) => {
+    ['NotAllowedError', 'PERMISSION_DENIED', 'failure.microphone.denied'],
+    ['SecurityError', 'PERMISSION_DENIED', 'failure.microphone.denied'],
+    ['NotFoundError', 'NO_MICROPHONE', 'failure.microphone.missing'],
+    ['OverconstrainedError', 'NO_MICROPHONE', 'failure.microphone.missing'],
+    ['NotReadableError', 'CAPTURE_FAILED', 'failure.microphone.busy'],
+  ])('reports %s as %s, with the remedy that fits it', async (name, code, key) => {
     const deps = captureHarness();
     deps.microphoneRejection = mediaError(name);
 
@@ -549,7 +549,7 @@ describe('createWorkletAudioCapture', () => {
 
     expect(failure).toBeInstanceOf(MicrophoneError);
     expect((failure as MicrophoneError).code).toBe(code);
-    expect((failure as MicrophoneError).message).toContain(fragment);
+    expect((failure as MicrophoneError).detail).toEqual({ key });
     // Nothing was opened, so nothing should have been built either.
     expect(deps.contextOptions).toHaveLength(0);
   });
@@ -914,8 +914,9 @@ describe('useAudioRecorder', () => {
       socket.receive({ message: 'EndOfTranscript' });
       await stopping;
 
-      expect(controller.failure.value?.message).toContain('Tu sesión ha caducado');
-      expect(controller.failure.value?.message).toContain('el texto sigue aquí');
+      expect(controller.failure.value?.message).toEqual({
+        key: 'failure.dictation.saveSessionExpired',
+      });
       expect(controller.hasRecoverableText.value).toBe(true);
     });
 
@@ -945,10 +946,9 @@ describe('useAudioRecorder', () => {
      */
     it('reports a denied microphone with the reason and no recovery offer', async () => {
       const deps = harness();
-      deps.capture.failWith = new MicrophoneError(
-        'PERMISSION_DENIED',
-        'No podemos usar el micrófono porque el navegador ha denegado el permiso.',
-      );
+      deps.capture.failWith = new MicrophoneError('PERMISSION_DENIED', {
+        key: 'failure.microphone.denied',
+      });
       const controller = useAudioRecorder(deps);
       await controller.start('es');
       deps.sockets[0]!.open();
@@ -958,7 +958,7 @@ describe('useAudioRecorder', () => {
 
       expect(controller.phase.value).toBe('failed');
       expect(controller.failure.value?.code).toBe('MICROPHONE_DENIED');
-      expect(controller.failure.value?.message).toContain('ha denegado el permiso');
+      expect(controller.failure.value?.message).toEqual({ key: 'failure.microphone.denied' });
       expect(controller.failure.value?.recoverable).toBe(false);
       // The socket is released rather than left holding a provider session
       // open for audio that will never arrive.
@@ -967,7 +967,9 @@ describe('useAudioRecorder', () => {
 
     it('reports a missing microphone separately from a denied one', async () => {
       const deps = harness();
-      deps.capture.failWith = new MicrophoneError('NO_MICROPHONE', 'No hemos encontrado ninguno.');
+      deps.capture.failWith = new MicrophoneError('NO_MICROPHONE', {
+        key: 'failure.microphone.missing',
+      });
       const controller = useAudioRecorder(deps);
       await controller.start('es');
       deps.sockets[0]!.open();
@@ -1024,7 +1026,9 @@ describe('useAudioRecorder', () => {
 
       expect(controller.phase.value).toBe('failed');
       expect(controller.failure.value?.code).toBe('CONNECTION_LOST');
-      expect(controller.failure.value?.message).toContain('No se ha perdido nada');
+      expect(controller.failure.value?.message).toEqual({
+        key: 'failure.dictation.connectionLost',
+      });
       expect(controller.hasRecoverableText.value).toBe(true);
       // The microphone is released; leaving it live records into nothing.
       expect(deps.capture.stopCount).toBe(1);
@@ -1050,11 +1054,11 @@ describe('useAudioRecorder', () => {
     });
 
     it.each([
-      [4005, 'PROVIDER_QUOTA_EXCEEDED', 'cuota'],
-      [4013, 'PROVIDER_FAILED', 'ha fallado'],
-      [1011, 'PROVIDER_FAILED', 'ha fallado'],
-      [1006, 'CONNECTION_LOST', 'Se ha perdido la conexión'],
-    ])('translates close code %s into its own message', async (code, failureCode, fragment) => {
+      [4005, 'PROVIDER_QUOTA_EXCEEDED', 'failure.dictation.quotaExceeded'],
+      [4013, 'PROVIDER_FAILED', 'failure.dictation.providerFailed'],
+      [1011, 'PROVIDER_FAILED', 'failure.dictation.providerFailed'],
+      [1006, 'CONNECTION_LOST', 'failure.dictation.connectionLost'],
+    ])('turns close code %s into its own message', async (code, failureCode, key) => {
       const { controller, socket } = await recordingHarness();
       socket.receive({ message: 'AddTranscript', metadata: { transcript: 'Algo.' } });
 
@@ -1062,7 +1066,7 @@ describe('useAudioRecorder', () => {
       await flush();
 
       expect(controller.failure.value?.code).toBe(failureCode);
-      expect(controller.failure.value?.message).toContain(fragment);
+      expect(controller.failure.value?.message).toEqual({ key });
     });
 
     it('does not offer recovery when the socket dropped before a word was said', async () => {
@@ -1111,7 +1115,9 @@ describe('useAudioRecorder', () => {
       await controller.start('es');
 
       expect(controller.failure.value?.code).toBe('SESSION_EXPIRED');
-      expect(controller.failure.value?.message).toContain('Vuelve a iniciar sesión');
+      expect(controller.failure.value?.message).toEqual({
+        key: 'failure.dictation.sessionExpired',
+      });
     });
   });
 

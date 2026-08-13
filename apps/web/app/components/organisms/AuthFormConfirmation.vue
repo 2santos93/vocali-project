@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useTranslations } from '../../i18n/translations';
 import BaseButton from '../atoms/BaseButton.vue';
 import BaseInput from '../atoms/BaseInput.vue';
 import FormField from '../molecules/FormField.vue';
@@ -39,8 +40,10 @@ const emit = defineEmits<{
 
 const submitted = ref(false);
 
+const { t } = useTranslations();
+
 const codeError = computed<string | null>(() =>
-  submitted.value && props.code.trim() === '' ? 'Introduce el código que te hemos enviado.' : null,
+  submitted.value && props.code.trim() === '' ? t('auth.confirm.codeMissing') : null,
 );
 
 function onSubmit(): void {
@@ -54,16 +57,16 @@ function onSubmit(): void {
 
 <template>
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
-    <p class="text-sm text-ink-muted">
-      Hemos enviado un código de 6 dígitos a
-      <span class="font-medium text-ink">{{ email }}</span
-      >. Revisa también la carpeta de correo no deseado.
-    </p>
+    <!-- One sentence with the address interpolated, rather than three nodes
+         with the address emphasised in the middle. A sentence split around a
+         value is a sentence a translator cannot reorder, and the address is
+         the only thing on this screen anybody is looking for anyway. -->
+    <p class="text-sm text-ink-muted">{{ t('auth.confirm.codeSent', { email }) }}</p>
 
     <FormField
       id="confirmation-code"
-      label="Código de verificación"
-      hint="Seis dígitos, sin espacios."
+      :label="t('auth.confirm.codeLabel')"
+      :hint="t('auth.confirm.codeHint')"
       :error="codeError"
       required
     >
@@ -73,7 +76,7 @@ function onSubmit(): void {
           type="text"
           :model-value="code"
           autocomplete="one-time-code"
-          placeholder="123456"
+          :placeholder="t('auth.confirm.codePlaceholder')"
           :described-by="describedBy"
           :invalid="invalid"
           :disabled="busy"
@@ -83,8 +86,14 @@ function onSubmit(): void {
       </template>
     </FormField>
 
-    <BaseButton type="submit" block :loading="busy" loading-label="Confirmando" class="mt-2">
-      Confirmar cuenta
+    <BaseButton
+      type="submit"
+      block
+      :loading="busy"
+      :loading-label="t('auth.confirm.submitting')"
+      class="mt-2"
+    >
+      {{ t('auth.confirm.submit') }}
     </BaseButton>
 
     <!-- Always present, not revealed only after a failure. A user whose code
@@ -94,11 +103,11 @@ function onSubmit(): void {
       variant="ghost"
       block
       :loading="resending"
-      loading-label="Enviando"
+      :loading-label="t('common.sending')"
       data-testid="resend-code"
       @click="emit('resend')"
     >
-      Enviar un código nuevo
+      {{ t('auth.confirm.resend') }}
     </BaseButton>
   </form>
 </template>

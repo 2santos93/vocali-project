@@ -1,9 +1,11 @@
 import { mount } from '@vue/test-utils';
 import EmptyState from './EmptyState.vue';
+import { withTranslations } from '../../i18n/testing';
 
 describe('EmptyState', () => {
   it('renders the title and description it was given', () => {
     const wrapper = mount(EmptyState, {
+      global: withTranslations(),
       props: {
         title: 'Todavía no tienes transcripciones',
         description: 'Sube un archivo de audio o graba desde el micrófono para empezar.',
@@ -20,11 +22,15 @@ describe('EmptyState', () => {
    * their work is gone.
    */
   it('separates an empty history from a failed one', () => {
-    const empty = mount(EmptyState, { props: { title: 'Todavía no tienes transcripciones' } });
+    const empty = mount(EmptyState, {
+      global: withTranslations(),
+      props: { title: 'Todavía no tienes transcripciones' },
+    });
     expect(empty.attributes('role')).toBe('status');
     expect(empty.classes()).toContain('bg-surface');
 
     const failed = mount(EmptyState, {
+      global: withTranslations(),
       props: { variant: 'error', title: 'No hemos podido cargar tu historial' },
     });
     expect(failed.attributes('role')).toBe('alert');
@@ -33,12 +39,13 @@ describe('EmptyState', () => {
 
   it('offers an action only when one is given', () => {
     expect(
-      mount(EmptyState, { props: { title: 'Sin datos' } })
+      mount(EmptyState, { global: withTranslations(), props: { title: 'Sin datos' } })
         .find('button')
         .exists(),
     ).toBe(false);
 
     const wrapper = mount(EmptyState, {
+      global: withTranslations(),
       props: { title: 'Sin datos', actionLabel: 'Subir un archivo' },
     });
     expect(wrapper.find('button').text()).toBe('Subir un archivo');
@@ -46,6 +53,7 @@ describe('EmptyState', () => {
 
   it('emits action when the action is used', async () => {
     const wrapper = mount(EmptyState, {
+      global: withTranslations(),
       props: { title: 'Sin datos', actionLabel: 'Reintentar' },
     });
 
@@ -55,7 +63,10 @@ describe('EmptyState', () => {
   });
 
   it('omits the description when there is none', () => {
-    const wrapper = mount(EmptyState, { props: { title: 'Sin datos' } });
+    const wrapper = mount(EmptyState, {
+      global: withTranslations(),
+      props: { title: 'Sin datos' },
+    });
 
     expect(wrapper.findAll('p')).toHaveLength(1);
   });

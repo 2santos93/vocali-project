@@ -11,6 +11,7 @@ import type {
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import type { ComputedRef, DeepReadonly, Ref } from 'vue';
+import type { TranslatableMessage } from '../i18n/translate';
 import { REALTIME_SESSIONS_PATH, REALTIME_TRANSCRIPTIONS_PATH } from '../utils/api-routes';
 import { readStatusCode } from '../utils/http-failure';
 import { HTTP_UNAUTHORIZED } from '../utils/http-status';
@@ -58,10 +59,18 @@ export type MicrophoneFailureCode = 'PERMISSION_DENIED' | 'NO_MICROPHONE' | 'CAP
 export class MicrophoneError extends Error {
   public readonly code: MicrophoneFailureCode;
 
-  constructor(code: MicrophoneFailureCode, message: string) {
-    super(message);
+  /**
+   * What the reader is told. `Error.message` has to be a string and is what a
+   * developer meets in a stack trace, so it carries the key; the sentence is
+   * produced from `detail` at the moment it reaches the screen.
+   */
+  public readonly detail: TranslatableMessage;
+
+  constructor(code: MicrophoneFailureCode, detail: TranslatableMessage) {
+    super(detail.key);
     this.name = 'MicrophoneError';
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -103,25 +112,16 @@ function toMicrophoneError(error: unknown): MicrophoneError {
   const name = nameOf(error);
 
   if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
-    return new MicrophoneError(
-      'PERMISSION_DENIED',
-      'No podemos usar el micrófono porque el navegador ha denegado el permiso. Actívalo desde el icono de la barra de direcciones y vuelve a intentarlo.',
-    );
+    return new MicrophoneError('PERMISSION_DENIED', { key: 'failure.microphone.denied' });
   }
   if (
     name === 'NotFoundError' ||
     name === 'DevicesNotFoundError' ||
     name === 'OverconstrainedError'
   ) {
-    return new MicrophoneError(
-      'NO_MICROPHONE',
-      'No hemos encontrado ningún micrófono disponible. Conecta uno y vuelve a intentarlo.',
-    );
+    return new MicrophoneError('NO_MICROPHONE', { key: 'failure.microphone.missing' });
   }
-  return new MicrophoneError(
-    'CAPTURE_FAILED',
-    'No hemos podido abrir el micrófono. Comprueba que ninguna otra aplicación lo esté usando y vuelve a intentarlo.',
-  );
+  return new MicrophoneError('CAPTURE_FAILED', { key: 'failure.microphone.busy' });
 }
 
 /**
@@ -205,10 +205,7 @@ export function createWorkletAudioCapture(
       await stop();
       throw error instanceof MicrophoneError
         ? error
-        : new MicrophoneError(
-            'CAPTURE_FAILED',
-            'No hemos podido preparar la captura de audio en este navegador. Prueba con Chrome o Firefox actualizados.',
-          );
+        : new MicrophoneError('CAPTURE_FAILED', { key: 'failure.microphone.unsupportedBrowser' });
     }
   }
 
@@ -241,8 +238,12 @@ export type RecordingFailureCode =
 
 export interface RecordingFailure {
   readonly code: RecordingFailureCode;
-  /** Spanish, and specific enough to act on. */
-  readonly message: string;
+  /**
+   * Which sentence to show, not the sentence itself. Every catalogue phrases
+   * it specifically enough to act on; which catalogue is decided where it is
+   * rendered.
+   */
+  readonly message: TranslatableMessage;
   /**
    * Whether there is transcribed text still on screen that the user can save.
    *
@@ -366,31 +367,27 @@ function describeCloseCode(code: number): RecordingFailure {
   if (code === CLOSE_NOT_AUTHORISED) {
     return {
       code: 'SESSION_EXPIRED',
-      message:
-        'El permiso de transcripción ha caducado y se ha interrumpido la conexión. Guarda lo transcrito y vuelve a empezar para continuar.',
+      message: { key: 'failure.dictation.credentialExpired' },
       recoverable: true,
     };
   }
   if (code === CLOSE_QUOTA_EXCEEDED) {
     return {
       code: 'PROVIDER_QUOTA_EXCEEDED',
-      message:
-        'Se ha agotado la cuota de transcripción en directo. Guarda lo transcrito e inténtalo más tarde.',
+      message: { key: 'failure.dictation.quotaExceeded' },
       recoverable: true,
     };
   }
   if (code === CLOSE_JOB_ERROR || code === CLOSE_INTERNAL_ERROR) {
     return {
       code: 'PROVIDER_FAILED',
-      message:
-        'El servicio de transcripción ha fallado y se ha cortado la conexión. Guarda lo transcrito y vuelve a intentarlo en unos segundos.',
+      message: { key: 'failure.dictation.providerFailed' },
       recoverable: true,
     };
   }
   return {
     code: 'CONNECTION_LOST',
-    message:
-      'Se ha perdido la conexión con el servicio de transcripción. No se ha perdido nada de lo transcrito hasta ahora: guárdalo y vuelve a empezar.',
+    message: { key: 'failure.dictation.connectionLost' },
     recoverable: true,
   };
 }
@@ -472,7 +469,7 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     if (text === '') {
       failure.value = {
         code: 'NOTHING_TO_SAVE',
-        message: 'No hemos captado nada de voz, así que no hay texto que guardar.',
+        message: { key: 'failure.dictation.nothingHeard' },
         recoverable: false,
       };
       phase.value = 'failed';
@@ -498,8 +495,8 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
           code: 'SAVE_FAILED',
           message:
             readStatusCode(error) === HTTP_UNAUTHORIZED
-              ? 'Tu sesión ha caducado antes de guardar. Inicia sesión en otra pestaña y vuelve a pulsar «Guardar»: el texto sigue aquí.'
-              : 'No hemos podido guardar la transcripción. El texto sigue en pantalla; vuelve a intentarlo.',
+              ? { key: 'failure.dictation.saveSessionExpired' }
+              : { key: 'failure.dictation.saveFailed' },
           recoverable: true,
         };
         phase.value = 'failed';
@@ -577,8 +574,8 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
         code: code === 'PERMISSION_DENIED' ? 'MICROPHONE_DENIED' : 'MICROPHONE_UNAVAILABLE',
         message:
           error instanceof MicrophoneError
-            ? error.message
-            : 'No hemos podido abrir el micrófono. Vuelve a intentarlo.',
+            ? error.detail
+            : { key: 'failure.microphone.unavailable' },
         recoverable: false,
       });
       return;
@@ -601,13 +598,12 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
         readStatusCode(error) === HTTP_UNAUTHORIZED
           ? {
               code: 'SESSION_EXPIRED',
-              message: 'Tu sesión ha caducado. Vuelve a iniciar sesión para dictar.',
+              message: { key: 'failure.dictation.sessionExpired' },
               recoverable: false,
             }
           : {
               code: 'SESSION_UNAVAILABLE',
-              message:
-                'No hemos podido preparar la sesión de dictado. Inténtalo de nuevo en unos segundos.',
+              message: { key: 'failure.dictation.sessionUnavailable' },
               recoverable: false,
             };
       phase.value = 'failed';

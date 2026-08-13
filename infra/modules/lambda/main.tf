@@ -216,7 +216,7 @@ resource "aws_lambda_function" "this" {
   filename         = data.archive_file.function[each.key].output_path
   source_code_hash = data.archive_file.function[each.key].output_base64sha256
 
-  memory_size = each.value.memory_size
+  memory_size = var.max_memory_size_mb == null ? each.value.memory_size : min(each.value.memory_size, var.max_memory_size_mb)
   timeout     = each.value.timeout
 
   environment {

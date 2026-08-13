@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import BaseInput from '../atoms/BaseInput.vue';
 import FormField from './FormField.vue';
+import { withTranslations } from '../../i18n/testing';
 
 const CONTROL_SLOT = `
   <template #default="slotProps">
@@ -18,7 +19,7 @@ function mountField(props: Record<string, unknown> = {}): VueWrapper {
   return mount(FormField, {
     props: { id: 'correo', label: 'Correo electrónico', ...props },
     slots: { default: CONTROL_SLOT },
-    global: { components: { BaseInput } },
+    global: { ...withTranslations(), components: { BaseInput } },
   });
 }
 

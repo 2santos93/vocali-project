@@ -9,10 +9,9 @@ import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FormField from '../molecules/FormField.vue';
 import type { RecordingFailure, RecordingPhase } from '../../composables/useAudioRecorder';
-import {
-  TRANSCRIPTION_LANGUAGE_OPTIONS,
-  toTranscriptionLanguage,
-} from '../transcription-languages';
+import { useTranslations } from '../../i18n/translations';
+import type { SelectOption } from '../types';
+import { transcriptionLanguageOptions, toTranscriptionLanguage } from '../transcription-languages';
 
 /**
  * Dictating into the microphone and watching the words appear.
@@ -46,7 +45,11 @@ const emit = defineEmits<{
   discard: [];
 }>();
 
+const { t } = useTranslations();
+
 const language = ref<TranscriptionLanguage>(DEFAULT_TRANSCRIPTION_LANGUAGE);
+
+const languageOptions = computed<readonly SelectOption[]>(() => transcriptionLanguageOptions(t));
 
 const isLive = computed<boolean>(() => props.phase === 'connecting' || props.phase === 'recording');
 
@@ -94,33 +97,35 @@ function onDiscard(): void {
 
 <template>
   <section class="flex flex-col gap-5" aria-labelledby="recording-heading">
-    <h2 id="recording-heading" class="text-lg font-semibold text-ink">Dictar por micrófono</h2>
+    <h2 id="recording-heading" class="text-lg font-semibold text-ink">
+      {{ t('dictation.heading') }}
+    </h2>
 
     <AlertBanner
       v-if="failure !== null"
       :variant="failureVariant"
-      title="Se ha interrumpido el dictado"
-      :message="failure.message"
+      :title="t('dictation.failureTitle')"
+      :message="t(failure.message)"
       data-testid="failure-alert"
     />
 
     <AlertBanner
       v-if="phase === 'saved'"
       variant="success"
-      message="La transcripción se ha guardado. Puedes consultarla en el historial."
+      :message="t('dictation.saved')"
       data-testid="saved-alert"
     />
 
     <FormField
       id="dictation-language"
-      label="Idioma del dictado"
-      hint="El idioma no puede cambiarse una vez empezado el dictado."
+      :label="t('dictation.language')"
+      :hint="t('dictation.languageHint')"
     >
       <template #default="{ id, describedBy }">
         <BaseSelect
           :id="id"
           :model-value="language"
-          :options="TRANSCRIPTION_LANGUAGE_OPTIONS"
+          :options="languageOptions"
           :disabled="isBusy"
           :described-by="describedBy"
           @update:model-value="onLanguageChange"
@@ -135,15 +140,15 @@ function onDiscard(): void {
       <BaseButton
         v-if="!isLive"
         :loading="phase === 'finishing' || phase === 'saving'"
-        loading-label="Guardando el dictado"
+        :loading-label="t('dictation.savingDictation')"
         data-testid="start-button"
         @click="onStart"
       >
-        Empezar a dictar
+        {{ t('dictation.start') }}
       </BaseButton>
 
       <BaseButton v-else variant="danger" data-testid="stop-button" @click="onStop">
-        Detener y guardar
+        {{ t('dictation.stop') }}
       </BaseButton>
 
       <!-- The recovery route out of a dropped socket. Prominent on purpose:
@@ -152,11 +157,11 @@ function onDiscard(): void {
       <BaseButton
         v-if="hasRecoverableText"
         :loading="phase === 'saving'"
-        loading-label="Guardando el dictado"
+        :loading-label="t('dictation.savingDictation')"
         data-testid="save-recovered-button"
         @click="onSaveRecovered"
       >
-        Guardar lo transcrito
+        {{ t('dictation.saveRecovered') }}
       </BaseButton>
 
       <BaseButton
@@ -165,7 +170,7 @@ function onDiscard(): void {
         data-testid="discard-button"
         @click="onDiscard"
       >
-        Descartar
+        {{ t('dictation.discard') }}
       </BaseButton>
     </div>
 
@@ -175,8 +180,8 @@ function onDiscard(): void {
       role="status"
       data-testid="connecting-notice"
     >
-      <SpinnerIcon label="Conectando" />
-      Conectando con el servicio de transcripción…
+      <SpinnerIcon :label="t('dictation.connecting')" />
+      {{ t('dictation.connectingNotice') }}
     </p>
 
     <p
@@ -186,7 +191,7 @@ function onDiscard(): void {
       data-testid="recording-indicator"
     >
       <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-danger-solid" aria-hidden="true" />
-      Grabando. Habla con normalidad.
+      {{ t('dictation.recording') }}
     </p>
 
     <p
@@ -195,8 +200,8 @@ function onDiscard(): void {
       role="status"
       data-testid="finishing-notice"
     >
-      <SpinnerIcon label="Finalizando" />
-      Recogiendo las últimas palabras…
+      <SpinnerIcon :label="t('dictation.finishing')" />
+      {{ t('dictation.finishingNotice') }}
     </p>
 
     <p
@@ -205,13 +210,13 @@ function onDiscard(): void {
       role="status"
       data-testid="saving-notice"
     >
-      <SpinnerIcon label="Guardando" />
-      Guardando la transcripción…
+      <SpinnerIcon :label="t('dictation.saving')" />
+      {{ t('dictation.savingNotice') }}
     </p>
 
     <div class="min-h-40 rounded-panel border border-line bg-surface p-4" data-testid="transcript">
       <p v-if="!hasText" class="text-sm text-ink-muted" data-testid="transcript-placeholder">
-        Aquí aparecerá lo que digas, mientras lo dices.
+        {{ t('dictation.placeholder') }}
       </p>
 
       <p v-else class="text-base leading-relaxed">
@@ -234,7 +239,7 @@ function onDiscard(): void {
     </div>
 
     <p v-if="partialText !== ''" class="text-xs text-ink-muted" data-testid="partial-legend">
-      El texto en cursiva todavía es provisional y puede cambiar.
+      {{ t('dictation.partialLegend') }}
     </p>
 
     <div

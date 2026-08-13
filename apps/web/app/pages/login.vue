@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import type { SignedInUser } from '../../server/api/auth/login.post';
+import { useTranslations } from '../i18n/translations';
+import type { TranslatableMessage } from '../i18n/translate';
 
-definePageMeta({ layout: false });
-useHead({ title: 'Iniciar sesión' });
+definePageMeta({ layout: 'auth' });
+
+const { t } = useTranslations();
+
+useHead({ title: computed<string>(() => t('auth.signIn.title')) });
 
 const route = useRoute();
 const session = useAuthSession();
@@ -13,13 +18,17 @@ const session = useAuthSession();
 const email = ref(readQueryValue(route.query['email']) ?? '');
 const password = ref('');
 const busy = ref(false);
-const error = ref<string | null>(null);
 
-const notice = ref<string | null>(
-  route.query['confirmed'] === '1' ? 'Tu cuenta ya está confirmada. Puedes iniciar sesión.' : null,
+/*
+ * Failures are held as keys rather than as sentences, on this screen as
+ * everywhere else: somebody who fails to sign in and then switches language
+ * would otherwise be left with the one line on the page in the other one.
+ */
+const error = ref<TranslatableMessage | null>(null);
+
+const notice = ref<TranslatableMessage | null>(
+  route.query['confirmed'] === '1' ? { key: 'auth.signIn.confirmed' } : null,
 );
-
-const GENERIC_FAILURE = 'No hemos podido iniciar sesión. Vuelve a intentarlo en unos minutos.';
 
 async function onSubmit(): Promise<void> {
   busy.value = true;
@@ -52,7 +61,11 @@ async function onSubmit(): Promise<void> {
       return;
     }
 
-    error.value = failure.message ?? GENERIC_FAILURE;
+    /*
+     * The code, not the server's sentence. Both say the same thing, and the
+     * code is the half that can be said in the language the reader chose.
+     */
+    error.value = authFailureMessage(failure.code, 'auth.signIn.failed');
   } finally {
     busy.value = false;
   }
@@ -72,27 +85,27 @@ function readQueryValue(value: unknown): string | null {
 
 <template>
   <AuthFormPanel
-    title="Iniciar sesión"
-    description="Accede con la cuenta de tu centro."
-    :error="error"
-    :notice="notice"
+    :title="t('auth.signIn.title')"
+    :description="t('auth.signIn.description')"
+    :error="error === null ? null : t(error)"
+    :notice="notice === null ? null : t(notice)"
   >
     <AuthFormCredentials
       v-model:email="email"
       v-model:password="password"
-      submit-label="Entrar"
+      :submit-label="t('auth.signIn.submit')"
       password-autocomplete="current-password"
       :busy="busy"
       @submit="onSubmit"
     />
 
     <template #footer>
-      ¿Todavía no tienes cuenta?
+      {{ t('auth.signIn.noAccount') }}
       <NuxtLink
         to="/register"
         class="rounded-control font-medium text-brand-700 underline focus-visible:focus-ring"
       >
-        Crear una cuenta
+        {{ t('auth.signIn.createAccount') }}
       </NuxtLink>
     </template>
   </AuthFormPanel>

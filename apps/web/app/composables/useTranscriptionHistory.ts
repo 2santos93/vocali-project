@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { ListTranscriptionsResponseSchema, TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
 import type { Transcription, TranscriptFormat } from '@vocali/contracts';
+import type { TranslatableMessage } from '../i18n/translate';
 import { TRANSCRIPTIONS_PATH, transcriptionDownloadPath } from '../utils/api-routes';
 import { isSessionExpired, SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
 
@@ -70,7 +71,7 @@ export interface TranscriptionHistory {
    */
   readonly loading: ComputedRef<boolean>;
   /** Null while what is on screen is the truth. */
-  readonly errorMessage: Readonly<Ref<string | null>>;
+  readonly errorMessage: Readonly<Ref<TranslatableMessage | null>>;
   /** True when the last failure was the session ending rather than a fault. */
   readonly sessionExpired: Readonly<Ref<boolean>>;
   loadFirstPage: () => Promise<void>;
@@ -79,8 +80,7 @@ export interface TranscriptionHistory {
   retryCurrentPage: () => Promise<void>;
 }
 
-export const HISTORY_LOAD_FAILURE_MESSAGE =
-  'No hemos podido cargar tu historial. Comprueba tu conexión y vuelve a intentarlo.';
+export const HISTORY_LOAD_FAILURE_MESSAGE: TranslatableMessage = { key: 'failure.historyLoad' };
 
 export function useTranscriptionHistory(
   requestPage: ListTranscriptionsRequest,
@@ -89,7 +89,7 @@ export function useTranscriptionHistory(
   const nextCursor = ref<string | null>(null);
   const inFlight = ref<boolean>(false);
   const hasSettled = ref<boolean>(false);
-  const errorMessage = ref<string | null>(null);
+  const errorMessage = ref<TranslatableMessage | null>(null);
   const sessionExpired = ref<boolean>(false);
 
   /*

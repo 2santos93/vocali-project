@@ -1,9 +1,11 @@
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import AuthFormCredentials from './AuthFormCredentials.vue';
+import { withTranslations } from '../../i18n/testing';
 
 function mountForm(props: Record<string, unknown> = {}): VueWrapper {
   return mount(AuthFormCredentials, {
+    global: withTranslations(),
     props: {
       email: '',
       password: '',
@@ -128,5 +130,24 @@ describe('AuthFormCredentials', () => {
     expect(
       mountForm({ submitLabel: 'Crear cuenta' }).find('button[type="submit"]').text(),
     ).toContain('Crear cuenta');
+  });
+
+  it('names the missing fields in English for a reader who chose it', async () => {
+    const wrapper = mount(AuthFormCredentials, {
+      global: withTranslations('en'),
+      props: {
+        email: '',
+        password: '',
+        submitLabel: 'Sign in',
+        passwordAutocomplete: 'current-password',
+      },
+    });
+
+    await wrapper.find('form').trigger('submit');
+
+    expect(wrapper.text()).toContain('Enter your email address.');
+    expect(wrapper.text()).toContain('Enter your password.');
+    expect(wrapper.find('label[for="auth-email"]').text()).toContain('Email address');
+    expect(wrapper.emitted('submit')).toBeUndefined();
   });
 });

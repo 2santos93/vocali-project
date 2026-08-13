@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useTranslations } from '../i18n/translations';
+import type { MessageKey } from '../i18n/translate';
 
 /**
  * The application chrome every signed-in screen renders inside.
@@ -12,13 +14,25 @@ import { ref } from 'vue';
  */
 
 const session = useAuthSession();
+const theme = useThemePreference();
+const language = useInterfaceLanguage();
+const { t } = useTranslations();
 const signingOut = ref(false);
 
-const NAVIGATION = [
-  { to: '/transcribir', label: 'Transcribir archivo' },
-  { to: '/dictar', label: 'Dictar' },
-  { to: '/historial', label: 'Historial' },
-] as const;
+/*
+ * The routes are Spanish and stay Spanish — they are addresses, and an English
+ * interface must not change where a saved link points. Only the words on the
+ * links move.
+ */
+const NAVIGATION: readonly { to: string; labelKey: MessageKey }[] = [
+  { to: '/transcribir', labelKey: 'nav.transcribeFile' },
+  { to: '/dictar', labelKey: 'nav.dictate' },
+  { to: '/historial', labelKey: 'nav.history' },
+];
+
+const navigation = computed(() =>
+  NAVIGATION.map((item) => ({ to: item.to, label: t(item.labelKey) })),
+);
 
 async function onSignOut(): Promise<void> {
   // Guarded rather than merely visually disabled: a double click on a slow
@@ -49,9 +63,9 @@ async function onSignOut(): Promise<void> {
 
         <!-- A landmark, so a screen reader user can jump to the navigation
              instead of hearing three links announced as loose text. -->
-        <nav aria-label="Principal" class="flex flex-wrap items-center gap-1">
+        <nav :aria-label="t('nav.primary')" class="flex flex-wrap items-center gap-1">
           <NuxtLink
-            v-for="item in NAVIGATION"
+            v-for="item in navigation"
             :key="item.to"
             :to="item.to"
             class="rounded-control px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:focus-ring"
@@ -61,7 +75,17 @@ async function onSignOut(): Promise<void> {
           </NuxtLink>
         </nav>
 
-        <div class="ml-auto flex items-center gap-3">
+        <div class="ml-auto flex flex-wrap items-center gap-3">
+          <ThemeToggle
+            :preference="theme.preference.value"
+            @update:preference="theme.choose($event)"
+          />
+
+          <LanguageToggle
+            :language="language.current.value"
+            @update:language="language.choose($event)"
+          />
+
           <!-- Truncated rather than allowed to push the sign-out control off a
                narrow screen. A long address is common and a missing sign-out
                button is not acceptable. -->
@@ -78,11 +102,11 @@ async function onSignOut(): Promise<void> {
             variant="secondary"
             size="sm"
             :loading="signingOut"
-            loading-label="Cerrando sesión"
+            :loading-label="t('session.signingOut')"
             data-testid="sign-out"
             @click="onSignOut"
           >
-            Cerrar sesión
+            {{ t('session.signOut') }}
           </BaseButton>
         </div>
       </div>

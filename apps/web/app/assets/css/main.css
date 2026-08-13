@@ -16,8 +16,36 @@
 }
 
 @layer base {
+  /*
+   * Which palette the document renders in, and the only rule that decides it.
+   *
+   * `color-scheme` is what every `light-dark()` in `tokens.css` resolves
+   * against, so these three lines are the whole switch. The class comes from
+   * the `vocali_theme` cookie and is written into the server's HTML, which is
+   * the point: a preference the server cannot read shows the wrong theme for
+   * the first frame of every single page load, and that flash is the only
+   * thing anybody notices about a theme implementation.
+   *
+   * The bare `html` rule is the default, and it is deliberately not "light".
+   * `light dark` hands the choice to the operating system, so a machine set to
+   * dark gets a dark page with no cookie, no script and no flash — which no
+   * amount of server-side rendering could achieve on its own, because
+   * `prefers-color-scheme` is not something an HTTP request carries.
+   *
+   * `theme-light` therefore has to exist alongside `theme-dark`: a reader who
+   * has explicitly chosen light on a machine set to dark is asking to override
+   * the operating system, and only an explicit class can say so.
+   */
   html {
+    color-scheme: light dark;
+  }
+
+  html.theme-light {
     color-scheme: light;
+  }
+
+  html.theme-dark {
+    color-scheme: dark;
   }
 
   body {

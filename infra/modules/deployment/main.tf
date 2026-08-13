@@ -86,7 +86,7 @@ resource "aws_iam_role_policy" "github_actions" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid    = "UpdateFunctionCode"
         Effect = "Allow"
@@ -122,6 +122,7 @@ resource "aws_iam_role_policy" "github_actions" {
         Action   = ["s3:ListBucket"]
         Resource = [var.assets_bucket_arn]
       },
+      ], var.distribution_arn == null ? [] : [
       {
         Sid    = "InvalidateCache"
         Effect = "Allow"
@@ -131,6 +132,6 @@ resource "aws_iam_role_policy" "github_actions" {
         Action   = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
         Resource = [var.distribution_arn]
       },
-    ]
+    ])
   })
 }

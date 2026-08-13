@@ -3,6 +3,7 @@ import type { Transcription, TranscriptionLanguage } from '@vocali/contracts';
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import FileTranscriptionPanel from './FileTranscriptionPanel.vue';
+import { withTranslations } from '../../i18n/testing';
 
 function fileOf(name: string, type: string, size: number): File {
   const file = new File(['audio'], name, { type });
@@ -27,7 +28,10 @@ const COMPLETED: Transcription = {
 };
 
 function panel(props: Record<string, unknown> = {}): VueWrapper {
-  return mount(FileTranscriptionPanel, { props: { phase: 'idle', progress: 0, ...props } });
+  return mount(FileTranscriptionPanel, {
+    global: withTranslations(),
+    props: { phase: 'idle', progress: 0, ...props },
+  });
 }
 
 function drop(wrapper: VueWrapper, file: File): Promise<void> {
@@ -206,11 +210,11 @@ describe('FileTranscriptionPanel', () => {
   it('surfaces a failure with the message the caller supplied', () => {
     const wrapper = panel({
       phase: 'failed',
-      failure: { code: 'STORAGE_REFUSED', message: 'El almacenamiento ha rechazado el archivo.' },
+      failure: { code: 'STORAGE_REFUSED', message: { key: 'failure.upload.storageRefused' } },
     });
 
     const alert = wrapper.find('[data-testid="failure-alert"]');
-    expect(alert.text()).toContain('El almacenamiento ha rechazado el archivo.');
+    expect(alert.text()).toContain('El almacenamiento ha rechazado el archivo');
     // AlertBanner gives an error role="alert", so it interrupts rather than
     // waiting for the user to look at it.
     expect(alert.attributes('role')).toBe('alert');
@@ -242,7 +246,10 @@ describe('FileTranscriptionPanel', () => {
     const wrapper = panel({
       phase: 'failed',
       transcription: { ...COMPLETED, status: 'FAILED', textPreview: null },
-      failure: { code: 'TRANSCRIPTION_FAILED', message: 'No se ha podido transcribir el archivo.' },
+      failure: {
+        code: 'TRANSCRIPTION_FAILED',
+        message: { key: 'failure.upload.transcriptionFailed' },
+      },
     });
 
     expect(wrapper.find('[data-status="FAILED"]').text()).toBe('Fallida');
@@ -284,5 +291,74 @@ describe('FileTranscriptionPanel', () => {
     expect(wrapper.find('label').attributes('for')).toBe('audio-language');
     expect(select.attributes('id')).toBe('audio-language');
     expect(select.attributes('aria-describedby')).toBe('audio-language-hint');
+  });
+
+  /*
+   * The distinction this whole feature turns on.
+   *
+   * `language` on a transcription is the language of the *audio*. The
+   * interface language is a different fact about a different thing, and
+   * neither may drive the other: a clinician reading these screens in English
+   * still dictates in Spanish, and one reading in Spanish may well be
+   * transcribing an English consultation. Wiring the two together would force
+   * them to give one of the two up.
+   */
+  describe('the language of the audio, which is not the language of the screen', () => {
+    it('names the audio languages in the language the reader chose', () => {
+      const spanish = panel().findAll('#audio-language option');
+      expect(spanish.map((option) => option.text())).toEqual([
+        'Español',
+        'Inglés',
+        'Catalán',
+        'Euskera',
+        'Gallego',
+      ]);
+
+      const english = mount(FileTranscriptionPanel, {
+        global: withTranslations('en'),
+        props: { phase: 'idle', progress: 0 },
+      }).findAll('#audio-language option');
+      expect(english.map((option) => option.text())).toEqual([
+        'Spanish',
+        'English',
+        'Catalan',
+        'Basque',
+        'Galician',
+      ]);
+    });
+
+    it('still submits Spanish audio when the interface is in English', async () => {
+      const wrapper = mount(FileTranscriptionPanel, {
+        global: withTranslations('en'),
+        props: { phase: 'idle', progress: 0 },
+      });
+
+      await drop(wrapper, AUDIO_FILE);
+      await wrapper.find('[data-testid="submit-button"]').trigger('click');
+
+      const submitted = wrapper.emitted('submit')?.[0]?.[0] as {
+        language: TranscriptionLanguage;
+      };
+      expect(submitted.language).toBe('es');
+      // And the screen it was submitted from is still English.
+      expect(wrapper.text()).toContain('Transcribe an audio file');
+    });
+
+    it('leaves the interface alone when the audio language changes', async () => {
+      const wrapper = panel();
+
+      await wrapper.find('#audio-language').setValue('en');
+      await drop(wrapper, AUDIO_FILE);
+      await wrapper.find('[data-testid="submit-button"]').trigger('click');
+
+      const submitted = wrapper.emitted('submit')?.[0]?.[0] as {
+        language: TranscriptionLanguage;
+      };
+      expect(submitted.language).toBe('en');
+      // Choosing English audio is not a request to read the application in
+      // English, and the screen has not become one.
+      expect(wrapper.text()).toContain('Transcribir un archivo de audio');
+      expect(wrapper.text()).not.toContain('Transcribe an audio file');
+    });
   });
 });

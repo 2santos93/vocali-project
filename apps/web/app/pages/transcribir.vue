@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { TranscriptionLanguage } from '@vocali/contracts';
+import { computed } from 'vue';
+import { useTranslations } from '../i18n/translations';
 
 /**
  * Transcribing an audio file.
@@ -10,7 +12,9 @@ import type { TranscriptionLanguage } from '@vocali/contracts';
  * `FileTranscriptionPanel`, both of which Jest can drive without booting Nuxt.
  */
 
-useHead({ title: 'Transcribir un archivo' });
+const { t } = useTranslations();
+
+useHead({ title: computed<string>(() => t('file.title')) });
 
 /*
  * Held so it can be cancelled. Without this, navigating away mid-upload leaves
@@ -59,11 +63,8 @@ function onSubmit(request: { file: File; language: TranscriptionLanguage }): voi
 <template>
   <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold text-ink">Transcribir un archivo</h1>
-      <p class="text-sm text-ink-muted">
-        Sube una grabación y la convertiremos en texto. El archivo se envía directamente al
-        almacenamiento seguro, sin pasar por nuestros servidores.
-      </p>
+      <h1 class="text-2xl font-semibold text-ink">{{ t('file.title') }}</h1>
+      <p class="text-sm text-ink-muted">{{ t('file.description') }}</p>
     </div>
 
     <FileTranscriptionPanel
@@ -75,9 +76,15 @@ function onSubmit(request: { file: File; language: TranscriptionLanguage }): voi
       @reset="reset"
     />
 
+    <!-- The full stop sits outside the link and outside the catalogue: it is
+         punctuation, identical in both languages, and a key holding "." would
+         be a translator's invitation to change it. -->
     <p class="text-sm text-ink-muted">
-      Puedes consultar todas tus transcripciones en el
-      <NuxtLink to="/historial" class="font-medium text-brand-700 underline">historial</NuxtLink>.
+      {{ t('file.historyPrefix') }}
+      <NuxtLink to="/historial" class="font-medium text-brand-700 underline">{{
+        t('common.historyLink')
+      }}</NuxtLink
+      >.
     </p>
   </div>
 </template>

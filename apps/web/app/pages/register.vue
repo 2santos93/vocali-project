@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useTranslations } from '../i18n/translations';
+import type { TranslatableMessage } from '../i18n/translate';
 
-definePageMeta({ layout: false });
-useHead({ title: 'Crear cuenta' });
+definePageMeta({ layout: 'auth' });
+
+const { t } = useTranslations();
+
+useHead({ title: computed<string>(() => t('auth.register.title')) });
 
 const email = ref('');
 const password = ref('');
 const busy = ref(false);
-const error = ref<string | null>(null);
-
-const PASSWORD_HINT = 'Mínimo 8 caracteres, con mayúsculas, minúsculas, números y algún símbolo.';
-
-const GENERIC_FAILURE = 'No hemos podido crear la cuenta. Vuelve a intentarlo en unos minutos.';
+const error = ref<TranslatableMessage | null>(null);
 
 async function onSubmit(): Promise<void> {
   busy.value = true;
@@ -33,7 +34,7 @@ async function onSubmit(): Promise<void> {
      */
     await navigateTo({ path: '/confirm', query: { email: email.value } });
   } catch (cause) {
-    error.value = readFailure(cause).message ?? GENERIC_FAILURE;
+    error.value = authFailureMessage(readFailure(cause).code, 'auth.register.failed');
   } finally {
     busy.value = false;
   }
@@ -42,27 +43,27 @@ async function onSubmit(): Promise<void> {
 
 <template>
   <AuthFormPanel
-    title="Crear cuenta"
-    description="Te enviaremos un código para confirmar tu correo electrónico."
-    :error="error"
+    :title="t('auth.register.title')"
+    :description="t('auth.register.description')"
+    :error="error === null ? null : t(error)"
   >
     <AuthFormCredentials
       v-model:email="email"
       v-model:password="password"
-      submit-label="Crear cuenta"
+      :submit-label="t('auth.register.title')"
       password-autocomplete="new-password"
-      :password-hint="PASSWORD_HINT"
+      :password-hint="t('auth.register.passwordHint')"
       :busy="busy"
       @submit="onSubmit"
     />
 
     <template #footer>
-      ¿Ya tienes cuenta?
+      {{ t('auth.register.haveAccount') }}
       <NuxtLink
         to="/login"
         class="rounded-control font-medium text-brand-700 underline focus-visible:focus-ring"
       >
-        Iniciar sesión
+        {{ t('auth.signIn.title') }}
       </NuxtLink>
     </template>
   </AuthFormPanel>

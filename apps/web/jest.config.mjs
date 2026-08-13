@@ -7,6 +7,7 @@ import path from 'node:path';
 const COMPONENTS_DIR = path.join(import.meta.dirname, 'app/components/');
 const SERVER_DIR = path.join(import.meta.dirname, 'server/');
 const SHELL_RULES_DIR = path.join(import.meta.dirname, 'app/utils/');
+const MESSAGES_DIR = path.join(import.meta.dirname, 'app/i18n/');
 
 export default {
   rootDir: import.meta.dirname,
@@ -55,8 +56,15 @@ export default {
     // that apply them — which route a visitor may see, and nothing that needs
     // a runtime to decide it.
     'app/utils/**/*.ts',
+    // The catalogues and the translator. Pure, and the one place every
+    // user-facing sentence in the application is written down.
+    'app/i18n/**/*.ts',
     'server/**/*.ts',
     '!**/*.test.ts',
+
+    // A mount helper the tests use and nothing ships. Excluded rather than
+    // exercised: covering it would mean testing the test suite.
+    '!app/i18n/testing.ts',
 
     /*
      * Three adapters, excluded because they are the places where this package
@@ -108,5 +116,14 @@ export default {
      */
     [SERVER_DIR]: { statements: 100, branches: 100, functions: 100, lines: 100 },
     [SHELL_RULES_DIR]: { statements: 100, branches: 100, functions: 100, lines: 100 },
+
+    /*
+     * The same figure, for the same reason. Two of these files are data and
+     * reach 100% by being imported, which is the point: the threshold is here
+     * so that the translator's own branches — a key with no message, a
+     * placeholder with no value — are exercised rather than assumed, since
+     * those are the two ways a reader ends up looking at nothing.
+     */
+    [MESSAGES_DIR]: { statements: 100, branches: 100, functions: 100, lines: 100 },
   },
 };

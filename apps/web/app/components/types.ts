@@ -7,6 +7,8 @@
  * language or a transcription has exactly one definition in this repository.
  */
 
+import type { TranslatableMessage } from '../i18n/translate';
+
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 export type ControlSize = 'sm' | 'md' | 'lg';
@@ -22,13 +24,16 @@ export type AlertVariant = 'info' | 'success' | 'warning' | 'error';
 /**
  * Why a dropped file was refused.
  *
- * The code exists so a parent can react without matching on Spanish prose;
- * the message exists so it never has to write the prose itself.
+ * The code exists so a parent can react without matching on prose; the message
+ * exists so it never has to write the prose itself. It travels as a key and
+ * its values rather than as a finished sentence, so the language it is read in
+ * is the one in force when it is rendered rather than the one in force when
+ * the file was dropped.
  */
 export type FileRejectionCode = 'UNSUPPORTED_FORMAT' | 'FILE_TOO_LARGE' | 'EMPTY_FILE';
 
 export interface FileRejection {
   readonly code: FileRejectionCode;
-  readonly message: string;
+  readonly message: TranslatableMessage;
   readonly fileName: string;
 }

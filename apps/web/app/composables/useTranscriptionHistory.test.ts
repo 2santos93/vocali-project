@@ -1,11 +1,6 @@
 import { TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
 import type { Transcription } from '@vocali/contracts';
-import { SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
-import {
-  createHistoryRequests,
-  HISTORY_LOAD_FAILURE_MESSAGE,
-  useTranscriptionHistory,
-} from './useTranscriptionHistory';
+import { createHistoryRequests, useTranscriptionHistory } from './useTranscriptionHistory';
 
 function makeTranscription(overrides: Partial<Transcription> = {}): Transcription {
   return {
@@ -108,7 +103,7 @@ describe('useTranscriptionHistory', () => {
     await history.loadFirstPage();
 
     expect(history.transcriptions.value).toHaveLength(0);
-    expect(history.errorMessage.value).toBe(HISTORY_LOAD_FAILURE_MESSAGE);
+    expect(history.errorMessage.value).toEqual({ key: 'failure.historyLoad' });
   });
 
   it('walks forward with the cursor the API handed back', async () => {
@@ -240,7 +235,7 @@ describe('useTranscriptionHistory', () => {
     await history.loadFirstPage();
     await history.goToNextPage();
 
-    expect(history.errorMessage.value).toBe(HISTORY_LOAD_FAILURE_MESSAGE);
+    expect(history.errorMessage.value).toEqual({ key: 'failure.historyLoad' });
     expect(history.sessionExpired.value).toBe(false);
     expect(history.transcriptions.value).toHaveLength(0);
     expect(history.hasNext.value).toBe(false);
@@ -276,7 +271,7 @@ describe('useTranscriptionHistory', () => {
     await history.loadFirstPage();
 
     expect(history.sessionExpired.value).toBe(true);
-    expect(history.errorMessage.value).toBe(SESSION_EXPIRED_MESSAGE);
+    expect(history.errorMessage.value).toEqual({ key: 'failure.sessionExpired' });
   });
 
   it('treats a response that does not match the contract as a failure', async () => {
@@ -285,7 +280,7 @@ describe('useTranscriptionHistory', () => {
 
     await history.loadFirstPage();
 
-    expect(history.errorMessage.value).toBe(HISTORY_LOAD_FAILURE_MESSAGE);
+    expect(history.errorMessage.value).toEqual({ key: 'failure.historyLoad' });
     expect(history.transcriptions.value).toHaveLength(0);
   });
 

@@ -2,6 +2,7 @@ import type { Transcription } from '@vocali/contracts';
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import RecordingPanel from './RecordingPanel.vue';
+import { withTranslations } from '../../i18n/testing';
 
 const SAVED: Transcription = {
   id: 't-9',
@@ -19,6 +20,7 @@ const SAVED: Transcription = {
 
 function panel(props: Record<string, unknown> = {}): VueWrapper {
   return mount(RecordingPanel, {
+    global: withTranslations(),
     props: { phase: 'idle', finalText: '', partialText: '', ...props },
   });
 }
@@ -189,7 +191,7 @@ describe('RecordingPanel', () => {
   describe('recovering a dictation', () => {
     const CONNECTION_LOST = {
       code: 'CONNECTION_LOST',
-      message: 'Se ha perdido la conexión. No se ha perdido nada de lo transcrito.',
+      message: { key: 'failure.dictation.connectionLost' },
       recoverable: true,
     };
 
@@ -244,14 +246,16 @@ describe('RecordingPanel', () => {
         phase: 'failed',
         failure: {
           code: 'MICROPHONE_DENIED',
-          message: 'El navegador ha denegado el permiso.',
+          message: { key: 'failure.microphone.denied' },
           recoverable: false,
         },
       });
 
       const alert = wrapper.find('[data-testid="failure-alert"]');
       expect(alert.classes()).toContain('bg-danger-soft');
-      expect(alert.text()).toContain('El navegador ha denegado el permiso.');
+      // The rendered sentence, not the key: a reader meeting a denied
+      // microphone has to be told where to turn it back on.
+      expect(alert.text()).toContain('ha denegado el permiso');
       expect(wrapper.find('[data-testid="save-recovered-button"]').exists()).toBe(false);
     });
 

@@ -10,12 +10,11 @@ import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FileDropZone from '../molecules/FileDropZone.vue';
 import FormField from '../molecules/FormField.vue';
-import type { FileRejection } from '../types';
+import type { FileRejection, SelectOption } from '../types';
 import type { FileUploadFailure, FileUploadPhase } from '../../composables/useFileUpload';
-import {
-  TRANSCRIPTION_LANGUAGE_OPTIONS,
-  toTranscriptionLanguage,
-} from '../transcription-languages';
+import type { TranslatableMessage } from '../../i18n/translate';
+import { useTranslations } from '../../i18n/translations';
+import { transcriptionLanguageOptions, toTranscriptionLanguage } from '../transcription-languages';
 
 /**
  * Choosing an audio file, sending it, and watching it become a transcription.
@@ -46,17 +45,23 @@ const emit = defineEmits<{
   reset: [];
 }>();
 
+const { t } = useTranslations();
+
 const selectedFile = ref<File | null>(null);
 const language = ref<TranscriptionLanguage>(DEFAULT_TRANSCRIPTION_LANGUAGE);
+
+const languageOptions = computed<readonly SelectOption[]>(() => transcriptionLanguageOptions(t));
 
 /**
  * Why the panel cannot proceed yet — a refused file, or no file at all.
  *
- * Held as prose rather than as a code because every producer of it already has
- * the sentence: `FileDropZone` owns the limits it checked and phrases its own
- * refusal, and there is exactly one other case.
+ * Held as a message rather than as a code because every producer of it already
+ * knows which one applies: `FileDropZone` owns the limits it checked and names
+ * its own refusal, and there is exactly one other case. It is a key rather
+ * than a sentence so that a warning raised before a change of language is
+ * still read in the language on screen.
  */
-const warning = ref<string | null>(null);
+const warning = ref<TranslatableMessage | null>(null);
 
 const isBusy = computed<boolean>(
   () => props.phase === 'requesting' || props.phase === 'uploading' || props.phase === 'processing',
@@ -100,7 +105,7 @@ function onLanguageChange(value: string): void {
 function onSubmit(): void {
   const file = selectedFile.value;
   if (file === null) {
-    warning.value = 'Elige primero un archivo de audio para transcribirlo.';
+    warning.value = { key: 'file.chooseFirst' };
     return;
   }
   warning.value = null;
@@ -117,7 +122,7 @@ function onReset(): void {
 <template>
   <section class="flex flex-col gap-5" aria-labelledby="file-transcription-heading">
     <h2 id="file-transcription-heading" class="text-lg font-semibold text-ink">
-      Transcribir un archivo de audio
+      {{ t('file.heading') }}
     </h2>
 
     <!-- A warning rather than an error: nothing has been attempted yet, and
@@ -126,15 +131,15 @@ function onReset(): void {
     <AlertBanner
       v-if="warning !== null"
       variant="warning"
-      :message="warning"
+      :message="t(warning)"
       data-testid="rejection-alert"
     />
 
     <AlertBanner
       v-if="failure !== null"
       variant="error"
-      title="No se ha podido transcribir"
-      :message="failure.message"
+      :title="t('file.failureTitle')"
+      :message="t(failure.message)"
       data-testid="failure-alert"
     />
 
@@ -146,16 +151,12 @@ function onReset(): void {
       @reject="onReject"
     />
 
-    <FormField
-      id="audio-language"
-      label="Idioma del audio"
-      hint="Elige el idioma que se habla en la grabación."
-    >
+    <FormField id="audio-language" :label="t('file.language')" :hint="t('file.languageHint')">
       <template #default="{ id, describedBy }">
         <BaseSelect
           :id="id"
           :model-value="language"
-          :options="TRANSCRIPTION_LANGUAGE_OPTIONS"
+          :options="languageOptions"
           :disabled="isBusy"
           :described-by="describedBy"
           @update:model-value="onLanguageChange"
@@ -167,15 +168,15 @@ function onReset(): void {
       <BaseButton
         :disabled="isBusy"
         :loading="isBusy"
-        loading-label="Transcribiendo"
+        :loading-label="t('file.submitting')"
         data-testid="submit-button"
         @click="onSubmit"
       >
-        Transcribir
+        {{ t('file.submit') }}
       </BaseButton>
 
       <BaseButton v-if="isFinished" variant="secondary" data-testid="reset-button" @click="onReset">
-        Transcribir otro archivo
+        {{ t('file.again') }}
       </BaseButton>
     </div>
 
@@ -185,7 +186,7 @@ function onReset(): void {
     <ProgressBar
       v-if="phase === 'uploading'"
       :value="progress"
-      label="Subiendo el archivo de audio"
+      :label="t('file.uploading')"
       data-testid="upload-progress"
     />
 
@@ -194,8 +195,8 @@ function onReset(): void {
       class="flex items-center gap-2 text-sm text-ink-muted"
       role="status"
     >
-      <SpinnerIcon label="Preparando la subida" />
-      Preparando la subida…
+      <SpinnerIcon :label="t('file.preparing')" />
+      {{ t('file.preparingNotice') }}
     </p>
 
     <p
@@ -204,8 +205,8 @@ function onReset(): void {
       role="status"
       data-testid="processing-notice"
     >
-      <SpinnerIcon label="Transcribiendo" />
-      Archivo subido. Estamos transcribiéndolo; esto puede tardar un poco.
+      <SpinnerIcon :label="t('file.submitting')" />
+      {{ t('file.processingNotice') }}
     </p>
 
     <!-- Not an error: the audio is stored and the work is still running. The
@@ -213,8 +214,8 @@ function onReset(): void {
     <AlertBanner
       v-if="phase === 'stillProcessing'"
       variant="info"
-      title="La transcripción sigue en curso"
-      message="Tu archivo se ha subido correctamente y se está transcribiendo. Puedes seguir su estado desde el historial."
+      :title="t('file.stillProcessingTitle')"
+      :message="t('file.stillProcessingMessage')"
       data-testid="still-processing-alert"
     />
 

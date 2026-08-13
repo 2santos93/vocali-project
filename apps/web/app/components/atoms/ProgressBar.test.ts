@@ -1,11 +1,13 @@
 import { mount } from '@vue/test-utils';
 import type { DOMWrapper } from '@vue/test-utils';
 import ProgressBar from './ProgressBar.vue';
+import { withTranslations } from '../../i18n/testing';
 
 function indicatorOf(value: number): DOMWrapper<Element> {
-  return mount(ProgressBar, { props: { value, label: 'Progreso de la subida' } }).find(
-    '[data-testid="progress-indicator"]',
-  );
+  return mount(ProgressBar, {
+    global: withTranslations(),
+    props: { value, label: 'Progreso de la subida' },
+  }).find('[data-testid="progress-indicator"]');
 }
 
 describe('ProgressBar', () => {
@@ -42,13 +44,17 @@ describe('ProgressBar', () => {
   });
 
   it('shows the percentage as text by default', () => {
-    const wrapper = mount(ProgressBar, { props: { value: 42, label: 'Subiendo' } });
+    const wrapper = mount(ProgressBar, {
+      global: withTranslations(),
+      props: { value: 42, label: 'Subiendo' },
+    });
 
     expect(wrapper.text()).toContain('42 %');
   });
 
   it('can hide the text without losing the announced value', () => {
     const wrapper = mount(ProgressBar, {
+      global: withTranslations(),
       props: { value: 42, label: 'Subiendo', hideValueText: true },
     });
 

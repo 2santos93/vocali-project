@@ -1,8 +1,5 @@
 import type { Transcription, TranscriptionStatus } from '@vocali/contracts';
-import { SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
 import {
-  DOWNLOAD_FAILURE_MESSAGE,
-  DOWNLOAD_NOT_READY_MESSAGE,
   buildTranscriptFileName,
   followDownloadUrlInBrowser,
   useTranscriptionDownload,
@@ -100,7 +97,7 @@ describe('useTranscriptionDownload', () => {
 
       expect(requestUrl).not.toHaveBeenCalled();
       expect(followUrl).not.toHaveBeenCalled();
-      expect(download.errorMessage.value).toBe(DOWNLOAD_NOT_READY_MESSAGE);
+      expect(download.errorMessage.value).toEqual({ key: 'failure.downloadNotReady' });
     },
   );
 
@@ -136,7 +133,7 @@ describe('useTranscriptionDownload', () => {
     await download.download(makeTranscription());
 
     expect(followUrl).not.toHaveBeenCalled();
-    expect(download.errorMessage.value).toBe(DOWNLOAD_FAILURE_MESSAGE);
+    expect(download.errorMessage.value).toEqual({ key: 'failure.download' });
     expect(download.downloadingId.value).toBeNull();
   });
 
@@ -146,7 +143,7 @@ describe('useTranscriptionDownload', () => {
 
     await download.download(makeTranscription());
 
-    expect(download.errorMessage.value).toBe(SESSION_EXPIRED_MESSAGE);
+    expect(download.errorMessage.value).toEqual({ key: 'failure.sessionExpired' });
   });
 
   it('refuses to follow a URL the contract does not recognise', async () => {
@@ -157,7 +154,7 @@ describe('useTranscriptionDownload', () => {
     await download.download(makeTranscription());
 
     expect(followUrl).not.toHaveBeenCalled();
-    expect(download.errorMessage.value).toBe(DOWNLOAD_FAILURE_MESSAGE);
+    expect(download.errorMessage.value).toEqual({ key: 'failure.download' });
   });
 
   it('clears the reported failure when it is dismissed', async () => {

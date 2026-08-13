@@ -9,6 +9,23 @@
  *
  * Names are semantic rather than literal. A badge asks for `success`, not for
  * `green`, so the palette can be retuned without editing a single component.
+ *
+ * Every colour carries both themes, as `light-dark(light, dark)`. Which half
+ * applies is decided by the `color-scheme` of the document, which `main.css`
+ * sets from the class the server puts on `<html>`. Two consequences worth
+ * stating, because they are why the whole dark theme is thirty lines of CSS
+ * and no component changes:
+ *
+ *   - a utility already written in a template — `bg-surface`, `text-ink` —
+ *     follows the theme without a `dark:` twin beside it, so there is no
+ *     second set of classes that can be forgotten on the twelfth component;
+ *   - the two palettes sit on the same line, so a colour cannot be retuned in
+ *     one theme and left behind in the other.
+ *
+ * The dark values are not the light ones inverted. Contrast was checked
+ * against the surface each is used on, because this is a clinical product read
+ * for a whole shift: body text sits at 14:1 on its panel and the quietest
+ * muted text at 8:1, where WCAG AA asks for 4.5:1.
  */
 
 @theme {
@@ -23,25 +40,50 @@
   --radius-control: 0.5rem;
   --radius-panel: 0.75rem;
 
-  /* Brand. A desaturated clinical blue: it has to sit behind clinical text
-     for a whole shift without competing with it. */
-  --color-brand-50: #eef6fb;
-  --color-brand-100: #d6e9f5;
-  --color-brand-200: #aed3ea;
-  --color-brand-300: #7fb7db;
-  --color-brand-400: #4f96c6;
-  --color-brand-500: #2b76a8;
-  --color-brand-600: #1f5d88;
-  --color-brand-700: #1a4a6c;
-  --color-brand-800: #163c57;
-  --color-brand-900: #12303f;
+  /*
+   * Brand. A desaturated clinical blue: it has to sit behind clinical text for
+   * a whole shift without competing with it.
+   *
+   * The scale reverses between the themes because its rungs are used for
+   * roles, not for shades: the high numbers are text on a surface and the low
+   * numbers are tints behind it, and both of those have to move when the
+   * surface does.
+   */
+  --color-brand-50: light-dark(#eef6fb, #14252f);
+  --color-brand-100: light-dark(#d6e9f5, #17303e);
+  --color-brand-200: light-dark(#aed3ea, #1e4256);
+  --color-brand-300: light-dark(#7fb7db, #2a5e79);
+  --color-brand-400: light-dark(#4f96c6, #3c85ab);
+  --color-brand-500: light-dark(#2b76a8, #58a3c8);
+  --color-brand-600: light-dark(#1f5d88, #8cc4e0);
+  --color-brand-700: light-dark(#1a4a6c, #a8d4ea);
+  --color-brand-800: light-dark(#163c57, #c2e1f2);
+  --color-brand-900: light-dark(#12303f, #dcf0fb);
 
-  /* Surfaces and text. */
-  --color-surface: #ffffff;
-  --color-surface-muted: #f4f7f9;
-  --color-line: #d8e0e6;
-  --color-ink: #17222b;
-  --color-ink-muted: #5a6b78;
+  /*
+   * The filled brand control, named for its role rather than taken from the
+   * scale above.
+   *
+   * A primary button is the one place the brand is a background with white on
+   * top, and the rung that suits that in a light theme is the rung that reads
+   * as a link in a dark one. Pinning it to `brand-600` made those two demands
+   * the same value, and one of them had to lose. In light mode these are
+   * exactly the old `brand-600` and `brand-700`, so nothing about the light
+   * theme moved.
+   */
+  --color-brand-solid: light-dark(#1f5d88, #256994);
+  --color-brand-solid-hover: light-dark(#1a4a6c, #2b76a8);
+
+  /* Surfaces and text. The page is the muted one and panels sit on top of it,
+     in both themes. */
+  --color-surface: light-dark(#ffffff, #131c24);
+  --color-surface-muted: light-dark(#f4f7f9, #0c1319);
+  --color-line: light-dark(#d8e0e6, #2b3a46);
+  --color-ink: light-dark(#17222b, #e6edf2);
+  --color-ink-muted: light-dark(#5a6b78, #a3b3bf);
+
+  /* Text on a filled control. White in both themes, because every `solid`
+     below stays dark enough to carry it. */
   --color-ink-inverse: #ffffff;
 
   /*
@@ -52,28 +94,28 @@
    *   ink   — text on the soft background, contrast checked against it
    *   solid — a filled background, paired with --color-ink-inverse
    */
-  --color-muted-soft: #eef2f5;
-  --color-muted-line: #d3dce2;
-  --color-muted-ink: #44545f;
-  --color-muted-solid: #5a6b78;
+  --color-muted-soft: light-dark(#eef2f5, #1b262f);
+  --color-muted-line: light-dark(#d3dce2, #33424e);
+  --color-muted-ink: light-dark(#44545f, #b9c6d0);
+  --color-muted-solid: light-dark(#5a6b78, #4d5f6c);
 
-  --color-info-soft: #e6f1fb;
-  --color-info-line: #b9d7f2;
-  --color-info-ink: #1b5183;
-  --color-info-solid: #2b76a8;
+  --color-info-soft: light-dark(#e6f1fb, #12283a);
+  --color-info-line: light-dark(#b9d7f2, #24506f);
+  --color-info-ink: light-dark(#1b5183, #9ecbf0);
+  --color-info-solid: light-dark(#2b76a8, #256994);
 
-  --color-success-soft: #e6f6ed;
-  --color-success-line: #b0e0c4;
-  --color-success-ink: #14603a;
-  --color-success-solid: #1f8a4d;
+  --color-success-soft: light-dark(#e6f6ed, #10291c);
+  --color-success-line: light-dark(#b0e0c4, #1f5c3c);
+  --color-success-ink: light-dark(#14603a, #86dcae);
+  --color-success-solid: light-dark(#1f8a4d, #1a7442);
 
-  --color-warning-soft: #fdf3e2;
-  --color-warning-line: #f2d9a8;
-  --color-warning-ink: #7a4a0f;
-  --color-warning-solid: #b8761c;
+  --color-warning-soft: light-dark(#fdf3e2, #2e2413);
+  --color-warning-line: light-dark(#f2d9a8, #6b5220);
+  --color-warning-ink: light-dark(#7a4a0f, #f0c377);
+  --color-warning-solid: light-dark(#b8761c, #9c6317);
 
-  --color-danger-soft: #fdeaea;
-  --color-danger-line: #f3bebe;
-  --color-danger-ink: #8b2020;
-  --color-danger-solid: #b52c2c;
+  --color-danger-soft: light-dark(#fdeaea, #331617);
+  --color-danger-line: light-dark(#f3bebe, #6d2b2d);
+  --color-danger-ink: light-dark(#8b2020, #f3a3a3);
+  --color-danger-solid: light-dark(#b52c2c, #a52828);
 }

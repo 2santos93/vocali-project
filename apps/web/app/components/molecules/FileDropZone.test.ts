@@ -3,6 +3,21 @@ import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import FileDropZone from './FileDropZone.vue';
 import type { FileRejection } from '../types';
+import { withTranslations } from '../../i18n/testing';
+import { translate } from '../../i18n/translate';
+import type { TranslatableMessage } from '../../i18n/translate';
+
+/**
+ * The refusal as a reader meets it.
+ *
+ * The component emits a key and its values, so the assertions below render
+ * them through the real Spanish catalogue: a test that only checked the key
+ * would pass while the sentence behind it said nothing about the limit it was
+ * refusing the file for.
+ */
+function spanish(message: TranslatableMessage | undefined): string {
+  return message === undefined ? '' : translate('es', message.key, message.values);
+}
 
 /**
  * jsdom derives `size` from the content, and allocating twenty megabytes to
@@ -34,7 +49,7 @@ function rejectionFrom(wrapper: VueWrapper): FileRejection | undefined {
 
 describe('FileDropZone', () => {
   it('emits select with the dropped file', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     await drop(wrapper, VALID_FILE);
 
@@ -43,7 +58,7 @@ describe('FileDropZone', () => {
   });
 
   it('emits select with the file chosen through the picker', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     await pick(wrapper, VALID_FILE);
 
@@ -51,7 +66,7 @@ describe('FileDropZone', () => {
   });
 
   it('refuses an unsupported format and names the ones it accepts', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     await drop(wrapper, fileOf('informe.pdf', 'application/pdf', 2048));
 
@@ -59,7 +74,7 @@ describe('FileDropZone', () => {
     const rejection = rejectionFrom(wrapper);
     expect(rejection?.code).toBe('UNSUPPORTED_FORMAT');
     expect(rejection?.fileName).toBe('informe.pdf');
-    expect(rejection?.message).toContain('MP3');
+    expect(spanish(rejection?.message)).toContain('MP3');
   });
 
   /*
@@ -68,18 +83,18 @@ describe('FileDropZone', () => {
    * twenty seconds of upload before the same answer arrives from S3.
    */
   it('refuses a file over the limit and states both sizes in Spanish', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     await drop(wrapper, fileOf('sesion-larga.wav', 'audio/wav', MAX_AUDIO_FILE_SIZE_BYTES + 1));
 
     expect(wrapper.emitted('select')).toBeUndefined();
     const rejection = rejectionFrom(wrapper);
     expect(rejection?.code).toBe('FILE_TOO_LARGE');
-    expect(rejection?.message).toContain('20 MB');
+    expect(spanish(rejection?.message)).toContain('20 MB');
   });
 
   it('accepts a file of exactly the limit', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     await drop(wrapper, fileOf('justo.wav', 'audio/wav', MAX_AUDIO_FILE_SIZE_BYTES));
 
@@ -88,7 +103,7 @@ describe('FileDropZone', () => {
   });
 
   it('refuses an empty file, which S3 would reject as well', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     await drop(wrapper, fileOf('vacio.mp3', 'audio/mpeg', 0));
 
@@ -96,7 +111,10 @@ describe('FileDropZone', () => {
   });
 
   it('honours a caller-supplied limit rather than only the contract default', async () => {
-    const wrapper = mount(FileDropZone, { props: { maxSizeBytes: 1024 } });
+    const wrapper = mount(FileDropZone, {
+      global: withTranslations(),
+      props: { maxSizeBytes: 1024 },
+    });
 
     await drop(wrapper, fileOf('pequeno.mp3', 'audio/mpeg', 2048));
 
@@ -104,7 +122,10 @@ describe('FileDropZone', () => {
   });
 
   it('honours a caller-supplied format list', async () => {
-    const wrapper = mount(FileDropZone, { props: { accept: ['audio/wav'] } });
+    const wrapper = mount(FileDropZone, {
+      global: withTranslations(),
+      props: { accept: ['audio/wav'] },
+    });
 
     await drop(wrapper, VALID_FILE);
 
@@ -112,7 +133,7 @@ describe('FileDropZone', () => {
   });
 
   it('advertises the accepted formats and the limit it will enforce', () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     expect(wrapper.text()).toContain('MP3');
     expect(wrapper.text()).toContain('20 MB');
@@ -120,7 +141,7 @@ describe('FileDropZone', () => {
   });
 
   it('highlights itself while a file is dragged over it, and stops when it leaves', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
     const zone = wrapper.find('[data-testid="file-drop-zone"]');
 
     expect(zone.classes()).toContain('border-line');
@@ -133,7 +154,7 @@ describe('FileDropZone', () => {
   });
 
   it('accepts nothing while disabled', async () => {
-    const wrapper = mount(FileDropZone, { props: { disabled: true } });
+    const wrapper = mount(FileDropZone, { global: withTranslations(), props: { disabled: true } });
     const zone = wrapper.find('[data-testid="file-drop-zone"]');
 
     await zone.trigger('dragover');
@@ -145,7 +166,7 @@ describe('FileDropZone', () => {
   });
 
   it('ignores a drop that carries no file', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
 
     await wrapper.find('[data-testid="file-drop-zone"]').trigger('drop', {
       dataTransfer: { files: [] },
@@ -158,7 +179,7 @@ describe('FileDropZone', () => {
   // Drag and drop is a mouse gesture. Without the button, a keyboard user has
   // no way to choose a file at all.
   it('opens the file picker from a keyboard-reachable button', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
     const input = wrapper.find('[data-testid="file-input"]').element as HTMLInputElement;
     const click = jest.spyOn(input, 'click').mockImplementation(() => undefined);
 
@@ -177,7 +198,7 @@ describe('FileDropZone', () => {
    * line and watching that version of the test stay green.
    */
   it('clears the input so the same file can be chosen twice', async () => {
-    const wrapper = mount(FileDropZone);
+    const wrapper = mount(FileDropZone, { global: withTranslations() });
     const input = wrapper.find('[data-testid="file-input"]');
     const assignedValues: string[] = [];
     Object.defineProperty(input.element, 'files', { value: [VALID_FILE], configurable: true });
@@ -193,9 +214,16 @@ describe('FileDropZone', () => {
   });
 
   it('shows the selected file name only once there is one', () => {
-    expect(mount(FileDropZone).find('[data-testid="selected-file-name"]').exists()).toBe(false);
+    expect(
+      mount(FileDropZone, { global: withTranslations() })
+        .find('[data-testid="selected-file-name"]')
+        .exists(),
+    ).toBe(false);
 
-    const wrapper = mount(FileDropZone, { props: { selectedFileName: 'consulta.mp3' } });
+    const wrapper = mount(FileDropZone, {
+      global: withTranslations(),
+      props: { selectedFileName: 'consulta.mp3' },
+    });
     expect(wrapper.find('[data-testid="selected-file-name"]').text()).toContain('consulta.mp3');
   });
 });

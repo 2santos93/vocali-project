@@ -23,11 +23,44 @@
  * papered over.
  */
 
+/**
+ * Every failure this server reports, as a union rather than as loose strings.
+ *
+ * The interface renders one of these codes in the reader's own language, so it
+ * carries a `Record<AuthFailureCode, MessageKey>`: adding a case here without
+ * words for it stops the front end compiling, which is the only way to be sure
+ * a new failure never reaches a clinician as a blank alert.
+ */
+export const AUTH_FAILURE_CODES = [
+  'RATE_LIMITED',
+  'AUTH_UNAVAILABLE',
+  'INVALID_CREDENTIALS',
+  'ACCOUNT_NOT_CONFIRMED',
+  'WEAK_PASSWORD',
+  'INVALID_REGISTRATION',
+  'CODE_DELIVERY_FAILED',
+  'CODE_EXPIRED',
+  'CODE_REJECTED',
+  'SESSION_EXPIRED',
+  'INVALID_INPUT',
+  'PASSWORD_RESET_REQUIRED',
+  'SIGN_OUT_INCOMPLETE',
+] as const;
+
+export type AuthFailureCode = (typeof AUTH_FAILURE_CODES)[number];
+
 export interface AuthFailure {
   readonly statusCode: number;
   /** Stable, ours, and safe to branch on in the interface. */
-  readonly code: string;
-  /** Spanish, and always says what to do next. */
+  readonly code: AuthFailureCode;
+  /**
+   * Spanish, and always says what to do next.
+   *
+   * This is the HTTP contract: what a log records, and what anything that is
+   * not this browser reads. The browser renders the `code` through its own
+   * catalogue instead, because the language a person reads in is a property of
+   * that person and not of the API.
+   */
   readonly message: string;
 }
 

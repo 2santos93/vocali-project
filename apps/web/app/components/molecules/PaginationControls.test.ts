@@ -1,9 +1,11 @@
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import PaginationControls from './PaginationControls.vue';
+import { withTranslations } from '../../i18n/testing';
 
 function mountControls(props: Record<string, unknown> = {}): VueWrapper {
   return mount(PaginationControls, {
+    global: withTranslations(),
     props: { pageNumber: 2, hasPrevious: true, hasNext: true, ...props },
   });
 }
@@ -76,5 +78,17 @@ describe('PaginationControls', () => {
 
   it('is labelled as navigation', () => {
     expect(mountControls().find('nav').attributes('aria-label')).toBe('Paginación del historial');
+  });
+
+  it('names the current page and both directions in English', () => {
+    const wrapper = mount(PaginationControls, {
+      global: withTranslations('en'),
+      props: { pageNumber: 3, hasPrevious: true, hasNext: true },
+    });
+
+    expect(wrapper.text()).toContain('Page 3');
+    expect(wrapper.find('[data-testid="pagination-previous"]').text()).toBe('Previous');
+    expect(wrapper.find('[data-testid="pagination-next"]').text()).toBe('Next');
+    expect(wrapper.find('nav').attributes('aria-label')).toBe('History pagination');
   });
 });

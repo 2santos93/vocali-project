@@ -1,15 +1,20 @@
 import { mount } from '@vue/test-utils';
 import BaseInput from './BaseInput.vue';
+import { withTranslations } from '../../i18n/testing';
 
 describe('BaseInput', () => {
   it('carries the id it was given, so a label can point at it', () => {
-    const wrapper = mount(BaseInput, { props: { id: 'correo', modelValue: '' } });
+    const wrapper = mount(BaseInput, {
+      global: withTranslations(),
+      props: { id: 'correo', modelValue: '' },
+    });
 
     expect(wrapper.attributes('id')).toBe('correo');
   });
 
   it('renders the bound value', () => {
     const wrapper = mount(BaseInput, {
+      global: withTranslations(),
       props: { id: 'correo', modelValue: 'paciente@ejemplo.es' },
     });
 
@@ -24,7 +29,10 @@ describe('BaseInput', () => {
    * watching the test stay green.
    */
   it('emits update:modelValue with what was typed', async () => {
-    const wrapper = mount(BaseInput, { props: { id: 'correo', modelValue: '' } });
+    const wrapper = mount(BaseInput, {
+      global: withTranslations(),
+      props: { id: 'correo', modelValue: '' },
+    });
 
     await wrapper.find('input').setValue('doctora@hospital.es');
 
@@ -32,7 +40,10 @@ describe('BaseInput', () => {
   });
 
   it('emits blur, which is what triggers field-level validation', async () => {
-    const wrapper = mount(BaseInput, { props: { id: 'correo', modelValue: '' } });
+    const wrapper = mount(BaseInput, {
+      global: withTranslations(),
+      props: { id: 'correo', modelValue: '' },
+    });
 
     await wrapper.trigger('blur');
 
@@ -40,31 +51,47 @@ describe('BaseInput', () => {
   });
 
   it('defaults to a text input and accepts another type', () => {
-    expect(mount(BaseInput, { props: { id: 'a', modelValue: '' } }).attributes('type')).toBe(
-      'text',
-    );
     expect(
-      mount(BaseInput, { props: { id: 'a', modelValue: '', type: 'password' } }).attributes('type'),
+      mount(BaseInput, {
+        global: withTranslations(),
+        props: { id: 'a', modelValue: '' },
+      }).attributes('type'),
+    ).toBe('text');
+    expect(
+      mount(BaseInput, {
+        global: withTranslations(),
+        props: { id: 'a', modelValue: '', type: 'password' },
+      }).attributes('type'),
     ).toBe('password');
   });
 
   // aria-invalid is what a screen reader uses to say "entrada no válida".
   // Painting the border red says it only to people who can see the border.
   it('announces invalidity as well as painting it', () => {
-    const valid = mount(BaseInput, { props: { id: 'a', modelValue: '' } });
+    const valid = mount(BaseInput, {
+      global: withTranslations(),
+      props: { id: 'a', modelValue: '' },
+    });
     expect(valid.attributes('aria-invalid')).toBeUndefined();
     expect(valid.classes()).toContain('border-line');
 
-    const invalid = mount(BaseInput, { props: { id: 'a', modelValue: '', invalid: true } });
+    const invalid = mount(BaseInput, {
+      global: withTranslations(),
+      props: { id: 'a', modelValue: '', invalid: true },
+    });
     expect(invalid.attributes('aria-invalid')).toBe('true');
     expect(invalid.classes()).toContain('border-danger-line');
   });
 
   it('points at the description it was given, and omits the attribute otherwise', () => {
-    const plain = mount(BaseInput, { props: { id: 'a', modelValue: '' } });
+    const plain = mount(BaseInput, {
+      global: withTranslations(),
+      props: { id: 'a', modelValue: '' },
+    });
     expect(plain.attributes('aria-describedby')).toBeUndefined();
 
     const described = mount(BaseInput, {
+      global: withTranslations(),
       props: { id: 'a', modelValue: '', describedBy: 'a-hint a-error' },
     });
     expect(described.attributes('aria-describedby')).toBe('a-hint a-error');
@@ -72,6 +99,7 @@ describe('BaseInput', () => {
 
   it('passes through the remaining native attributes', () => {
     const wrapper = mount(BaseInput, {
+      global: withTranslations(),
       props: {
         id: 'a',
         modelValue: '',
@@ -89,8 +117,11 @@ describe('BaseInput', () => {
   });
 
   it('carries a visible focus ring', () => {
-    expect(mount(BaseInput, { props: { id: 'a', modelValue: '' } }).classes()).toContain(
-      'focus-visible:focus-ring',
-    );
+    expect(
+      mount(BaseInput, {
+        global: withTranslations(),
+        props: { id: 'a', modelValue: '' },
+      }).classes(),
+    ).toContain('focus-visible:focus-ring');
   });
 });

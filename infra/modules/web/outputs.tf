@@ -1,21 +1,25 @@
 output "distribution_id" {
   description = "The distribution, for the cache invalidation a deployment ends with."
-  value       = aws_cloudfront_distribution.this.id
+  value       = one(aws_cloudfront_distribution.this[*].id)
 }
 
 output "distribution_arn" {
   description = "Distribution ARN. The deployment role's permission to invalidate is scoped to exactly this one."
-  value       = aws_cloudfront_distribution.this.arn
+  value       = one(aws_cloudfront_distribution.this[*].arn)
 }
 
 output "distribution_domain_name" {
   description = "Where the front end is served from. Until a custom domain exists this is the address of the application, and it is also the origin the audio bucket's CORS rule has to allow."
-  value       = aws_cloudfront_distribution.this.domain_name
+  value       = one(aws_cloudfront_distribution.this[*].domain_name)
 }
 
 output "front_end_origin" {
   description = "The distribution as an origin, scheme included, ready to be passed to the storage module's CORS allow-list."
-  value       = "https://${aws_cloudfront_distribution.this.domain_name}"
+  value = (
+    var.expose_ssr_publicly
+    ? trimsuffix(aws_lambda_function_url.ssr.function_url, "/")
+    : "https://${one(aws_cloudfront_distribution.this[*].domain_name)}"
+  )
 }
 
 output "assets_bucket_name" {

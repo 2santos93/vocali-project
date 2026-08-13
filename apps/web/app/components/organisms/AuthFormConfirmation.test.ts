@@ -1,9 +1,11 @@
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import AuthFormConfirmation from './AuthFormConfirmation.vue';
+import { withTranslations } from '../../i18n/testing';
 
 function mountForm(props: Record<string, unknown> = {}): VueWrapper {
   return mount(AuthFormConfirmation, {
+    global: withTranslations(),
     props: { email: 'ana@example.com', code: '', ...props },
   });
 }

@@ -9,10 +9,10 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      // The interface is Spanish. Without this the document declares no
-      // language and a screen reader pronounces it with the reader's default
-      // voice, which turns "transcripción" into noise.
-      htmlAttrs: { lang: 'es' },
+      // No `lang` here. It follows the reader's chosen interface language and
+      // is set in `app.vue`, where that value is available; a constant here
+      // would win on the first render and be corrected afterwards, which is
+      // exactly the flash the cookie exists to avoid.
       titleTemplate: '%s · Vocali',
       meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
     },

@@ -17,7 +17,12 @@ terraform {
   # this used to require is the older mechanism, and its argument is
   # deprecated.
   backend "s3" {
-    bucket       = "vocali-tfstate-931779397727"
+    # The bucket is deliberately absent: it carries the account id, and a
+    # literal here binds this repository to one account and silently points at
+    # the wrong one everywhere else. Supplied at init instead:
+    #
+    #   terraform init -backend-config="bucket=$(terraform -chdir=../../bootstrap output -raw state_bucket_name)"
+    #
     key          = "dev/terraform.tfstate"
     region       = "eu-west-1"
     use_lockfile = true

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useTranslations } from '../../i18n/translations';
 import BaseButton from '../atoms/BaseButton.vue';
 
 interface Props {
@@ -24,10 +25,12 @@ const emit = defineEmits<{
   previous: [];
   next: [];
 }>();
+
+const { t } = useTranslations();
 </script>
 
 <template>
-  <nav class="flex items-center justify-between gap-4" aria-label="Paginación del historial">
+  <nav class="flex items-center justify-between gap-4" :aria-label="t('history.pagination')">
     <BaseButton
       variant="secondary"
       size="sm"
@@ -35,10 +38,12 @@ const emit = defineEmits<{
       data-testid="pagination-previous"
       @click="emit('previous')"
     >
-      Anterior
+      {{ t('history.previous') }}
     </BaseButton>
 
-    <p class="text-sm text-ink-muted" aria-live="polite">Página {{ pageNumber }}</p>
+    <p class="text-sm text-ink-muted" aria-live="polite">
+      {{ t('history.page', { number: pageNumber }) }}
+    </p>
 
     <BaseButton
       variant="secondary"
@@ -47,7 +52,7 @@ const emit = defineEmits<{
       data-testid="pagination-next"
       @click="emit('next')"
     >
-      Siguiente
+      {{ t('history.next') }}
     </BaseButton>
   </nav>
 </template>

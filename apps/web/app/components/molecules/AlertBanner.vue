@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useTranslations } from '../../i18n/translations';
 import type { AlertVariant } from '../types';
 
 interface Props {
@@ -16,6 +17,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{ dismiss: [] }>();
+
+const { t } = useTranslations();
 
 const VARIANT_CLASSES: Record<AlertVariant, string> = {
   info: 'bg-info-soft border-info-line text-info-ink',
@@ -51,8 +54,8 @@ const variantClass = computed<string>(() => VARIANT_CLASSES[props.variant]);
     <button
       v-if="dismissible"
       type="button"
-      class="rounded-control p-1 leading-none transition-colors hover:bg-black/5 focus-visible:focus-ring"
-      aria-label="Cerrar aviso"
+      class="rounded-control p-1 leading-none transition-colors hover:bg-current/10 focus-visible:focus-ring"
+      :aria-label="t('common.dismiss')"
       data-testid="alert-dismiss"
       @click="emit('dismiss')"
     >

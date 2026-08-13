@@ -1,17 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useTranslations } from '../../i18n/translations';
 import type { ControlSize } from '../types';
 
 interface Props {
   size?: ControlSize;
-  /** Announced to assistive technology. Visible text is the caller's job. */
-  label?: string;
+  /**
+   * Announced to assistive technology. Visible text is the caller's job.
+   *
+   * Null rather than a default sentence, because the default has to be
+   * translated and a prop default cannot be: it is evaluated where the
+   * component is declared, not where it is rendered.
+   */
+  label?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   size: 'md',
-  label: 'Cargando',
+  label: null,
 });
+
+const { t } = useTranslations();
+
+const spinnerLabel = computed<string>(() => props.label ?? t('common.loading'));
 
 const SIZE_CLASSES: Record<ControlSize, string> = {
   sm: 'h-3.5 w-3.5',
@@ -29,7 +40,7 @@ const sizeClass = computed<string>(() => SIZE_CLASSES[props.size]);
     viewBox="0 0 24 24"
     fill="none"
     role="img"
-    :aria-label="label"
+    :aria-label="spinnerLabel"
     data-testid="spinner-icon"
   >
     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />

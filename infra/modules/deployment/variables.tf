@@ -88,11 +88,12 @@ variable "assets_bucket_arn" {
 }
 
 variable "distribution_arn" {
-  description = "The distribution a deployment invalidates once the new assets are in place."
+  description = "The distribution a deployment invalidates once the new assets are in place. Null while no distribution exists, in which case the deployment role is granted no invalidation permission at all rather than a wildcard one."
   type        = string
+  default     = null
 
   validation {
-    condition     = can(regex("^arn:aws[a-z-]*:cloudfront::[0-9]{12}:distribution/", var.distribution_arn))
-    error_message = "distribution_arn must be a CloudFront distribution ARN."
+    condition     = var.distribution_arn == null || can(regex("^arn:aws[a-z-]*:cloudfront::[0-9]{12}:distribution/", var.distribution_arn))
+    error_message = "distribution_arn must be a CloudFront distribution ARN, or null when there is no distribution."
   }
 }

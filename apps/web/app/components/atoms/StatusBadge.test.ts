@@ -1,6 +1,7 @@
 import { TRANSCRIPTION_STATUSES } from '@vocali/contracts';
 import { mount } from '@vue/test-utils';
 import StatusBadge from './StatusBadge.vue';
+import { withTranslations } from '../../i18n/testing';
 
 describe('StatusBadge', () => {
   it.each([
@@ -9,7 +10,7 @@ describe('StatusBadge', () => {
     ['COMPLETED', 'Completada'],
     ['FAILED', 'Fallida'],
   ] as const)('renders %s in Spanish', (status, expectedLabel) => {
-    const wrapper = mount(StatusBadge, { props: { status } });
+    const wrapper = mount(StatusBadge, { global: withTranslations(), props: { status } });
 
     expect(wrapper.text()).toBe(expectedLabel);
   });
@@ -18,7 +19,7 @@ describe('StatusBadge', () => {
   // fails here rather than reaching a clinician as a blank badge.
   it('covers every status the contracts package defines', () => {
     const rendered = TRANSCRIPTION_STATUSES.map((status) =>
-      mount(StatusBadge, { props: { status } }).text(),
+      mount(StatusBadge, { global: withTranslations(), props: { status } }).text(),
     );
 
     expect(rendered).toHaveLength(4);
@@ -32,13 +33,15 @@ describe('StatusBadge', () => {
     ['COMPLETED', 'bg-success-soft'],
     ['FAILED', 'bg-danger-soft'],
   ] as const)('paints %s distinctly', (status, expectedClass) => {
-    expect(mount(StatusBadge, { props: { status } }).classes()).toContain(expectedClass);
+    expect(
+      mount(StatusBadge, { global: withTranslations(), props: { status } }).classes(),
+    ).toContain(expectedClass);
   });
 
   it('gives every status its own colour', () => {
     const backgrounds = TRANSCRIPTION_STATUSES.map(
       (status) =>
-        mount(StatusBadge, { props: { status } })
+        mount(StatusBadge, { global: withTranslations(), props: { status } })
           .classes()
           .find((className) => className.startsWith('bg-')) ?? '',
     );
@@ -49,9 +52,27 @@ describe('StatusBadge', () => {
   // Colour is a second channel, never the only one: the text alone has to
   // carry the state on a monochrome screen.
   it('states the status in text, not only in colour', () => {
-    const wrapper = mount(StatusBadge, { props: { status: 'FAILED' } });
+    const wrapper = mount(StatusBadge, { global: withTranslations(), props: { status: 'FAILED' } });
 
     expect(wrapper.text()).toBe('Fallida');
     expect(wrapper.attributes('data-status')).toBe('FAILED');
+  });
+
+  /*
+   * The same four states, read by somebody working in English. Written out as
+   * literals rather than looked up in the catalogue the component uses: an
+   * expectation taken from the same table it is checking passes against an
+   * empty table, a Spanish one, and one where all four badges say the same
+   * thing.
+   */
+  it.each([
+    ['PENDING_UPLOAD', 'Awaiting upload'],
+    ['PROCESSING', 'In progress'],
+    ['COMPLETED', 'Completed'],
+    ['FAILED', 'Failed'],
+  ] as const)('renders %s in English for a reader who chose it', (status, expectedLabel) => {
+    const wrapper = mount(StatusBadge, { global: withTranslations('en'), props: { status } });
+
+    expect(wrapper.text()).toBe(expectedLabel);
   });
 });

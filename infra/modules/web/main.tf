@@ -122,22 +122,30 @@ data "aws_iam_policy_document" "assets" {
   # The only read grant on the bucket, and it is not to a principal anyone can
   # be: it is to the CloudFront service, acting for one named distribution.
   # Another distribution in this account, or anyone's, gets nothing.
-  statement {
-    sid    = "AllowThisDistributionToRead"
-    effect = "Allow"
+  #
+  # Absent entirely while `expose_ssr_publicly` is set, because there is no
+  # distribution to name and a policy that granted read to the service without
+  # naming one would be readable by any distribution in any account.
+  dynamic "statement" {
+    for_each = aws_cloudfront_distribution.this[*].arn
 
-    principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
-    }
+    content {
+      sid    = "AllowThisDistributionToRead"
+      effect = "Allow"
 
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.assets.arn}/*"]
+      principals {
+        type        = "Service"
+        identifiers = ["cloudfront.amazonaws.com"]
+      }
 
-    condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.this.arn]
+      actions   = ["s3:GetObject"]
+      resources = ["${aws_s3_bucket.assets.arn}/*"]
+
+      condition {
+        test     = "StringEquals"
+        variable = "AWS:SourceArn"
+        values   = [statement.value]
+      }
     }
   }
 }
@@ -284,8 +292,12 @@ resource "aws_lambda_function" "ssr" {
 # caching, no WAF later, and a second origin for the same application on a
 # domain nobody would think to check.
 resource "aws_lambda_function_url" "ssr" {
-  function_name      = aws_lambda_function.ssr.function_name
-  authorization_type = "AWS_IAM"
+  function_name = aws_lambda_function.ssr.function_name
+  # AWS_IAM is the intended state: only CloudFront, signing with its origin
+  # access control, may invoke this. NONE is the temporary exposure, and it is
+  # expressed here rather than changed by hand so that the state and the
+  # repository never disagree about which one is live.
+  authorization_type = var.expose_ssr_publicly ? "NONE" : "AWS_IAM"
 
   # Buffered rather than streamed. Streaming would shorten time-to-first-byte
   # on a slow render, and it is not compatible with the response compression
@@ -293,7 +305,23 @@ resource "aws_lambda_function_url" "ssr" {
   invoke_mode = "BUFFERED"
 }
 
+# The public counterpart of the CloudFront grant below, and mutually exclusive
+# with it. A function URL set to NONE still refuses every caller until a
+# resource policy admits one, so opening the URL without this returns 403 —
+# which is a safe default and an easy hour to lose.
+resource "aws_lambda_permission" "public_ssr" {
+  count = var.expose_ssr_publicly ? 1 : 0
+
+  statement_id           = "AllowPublicInvocationOfFunctionUrl"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.ssr.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
 resource "aws_lambda_permission" "cloudfront_ssr" {
+  count = var.expose_ssr_publicly ? 0 : 1
+
   statement_id  = "AllowInvocationFromCloudFront"
   action        = "lambda:InvokeFunctionUrl"
   function_name = aws_lambda_function.ssr.function_name
@@ -301,7 +329,7 @@ resource "aws_lambda_permission" "cloudfront_ssr" {
 
   # One distribution. Not the CloudFront service at large, which would let any
   # distribution in any account invoke this renderer.
-  source_arn = aws_cloudfront_distribution.this.arn
+  source_arn = one(aws_cloudfront_distribution.this[*].arn)
 }
 
 resource "aws_cloudfront_origin_access_control" "assets" {
@@ -400,6 +428,8 @@ resource "aws_cloudfront_response_headers_policy" "security" {
 }
 
 resource "aws_cloudfront_distribution" "this" {
+  count = var.expose_ssr_publicly ? 0 : 1
+
   enabled         = true
   comment         = "${var.name_prefix} front end"
   price_class     = var.price_class

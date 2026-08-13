@@ -112,6 +112,12 @@ module "lambda" {
   name_prefix = local.name_prefix
   bundle_dir  = local.function_bundle_dir
 
+  # This account is new, and AWS caps a new account at 512 MB per function
+  # until the quota is raised. The per-function sizing inside the module is
+  # the intent; this line is the account speaking. Delete it once the quota
+  # request is granted and every function returns to the size it was given.
+  max_memory_size_mb = 512
+
   function_names             = module.functions.function_names
   role_arns                  = module.functions.role_arns
   log_group_names            = module.functions.log_group_names
@@ -145,6 +151,15 @@ module "web" {
   name_prefix        = local.name_prefix
   assets_bucket_name = local.assets_bucket_name
   nuxt_output_dir    = local.nuxt_output_dir
+
+  # Same account cap as above.
+  ssr_memory_size = 512
+
+  # TEMPORARY, 2026-08-12. AWS has not yet verified this account for
+  # CloudFront, so the renderer is published on its own function URL and no
+  # distribution exists. See docs/adr/0009 for what this costs. Set back to
+  # false and apply once the verification case is answered.
+  expose_ssr_publicly = true
 
   environment_variables = {
     API_BASE_URL                    = module.api.api_endpoint

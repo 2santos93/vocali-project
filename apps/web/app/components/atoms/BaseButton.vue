@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useTranslations } from '../../i18n/translations';
 import type { ButtonVariant, ControlSize } from '../types';
 import SpinnerIcon from './SpinnerIcon.vue';
 
@@ -14,8 +15,12 @@ interface Props {
   disabled?: boolean;
   loading?: boolean;
   block?: boolean;
-  /** Announced while `loading` is true. */
-  loadingLabel?: string;
+  /**
+   * Announced while `loading` is true. Null falls back to a general word,
+   * translated where it is rendered rather than where it is declared — a prop
+   * default is evaluated once, and would freeze one language into the atom.
+   */
+  loadingLabel?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -25,13 +30,21 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   loading: false,
   block: false,
-  loadingLabel: 'Procesando',
+  loadingLabel: null,
 });
+
+const { t } = useTranslations();
+
+const busyLabel = computed<string>(() => props.loadingLabel ?? t('common.processing'));
 
 const emit = defineEmits<{ click: [event: MouseEvent] }>();
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-600 text-ink-inverse hover:bg-brand-700 border border-transparent',
+  // `brand-solid` rather than a rung of the brand scale. The scale reverses
+  // between the two themes because its rungs are text on a surface, and a
+  // filled button is the one place the brand is the surface. In the light
+  // theme these are the same two colours the scale gave before.
+  primary: 'bg-brand-solid text-ink-inverse hover:bg-brand-solid-hover border border-transparent',
   secondary: 'bg-surface text-brand-700 border border-line hover:bg-brand-50',
   danger: 'bg-danger-solid text-ink-inverse hover:bg-danger-ink border border-transparent',
   ghost: 'bg-transparent text-brand-700 border border-transparent hover:bg-brand-50',
@@ -67,7 +80,7 @@ const sizeClass = computed<string>(() => SIZE_CLASSES[props.size]);
     :aria-busy="loading ? 'true' : undefined"
     @click="emit('click', $event)"
   >
-    <SpinnerIcon v-if="loading" :size="size" :label="loadingLabel" />
+    <SpinnerIcon v-if="loading" :size="size" :label="busyLabel" />
     <slot />
   </button>
 </template>

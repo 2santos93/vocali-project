@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import type { Ref } from 'vue';
 import { DownloadUrlResponseSchema } from '@vocali/contracts';
 import type { Transcription, TranscriptFormat } from '@vocali/contracts';
+import type { TranslatableMessage } from '../i18n/translate';
 import { isSessionExpired, SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
 
 /**
@@ -20,15 +21,14 @@ export type FollowDownloadUrl = (url: string, fileName: string) => void;
 export interface TranscriptionDownload {
   /** The transcription whose URL is being fetched, so its row can show it. */
   readonly downloadingId: Readonly<Ref<string | null>>;
-  readonly errorMessage: Readonly<Ref<string | null>>;
+  readonly errorMessage: Readonly<Ref<TranslatableMessage | null>>;
   download: (transcription: Transcription, format?: TranscriptFormat) => Promise<void>;
   dismissError: () => void;
 }
 
-export const DOWNLOAD_FAILURE_MESSAGE =
-  'No hemos podido preparar la descarga. Vuelve a intentarlo.';
+export const DOWNLOAD_FAILURE_MESSAGE: TranslatableMessage = { key: 'failure.download' };
 
-export const DOWNLOAD_NOT_READY_MESSAGE = 'Solo puedes descargar una transcripción completada.';
+export const DOWNLOAD_NOT_READY_MESSAGE: TranslatableMessage = { key: 'failure.downloadNotReady' };
 
 const FORMAT_EXTENSIONS: Record<TranscriptFormat, string> = {
   txt: 'txt',
@@ -70,7 +70,7 @@ export function useTranscriptionDownload(
   followUrl: FollowDownloadUrl = followDownloadUrlInBrowser,
 ): TranscriptionDownload {
   const downloadingId = ref<string | null>(null);
-  const errorMessage = ref<string | null>(null);
+  const errorMessage = ref<TranslatableMessage | null>(null);
 
   async function download(
     transcription: Transcription,

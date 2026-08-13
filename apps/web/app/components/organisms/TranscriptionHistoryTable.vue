@@ -7,6 +7,8 @@ import BaseButton from '../atoms/BaseButton.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import EmptyState from '../molecules/EmptyState.vue';
 import PaginationControls from '../molecules/PaginationControls.vue';
+import type { MessageKey, TranslatableMessage } from '../../i18n/translate';
+import { useTranslations } from '../../i18n/translations';
 import { formatDateTime, formatDuration, formatFileSize } from '../format';
 
 interface Props {
@@ -20,7 +22,7 @@ interface Props {
    * keeps them apart: one invites a first upload, the other admits a failure
    * and offers a way out of it.
    */
-  loadErrorMessage?: string | null;
+  loadErrorMessage?: TranslatableMessage | null;
   /**
    * Whether that failure was the session ending rather than a fault, which is
    * the third case: retrying a request that will 401 again is not a remedy,
@@ -28,7 +30,7 @@ interface Props {
    */
   sessionExpired?: boolean;
   /** Reported separately: the list is fine, the download is what failed. */
-  downloadErrorMessage?: string | null;
+  downloadErrorMessage?: TranslatableMessage | null;
   /** The transcription whose signed URL is being fetched, if any. */
   downloadingId?: string | null;
   pageNumber?: number;
@@ -57,11 +59,13 @@ const emit = defineEmits<{
   dismissDownloadError: [];
 }>();
 
+const { t, locale } = useTranslations();
+
 const NOT_AVAILABLE = '—';
 
-const SOURCE_LABELS: Record<TranscriptionSource, string> = {
-  FILE: 'Archivo',
-  MICROPHONE: 'Micrófono',
+const SOURCE_KEYS: Record<TranscriptionSource, MessageKey> = {
+  FILE: 'history.source.FILE',
+  MICROPHONE: 'history.source.MICROPHONE',
 };
 
 /**
@@ -75,11 +79,15 @@ function durationCell(seconds: number | null): string {
 }
 
 function sizeCell(bytes: number | null): string {
-  return bytes === null ? NOT_AVAILABLE : formatFileSize(bytes);
+  return bytes === null ? NOT_AVAILABLE : formatFileSize(bytes, locale.value);
+}
+
+function dateCell(isoDate: string): string {
+  return formatDateTime(isoDate, locale.value);
 }
 
 function sourceLabel(source: TranscriptionSource): string {
-  return SOURCE_LABELS[source];
+  return t(SOURCE_KEYS[source]);
 }
 
 /**
@@ -102,11 +110,11 @@ const isEmpty = computed<boolean>(
 );
 
 const errorTitle = computed<string>(() =>
-  props.sessionExpired ? 'Tu sesión ha caducado' : 'No hemos podido cargar tu historial',
+  props.sessionExpired ? t('history.sessionExpiredTitle') : t('history.loadFailedTitle'),
 );
 
 const errorActionLabel = computed<string>(() =>
-  props.sessionExpired ? 'Iniciar sesión' : 'Reintentar',
+  props.sessionExpired ? t('history.signIn') : t('history.retry'),
 );
 
 /*
@@ -131,17 +139,15 @@ function onErrorAction(): void {
 const isFirstPage = computed<boolean>(() => props.pageNumber <= 1);
 
 const emptyTitle = computed<string>(() =>
-  isFirstPage.value ? 'Todavía no tienes transcripciones' : 'Esta página ya no tiene resultados',
+  isFirstPage.value ? t('history.emptyTitle') : t('history.pageEmptyTitle'),
 );
 
 const emptyDescription = computed<string>(() =>
-  isFirstPage.value
-    ? 'Sube un archivo de audio o dicta desde el micrófono para crear la primera.'
-    : 'Vuelve a la página anterior para seguir consultando tu historial.',
+  isFirstPage.value ? t('history.emptyDescription') : t('history.pageEmptyDescription'),
 );
 
 const emptyActionLabel = computed<string | null>(() =>
-  isFirstPage.value ? 'Transcribir un archivo' : null,
+  isFirstPage.value ? t('history.emptyAction') : null,
 );
 
 const showsPagination = computed<boolean>(
@@ -157,7 +163,7 @@ const showsPagination = computed<boolean>(
     <AlertBanner
       v-if="downloadErrorMessage !== null"
       variant="error"
-      :message="downloadErrorMessage"
+      :message="t(downloadErrorMessage)"
       dismissible
       @dismiss="emit('dismissDownloadError')"
     />
@@ -166,7 +172,7 @@ const showsPagination = computed<boolean>(
       v-if="loadErrorMessage !== null"
       variant="error"
       :title="errorTitle"
-      :description="loadErrorMessage"
+      :description="t(loadErrorMessage)"
       :action-label="errorActionLabel"
       @action="onErrorAction"
     />
@@ -177,8 +183,8 @@ const showsPagination = computed<boolean>(
       role="status"
       data-testid="history-loading"
     >
-      <SpinnerIcon size="lg" label="Cargando" />
-      <span>Cargando tu historial…</span>
+      <SpinnerIcon size="lg" :label="t('common.loading')" />
+      <span>{{ t('history.loading') }}</span>
     </div>
 
     <EmptyState
@@ -203,17 +209,19 @@ const showsPagination = computed<boolean>(
         :aria-busy="loading"
       >
         <caption class="sr-only">
-          Historial de transcripciones
+          {{
+            t('history.caption')
+          }}
         </caption>
         <thead class="border-b border-line text-xs uppercase tracking-wide text-ink-muted">
           <tr>
-            <th scope="col" class="px-4 py-3 font-medium">Archivo</th>
-            <th scope="col" class="px-4 py-3 font-medium">Origen</th>
-            <th scope="col" class="px-4 py-3 font-medium">Estado</th>
-            <th scope="col" class="px-4 py-3 font-medium">Duración</th>
-            <th scope="col" class="px-4 py-3 font-medium">Tamaño</th>
-            <th scope="col" class="px-4 py-3 font-medium">Fecha</th>
-            <th scope="col" class="px-4 py-3 font-medium">Acciones</th>
+            <th scope="col" class="px-4 py-3 font-medium">{{ t('history.column.file') }}</th>
+            <th scope="col" class="px-4 py-3 font-medium">{{ t('history.column.source') }}</th>
+            <th scope="col" class="px-4 py-3 font-medium">{{ t('history.column.status') }}</th>
+            <th scope="col" class="px-4 py-3 font-medium">{{ t('history.column.duration') }}</th>
+            <th scope="col" class="px-4 py-3 font-medium">{{ t('history.column.size') }}</th>
+            <th scope="col" class="px-4 py-3 font-medium">{{ t('history.column.date') }}</th>
+            <th scope="col" class="px-4 py-3 font-medium">{{ t('history.column.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -254,7 +262,7 @@ const showsPagination = computed<boolean>(
               {{ sizeCell(transcription.sizeBytes) }}
             </td>
             <td class="whitespace-nowrap px-4 py-3 tabular-nums text-ink-muted">
-              {{ formatDateTime(transcription.createdAt) }}
+              {{ dateCell(transcription.createdAt) }}
             </td>
             <td class="px-4 py-3">
               <!-- A button, not a link. The signed URL is short-lived, so it
@@ -265,18 +273,18 @@ const showsPagination = computed<boolean>(
                 variant="secondary"
                 size="sm"
                 :loading="downloadingId === transcription.id"
-                loading-label="Preparando la descarga"
+                :loading-label="t('history.preparingDownload')"
                 data-testid="history-download"
                 @click="emit('download', transcription)"
               >
-                Descargar
+                {{ t('history.download') }}
               </BaseButton>
               <!-- An em dash reads aloud as punctuation, which says nothing
                    about why the row has no button. The sentence is for the
                    screen reader; the dash is for everyone else. -->
               <span v-else class="text-ink-muted" data-testid="history-no-actions">
                 <span aria-hidden="true">{{ NOT_AVAILABLE }}</span>
-                <span class="sr-only">Sin descarga disponible</span>
+                <span class="sr-only">{{ t('history.noDownload') }}</span>
               </span>
             </td>
           </tr>

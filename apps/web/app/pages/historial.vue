@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import type { Transcription } from '@vocali/contracts';
+import { computed } from 'vue';
+import { useTranslations } from '../i18n/translations';
+
+const { t } = useTranslations();
 
 /*
  * The only file on this screen that touches the Nuxt runtime, and it supplies
@@ -30,7 +34,7 @@ onMounted(() => {
   void history.loadFirstPage();
 });
 
-useHead({ title: 'Historial de transcripciones' });
+useHead({ title: computed<string>(() => t('history.title')) });
 
 function goToPreviousPage(): void {
   void history.goToPreviousPage();
@@ -60,10 +64,9 @@ function downloadTranscript(transcription: Transcription): void {
 <template>
   <div class="flex flex-col gap-6">
     <header class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold text-ink">Historial de transcripciones</h1>
+      <h1 class="text-2xl font-semibold text-ink">{{ t('history.title') }}</h1>
       <p class="text-sm text-ink-muted">
-        Tus transcripciones, de la más reciente a la más antigua, en páginas de
-        {{ history.pageSize }}.
+        {{ t('history.description', { pageSize: history.pageSize }) }}
       </p>
     </header>
 

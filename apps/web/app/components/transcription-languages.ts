@@ -1,30 +1,49 @@
 import { SUPPORTED_TRANSCRIPTION_LANGUAGES } from '@vocali/contracts';
 import type { TranscriptionLanguage } from '@vocali/contracts';
+import type { MessageKey } from '../i18n/translate';
+import type { Translate } from '../i18n/translations';
 import type { SelectOption } from './types';
 
 /**
- * The Spanish name of every language the platform transcribes, and the select
+ * The name of every language the platform **transcribes**, and the select
  * options built from it.
+ *
+ * This list is about audio. It has nothing to do with the language the
+ * interface is written in, and the two must never be wired together: a
+ * clinician reading these screens in English dictates in Catalan, and a
+ * product that inferred one from the other would force them to give up one of
+ * the two. The names are translated — a reader in English sees "Catalan" and a
+ * reader in Spanish sees "Catalán" — but the *choice* remains theirs and
+ * remains per dictation.
  *
  * Both panels offer this choice, and two copies of the list is how one of them
  * ends up offering a language the other does not. The map is keyed by the
  * contract's union, so a language added to the platform stops this compiling
- * until someone has written the word a clinician will read — a plain
- * `Record<string, string>` would silently render the code instead.
+ * until someone has written the word a clinician will read, in every
+ * catalogue — a plain `Record<string, string>` would silently render the code.
  *
  * Beside `types.ts` rather than inside `organisms/`, which holds components:
  * this is a list and a narrowing function, shared by two of them.
  */
-const LANGUAGE_LABELS: Record<TranscriptionLanguage, string> = {
-  es: 'Español',
-  en: 'Inglés',
-  ca: 'Catalán',
-  eu: 'Euskera',
-  gl: 'Gallego',
+const AUDIO_LANGUAGE_KEYS: Record<TranscriptionLanguage, MessageKey> = {
+  es: 'audioLanguage.es',
+  en: 'audioLanguage.en',
+  ca: 'audioLanguage.ca',
+  eu: 'audioLanguage.eu',
+  gl: 'audioLanguage.gl',
 };
 
-export const TRANSCRIPTION_LANGUAGE_OPTIONS: readonly SelectOption[] =
-  SUPPORTED_TRANSCRIPTION_LANGUAGES.map((code) => ({ value: code, label: LANGUAGE_LABELS[code] }));
+/**
+ * A function rather than a constant, and called from a `computed` at each use
+ * site: the labels have to be rebuilt when the reader changes language, and a
+ * module-level array is built once when the module is first imported.
+ */
+export function transcriptionLanguageOptions(t: Translate): readonly SelectOption[] {
+  return SUPPORTED_TRANSCRIPTION_LANGUAGES.map((code) => ({
+    value: code,
+    label: t(AUDIO_LANGUAGE_KEYS[code]),
+  }));
+}
 
 /**
  * Narrows what a select reports back to the contract's union.

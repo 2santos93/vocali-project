@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useTranslations } from '../../i18n/translations';
 
 interface Props {
   /**
@@ -19,6 +20,8 @@ const props = withDefaults(defineProps<Props>(), {
   error: null,
   required: false,
 });
+
+const { t } = useTranslations();
 
 const hintId = computed<string>(() => `${props.id}-hint`);
 const errorId = computed<string>(() => `${props.id}-error`);
@@ -53,7 +56,7 @@ const describedBy = computed<string | null>(() => {
       {{ label }}
       <template v-if="required">
         <span class="text-danger-ink" aria-hidden="true">*</span>
-        <span class="sr-only">(obligatorio)</span>
+        <span class="sr-only">{{ t('common.required') }}</span>
       </template>
     </label>
 

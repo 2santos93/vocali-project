@@ -27,5 +27,8 @@
   // The components are still checked against the pages that use them —
   // `#components` imports them, so they enter this program by reference.
   "include": [".nuxt/nuxt.d.ts", "app/**/*.ts", "app/**/*.vue"],
-  "exclude": ["node_modules", ".output", "coverage", "cypress", "app/components/**"]
+  // `app/i18n` is excluded for the same reason `app/components` is: it is a
+  // root file of the Nuxt-free project, and one file in two projects is one
+  // file with two answers to whether `useCookie` exists.
+  "exclude": ["node_modules", ".output", "coverage", "cypress", "app/components/**", "app/i18n/**"]
 }

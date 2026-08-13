@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MAX_AUDIO_FILE_SIZE_BYTES, SUPPORTED_AUDIO_CONTENT_TYPES } from '@vocali/contracts';
 import { computed, ref } from 'vue';
+import { useTranslations } from '../../i18n/translations';
 import BaseButton from '../atoms/BaseButton.vue';
 import { formatMegabytes } from '../format';
 import type { FileRejection } from '../types';
@@ -45,6 +46,8 @@ const EXTENSION_LABELS: Record<string, string> = {
   'video/mp4': 'MP4',
 };
 
+const { t, locale } = useTranslations();
+
 const fileInput = ref<HTMLInputElement | null>(null);
 const isDragActive = ref(false);
 
@@ -63,33 +66,48 @@ const acceptedFormatsText = computed<string>(() => {
   return Array.from(new Set(labels)).join(', ');
 });
 
-const maxSizeText = computed<string>(() => formatMegabytes(props.maxSizeBytes));
+const maxSizeText = computed<string>(() => formatMegabytes(props.maxSizeBytes, locale.value));
 
 /**
  * The client check is a courtesy — the presigned POST policy is what enforces
  * the limit — but it is the difference between a clear sentence now and a
  * failed upload in twenty seconds.
+ *
+ * The refusal leaves as a key and its values rather than as a finished
+ * sentence. The parent shows it, and by the time it does the reader may have
+ * changed language; a sentence frozen at the moment of the refusal would then
+ * be the one line on the screen in the wrong one.
  */
 function findRejection(file: File): FileRejection | null {
   if (!props.accept.includes(file.type)) {
     return {
       code: 'UNSUPPORTED_FORMAT',
       fileName: file.name,
-      message: `El formato de «${file.name}» no es compatible. Admitimos ${acceptedFormatsText.value}.`,
+      message: {
+        key: 'upload.rejected.format',
+        values: { fileName: file.name, formats: acceptedFormatsText.value },
+      },
     };
   }
   if (file.size === 0) {
     return {
       code: 'EMPTY_FILE',
       fileName: file.name,
-      message: `«${file.name}» está vacío, así que no hay audio que transcribir.`,
+      message: { key: 'upload.rejected.empty', values: { fileName: file.name } },
     };
   }
   if (file.size > props.maxSizeBytes) {
     return {
       code: 'FILE_TOO_LARGE',
       fileName: file.name,
-      message: `«${file.name}» ocupa ${formatMegabytes(file.size)} y el límite es ${maxSizeText.value}.`,
+      message: {
+        key: 'upload.rejected.tooLarge',
+        values: {
+          fileName: file.name,
+          size: formatMegabytes(file.size, locale.value),
+          maxSize: maxSizeText.value,
+        },
+      },
     };
   }
   return null;
@@ -155,9 +173,9 @@ function openFilePicker(): void {
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
   >
-    <p class="text-sm font-medium text-ink">Arrastra un archivo de audio aquí</p>
+    <p class="text-sm font-medium text-ink">{{ t('upload.dropInstruction') }}</p>
     <p :id="`${inputId}-help`" class="text-xs text-ink-muted">
-      Formatos admitidos: {{ acceptedFormatsText }}. Tamaño máximo: {{ maxSizeText }}.
+      {{ t('upload.limits', { formats: acceptedFormatsText, maxSize: maxSizeText }) }}
     </p>
 
     <!-- The input carries the real file picker; the button drives it, so the
@@ -174,11 +192,11 @@ function openFilePicker(): void {
       @change="onInputChange"
     />
     <BaseButton variant="secondary" :disabled="disabled" @click="openFilePicker">
-      Seleccionar archivo
+      {{ t('upload.choose') }}
     </BaseButton>
 
     <p v-if="selectedFileName !== null" class="text-sm text-ink" data-testid="selected-file-name">
-      Archivo seleccionado: <span class="font-medium">{{ selectedFileName }}</span>
+      {{ t('upload.selected') }} <span class="font-medium">{{ selectedFileName }}</span>
     </p>
   </div>
 </template>

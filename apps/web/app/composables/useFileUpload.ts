@@ -12,6 +12,7 @@ import type {
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
 import type { ComputedRef, DeepReadonly, Ref } from 'vue';
+import type { TranslatableMessage } from '../i18n/translate';
 import { TRANSCRIPTIONS_PATH, UPLOADS_PATH } from '../utils/api-routes';
 import { readStatusCode } from '../utils/http-failure';
 import {
@@ -78,8 +79,12 @@ export type FileUploadFailureCode =
 
 export interface FileUploadFailure {
   readonly code: FileUploadFailureCode;
-  /** Spanish, and phrased so it says what to do next. */
-  readonly message: string;
+  /**
+   * Which sentence to show, not the sentence itself. Every catalogue phrases
+   * it so that it says what to do next; which catalogue is the reader's
+   * business, and is settled where it is rendered.
+   */
+  readonly message: TranslatableMessage;
 }
 
 export interface PresignedPostUpload {
@@ -94,10 +99,18 @@ export type StorageUploadFailureCode = 'REFUSED' | 'NETWORK_FAILED' | 'ABORTED';
 export class StorageUploadError extends Error {
   public readonly code: StorageUploadFailureCode;
 
-  constructor(code: StorageUploadFailureCode, message: string) {
-    super(message);
+  /**
+   * What the reader is told. `Error.message` is a string by construction and a
+   * developer reads it in a stack trace, so it carries the key; the sentence
+   * is produced from `detail` at the moment it is rendered.
+   */
+  public readonly detail: TranslatableMessage;
+
+  constructor(code: StorageUploadFailureCode, detail: TranslatableMessage) {
+    super(detail.key);
     this.name = 'StorageUploadError';
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -131,14 +144,11 @@ export function buildPresignedPostForm(
   return form;
 }
 
-function describeStorageRefusal(status: number): string {
+function describeStorageRefusal(status: number): TranslatableMessage {
   if (status === HTTP_FORBIDDEN) {
-    return (
-      'El almacenamiento ha rechazado el archivo: el permiso de subida ha caducado o el archivo ' +
-      'no cumple la política de tamaño. Vuelve a intentarlo con un archivo de menos de 20 MB.'
-    );
+    return { key: 'failure.upload.storageRefused' };
   }
-  return 'El almacenamiento no ha aceptado el archivo. Inténtalo de nuevo en unos segundos.';
+  return { key: 'failure.upload.storageUnavailable' };
 }
 
 /**
@@ -180,25 +190,15 @@ export function uploadToPresignedPost(
     });
 
     request.addEventListener('error', () => {
-      reject(
-        new StorageUploadError(
-          'NETWORK_FAILED',
-          'Se ha perdido la conexión mientras se subía el archivo. Comprueba tu red y vuelve a intentarlo.',
-        ),
-      );
+      reject(new StorageUploadError('NETWORK_FAILED', { key: 'failure.upload.connectionLost' }));
     });
 
     request.addEventListener('timeout', () => {
-      reject(
-        new StorageUploadError(
-          'NETWORK_FAILED',
-          'La subida ha tardado demasiado y se ha interrumpido. Vuelve a intentarlo.',
-        ),
-      );
+      reject(new StorageUploadError('NETWORK_FAILED', { key: 'failure.upload.timedOut' }));
     });
 
     request.addEventListener('abort', () => {
-      reject(new StorageUploadError('ABORTED', 'Has cancelado la subida.'));
+      reject(new StorageUploadError('ABORTED', { key: 'failure.upload.aborted' }));
     });
 
     request.send(buildPresignedPostForm(upload.fields, upload.file));
@@ -209,46 +209,28 @@ function describeIntentFailure(error: unknown): FileUploadFailure {
   const status = readStatusCode(error);
 
   if (status === HTTP_UNAUTHORIZED) {
-    return {
-      code: 'SESSION_EXPIRED',
-      message: 'Tu sesión ha caducado. Vuelve a iniciar sesión para subir el archivo.',
-    };
+    return { code: 'SESSION_EXPIRED', message: { key: 'failure.upload.sessionExpired' } };
   }
   if (status === HTTP_PAYLOAD_TOO_LARGE) {
-    return {
-      code: 'INTENT_REFUSED',
-      message: 'El archivo supera el límite de 20 MB, así que no se ha aceptado.',
-    };
+    return { code: 'INTENT_REFUSED', message: { key: 'failure.upload.tooLarge' } };
   }
   if (status === HTTP_UNSUPPORTED_MEDIA_TYPE) {
-    return {
-      code: 'INTENT_REFUSED',
-      message: 'El formato del archivo no es compatible, así que no se ha aceptado.',
-    };
+    return { code: 'INTENT_REFUSED', message: { key: 'failure.upload.unsupportedFormat' } };
   }
   if (status !== null) {
-    return {
-      code: 'INTENT_REFUSED',
-      message: 'No se ha podido preparar la subida. Revisa el archivo y vuelve a intentarlo.',
-    };
+    return { code: 'INTENT_REFUSED', message: { key: 'failure.upload.refused' } };
   }
-  return {
-    code: 'NETWORK_FAILED',
-    message: 'No se ha podido contactar con el servidor. Comprueba tu conexión y reinténtalo.',
-  };
+  return { code: 'NETWORK_FAILED', message: { key: 'failure.upload.unreachable' } };
 }
 
 function describeUploadFailure(error: unknown): FileUploadFailure {
   if (error instanceof StorageUploadError) {
     return {
       code: error.code === 'REFUSED' ? 'STORAGE_REFUSED' : 'NETWORK_FAILED',
-      message: error.message,
+      message: error.detail,
     };
   }
-  return {
-    code: 'NETWORK_FAILED',
-    message: 'La subida ha fallado por un motivo inesperado. Vuelve a intentarlo.',
-  };
+  return { code: 'NETWORK_FAILED', message: { key: 'failure.upload.unexpected' } };
 }
 
 export interface FileUploadGateway {
@@ -402,8 +384,7 @@ export function useFileUpload(gateway: FileUploadGateway): FileUploadController 
       if (record.status === 'FAILED') {
         fail({
           code: 'TRANSCRIPTION_FAILED',
-          message:
-            'No se ha podido transcribir el archivo. Comprueba que el audio se oye con claridad y vuelve a intentarlo.',
+          message: { key: 'failure.upload.transcriptionFailed' },
         });
         return;
       }
@@ -419,7 +400,7 @@ export function useFileUpload(gateway: FileUploadGateway): FileUploadController 
     if (contentType === null) {
       fail({
         code: 'UNSUPPORTED_FORMAT',
-        message: `No reconocemos el formato de «${file.name}», así que no podemos transcribirlo.`,
+        message: { key: 'failure.upload.unknownFormat', values: { fileName: file.name } },
       });
       return;
     }

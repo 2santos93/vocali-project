@@ -333,7 +333,9 @@ describe('uploadToPresignedPost', () => {
     await expect(settled).rejects.toBeInstanceOf(StorageUploadError);
     await settled.catch((error: unknown) => {
       expect((error as StorageUploadError).code).toBe('REFUSED');
-      expect((error as StorageUploadError).message).toContain('20 MB');
+      expect((error as StorageUploadError).detail).toEqual({
+        key: 'failure.upload.storageRefused',
+      });
     });
   });
 
@@ -347,7 +349,12 @@ describe('uploadToPresignedPost', () => {
 
     double.emit('load');
 
-    await expect(settled).rejects.toThrow('El almacenamiento no ha aceptado el archivo');
+    await settled.catch((error: unknown) => {
+      expect((error as StorageUploadError).detail).toEqual({
+        key: 'failure.upload.storageUnavailable',
+      });
+    });
+    await expect(settled).rejects.toBeInstanceOf(StorageUploadError);
   });
 
   it('accepts any 2xx, since S3 answers a presigned POST with 204', async () => {
@@ -365,11 +372,16 @@ describe('uploadToPresignedPost', () => {
     }
   });
 
+  /*
+   * The key, not the sentence. Which of these three the transport produced is
+   * this function's decision and is checked here; that each of them reads as a
+   * different, useful sentence is checked where the sentence is rendered.
+   */
   it.each([
-    ['error', 'NETWORK_FAILED', 'Se ha perdido la conexión'],
-    ['timeout', 'NETWORK_FAILED', 'ha tardado demasiado'],
-    ['abort', 'ABORTED', 'Has cancelado'],
-  ])('reports a transport %s in Spanish', async (event, code, fragment) => {
+    ['error', 'NETWORK_FAILED', 'failure.upload.connectionLost'],
+    ['timeout', 'NETWORK_FAILED', 'failure.upload.timedOut'],
+    ['abort', 'ABORTED', 'failure.upload.aborted'],
+  ])('reports a transport %s as the failure that fits it', async (event, code, key) => {
     const double = requestDouble();
     const settled = uploadToPresignedPost(
       { url: INTENT.upload.url, fields: PRESIGNED_FIELDS, file: AUDIO_FILE },
@@ -380,7 +392,7 @@ describe('uploadToPresignedPost', () => {
 
     await settled.catch((error: unknown) => {
       expect((error as StorageUploadError).code).toBe(code);
-      expect((error as StorageUploadError).message).toContain(fragment);
+      expect((error as StorageUploadError).detail).toEqual({ key });
     });
     await expect(settled).rejects.toBeInstanceOf(StorageUploadError);
   });
@@ -634,11 +646,11 @@ describe('useFileUpload', () => {
   });
 
   it.each([
-    [401, 'SESSION_EXPIRED', 'Tu sesión ha caducado'],
-    [413, 'INTENT_REFUSED', '20 MB'],
-    [415, 'INTENT_REFUSED', 'formato'],
-    [500, 'INTENT_REFUSED', 'No se ha podido preparar la subida'],
-  ])('translates a %s from the intent call into Spanish', async (status, code, fragment) => {
+    [401, 'SESSION_EXPIRED', 'failure.upload.sessionExpired'],
+    [413, 'INTENT_REFUSED', 'failure.upload.tooLarge'],
+    [415, 'INTENT_REFUSED', 'failure.upload.unsupportedFormat'],
+    [500, 'INTENT_REFUSED', 'failure.upload.refused'],
+  ])('turns a %s from the intent call into the failure that fits it', async (status, code, key) => {
     const gateway = gatewayDouble();
     gateway.onCreateIntent = (): Promise<CreateUploadIntentResponse> =>
       Promise.reject(httpError(status));
@@ -648,7 +660,7 @@ describe('useFileUpload', () => {
 
     expect(controller.phase.value).toBe('failed');
     expect(controller.failure.value?.code).toBe(code);
-    expect(controller.failure.value?.message).toContain(fragment);
+    expect(controller.failure.value?.message).toEqual({ key });
     expect(gateway.uploads).toHaveLength(0);
   });
 
@@ -671,9 +683,7 @@ describe('useFileUpload', () => {
   it('surfaces a storage refusal as its own failure, not as a network problem', async () => {
     const gateway = gatewayDouble();
     gateway.onUpload = (): Promise<void> =>
-      Promise.reject(
-        new StorageUploadError('REFUSED', 'El almacenamiento ha rechazado el archivo'),
-      );
+      Promise.reject(new StorageUploadError('REFUSED', { key: 'failure.upload.storageRefused' }));
     const controller = useFileUpload(gateway);
 
     await controller.upload(fileOf('larga.wav', 'audio/wav', MAX_AUDIO_FILE_SIZE_BYTES + 1), 'es');
@@ -686,7 +696,9 @@ describe('useFileUpload', () => {
   it('surfaces a dropped upload connection as a network failure', async () => {
     const gateway = gatewayDouble();
     gateway.onUpload = (): Promise<void> =>
-      Promise.reject(new StorageUploadError('NETWORK_FAILED', 'Se ha perdido la conexión'));
+      Promise.reject(
+        new StorageUploadError('NETWORK_FAILED', { key: 'failure.upload.connectionLost' }),
+      );
     const controller = useFileUpload(gateway);
 
     await controller.upload(AUDIO_FILE, 'es');

@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import BaseSelect from './BaseSelect.vue';
 import type { SelectOption } from '../types';
+import { withTranslations } from '../../i18n/testing';
 
 const LANGUAGES: readonly SelectOption[] = [
   { value: 'es', label: 'Español' },
@@ -11,6 +12,7 @@ const LANGUAGES: readonly SelectOption[] = [
 
 function mountSelect(props: Record<string, unknown> = {}): VueWrapper {
   return mount(BaseSelect, {
+    global: withTranslations(),
     props: { id: 'idioma', modelValue: 'es', options: LANGUAGES, ...props },
   });
 }
