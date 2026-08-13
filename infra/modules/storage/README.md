@@ -61,14 +61,15 @@ It filters on the `audio/` prefix, which is also what stops it feeding itself
 — anything the platform writes back into this bucket under another prefix
 creates an object too.
 
-## A disagreement to be aware of
+## A disagreement that has been resolved
 
-The application does not currently write to the transcripts bucket. Its
-composition root builds one `S3FileStorage` over `AUDIO_BUCKET_NAME` and uses
-it for both, so a finished transcript is written to `transcripts/…` inside the
-**audio** bucket. The execution roles grant that write on this module's
-transcripts bucket, so as things stand the write would be denied.
+The application did not always write to the transcripts bucket. Its
+composition root built one `S3FileStorage` over `AUDIO_BUCKET_NAME` and used
+it for both, so a finished transcript went to `transcripts/…` inside the
+**audio** bucket, while the execution roles granted that write on this
+module's transcripts bucket — and the write was denied.
 
-It is one line in `apps/api/src/composition-root.ts` and it is not fixed here,
-because that file is outside the round this module was last changed in. See
-`modules/lambda/README.md`, which sets `TRANSCRIPTS_BUCKET_NAME` ready for it.
+`composition-root.ts` now builds a second `S3FileStorage` over
+`TRANSCRIPTS_BUCKET_NAME`, which `modules/lambda` sets on every function and
+which the configuration schema requires. Both buckets are used as this module
+describes them.

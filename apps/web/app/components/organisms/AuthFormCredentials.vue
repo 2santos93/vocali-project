@@ -5,18 +5,6 @@ import BaseButton from '../atoms/BaseButton.vue';
 import BaseInput from '../atoms/BaseInput.vue';
 import FormField from '../molecules/FormField.vue';
 
-/**
- * An address and a password: the form behind both signing in and registering.
- *
- * One component rather than two, because the two differ only in their labels,
- * their autocomplete tokens and whether a password hint is shown — and two
- * copies would have drifted in their accessibility wiring within a week.
- *
- * Controlled: the values live in the page, arrive as props and leave as
- * events. That keeps the component free of any opinion about what a submission
- * means, which is what lets it mount under Jest with no Nuxt runtime.
- */
-
 interface Props {
   email: string;
   password: string;
@@ -24,7 +12,6 @@ interface Props {
   /** `new-password` when registering, `current-password` when signing in. */
   passwordAutocomplete: 'new-password' | 'current-password';
   passwordHint?: string | null;
-  /** A request is in flight: the button is busy and the fields are locked. */
   busy?: boolean;
 }
 
@@ -40,10 +27,8 @@ const emit = defineEmits<{
 }>();
 
 /*
- * Validation appears on the first submission and not before.
- *
- * Marking a field invalid while it is still being filled in tells a user their
- * half-typed address is wrong, which it is, and which is not useful.
+ * Validation appears on the first submission and not before: marking a field
+ * invalid while it is still being typed is true and useless.
  */
 const submitted = ref(false);
 
@@ -67,8 +52,7 @@ function onSubmit(): void {
 </script>
 
 <template>
-  <!-- A real form element, so Enter submits from either field. A div with a
-       click handler is a sign-in form that only works with a mouse. -->
+  <!-- A real form element, so Enter submits from either field. -->
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
     <FormField id="auth-email" :label="t('auth.email')" :error="emailError" required>
       <template #default="{ id, describedBy, invalid }">

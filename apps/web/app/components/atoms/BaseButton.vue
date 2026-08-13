@@ -1,24 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { ButtonVariant, ControlSize } from '../component-vocabulary';
+import type { ButtonVariant } from '../types/ButtonVariant';
+import type { ControlSize } from '../types/ControlSize';
 import SpinnerIcon from './SpinnerIcon.vue';
 
 interface Props {
   variant?: ButtonVariant;
   size?: ControlSize;
-  /**
-   * Defaults to `button`, not to the HTML default of `submit`. A button
-   * dropped inside a form to trigger something unrelated must not submit it.
-   */
+  /** Defaults to `button`: one dropped into a form must not submit it. */
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
   loading?: boolean;
   block?: boolean;
   /**
-   * Announced while `loading` is true. Null falls back to a general word,
-   * translated where it is rendered rather than where it is declared — a prop
-   * default is evaluated once, and would freeze one language into the atom.
+   * Null rather than a default sentence: a prop default is evaluated where the
+   * component is declared, so it would freeze one language into the atom.
    */
   loadingLabel?: string | null;
 }
@@ -40,10 +37,9 @@ const busyLabel = computed<string>(() => props.loadingLabel ?? t('common.process
 const emit = defineEmits<{ click: [event: MouseEvent] }>();
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  // `brand-solid` rather than a rung of the brand scale. The scale reverses
-  // between the two themes because its rungs are text on a surface, and a
-  // filled button is the one place the brand is the surface. In the light
-  // theme these are the same two colours the scale gave before.
+  // `brand-solid` rather than a rung of the brand scale: the scale reverses
+  // between themes because its rungs are text on a surface, and a filled
+  // button is the one place the brand is the surface.
   primary: 'bg-brand-solid text-ink-inverse hover:bg-brand-solid-hover border border-transparent',
   secondary: 'bg-surface text-brand-700 border border-line hover:bg-brand-50',
   danger: 'bg-danger-solid text-ink-inverse hover:bg-danger-ink border border-transparent',
@@ -56,10 +52,7 @@ const SIZE_CLASSES: Record<ControlSize, string> = {
   lg: 'text-base px-5 py-2.5 gap-2',
 };
 
-/**
- * Loading is a form of unavailability. Leaving the button live while a request
- * is in flight is how a user sends the same upload twice.
- */
+/** Loading disables too: a live button during a request sends the upload twice. */
 const isInoperable = computed<boolean>(() => props.disabled || props.loading);
 
 const variantClass = computed<string>(() => VARIANT_CLASSES[props.variant]);

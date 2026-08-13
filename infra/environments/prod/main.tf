@@ -191,15 +191,22 @@ module "web" {
   # Same account cap as above.
   ssr_memory_size = 512
 
-  # TEMPORARY, 2026-08-12, and paired with the origin below: while there is no
-  # public front end, the only way to exercise the upload is to run the
-  # renderer locally, and the browser posts the file straight to S3 from
-  # whatever origin serves the page. Remove both once the distribution exists.
+  # TEMPORARY, 2026-08-12. AWS has not verified this account, so
+  # CreateDistribution is refused and no distribution exists. This is the only
+  # value that lets the environment apply at all: with a distribution the
+  # apply fails, and with neither the module has no origin to name.
   #
-  # TEMPORARY, 2026-08-12. AWS has not yet verified this account for
-  # CloudFront, so the renderer is published on its own function URL and no
-  # distribution exists. See docs/adr/0009 for what this costs. Set back to
-  # false and apply once the verification case is answered.
+  # It does not buy a public front end. The function URL it opens answers 403
+  # to every caller — the unverified account refuses public access to the URL
+  # as well, so the intended edge and its substitute are blocked by the same
+  # gate. The function is healthy; invoked directly it renders. See
+  # docs/adr/0009.
+  #
+  # Which is why `front_end_origins` carries the local origin: the only way to
+  # exercise an upload is to run the renderer on a developer machine, and the
+  # browser posts the file straight to S3 from whatever origin serves the page.
+  #
+  # Set back to false and apply once the verification case is answered.
   expose_ssr_publicly = true
 
   environment_variables = {

@@ -1,16 +1,14 @@
 import { SUPPORTED_TRANSCRIPTION_LANGUAGES } from '@vocali/contracts/constants';
 import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import { z } from 'zod';
-import type {
-  ProviderCallback,
-  ProviderJobOutcome,
-} from '../../domain/ports/transcription-provider.js';
+import type { ProviderCallback } from '../../domain/types/provider-callback.js';
+import type { ProviderJobOutcome } from '../../domain/types/provider-job-outcome.js';
+import type { SpeechmaticsTranscript } from '../types/speechmatics-transcript.js';
+import type { TranscriptResult } from '../types/transcript-result.js';
 
 /**
- * The provider appends `?id=<jobId>&status=<status>` to whatever callback URL
- * the job was submitted with. `success` is the only value that means a
- * transcript is in the body; every other value describes a job that produced
- * none.
+ * The provider appends `?id=<jobId>&status=<status>` to the callback URL the
+ * job was submitted with.
  */
 const JOB_ID_PARAMETER = 'id';
 const STATUS_PARAMETER = 'status';
@@ -18,31 +16,21 @@ const SPEECHMATICS_SUCCESS_STATUS = 'success';
 
 /**
  * Both values travel onward — the job id into a storage comparison, the status
- * into a log line — so both are bounded here, at the edge, rather than trusted
- * because they came from a caller that knew the shared secret.
+ * into a log line — so both are bounded at the edge rather than trusted because
+ * the caller knew the shared secret.
  */
 const MAX_PARAMETER_LENGTH = 128;
 
 /**
- * The transcript as the provider posts it when `contents` names a single
- * entry: its own JSON output format, straight in the request body.
- *
- * Deliberately loose. Every field the platform does not read is left
- * undeclared and every field it does read is optional, because this schema
- * describes somebody else's payload and a provider adding a field, or
- * omitting one on an empty recording, must not turn a finished transcription
- * into a rejected callback. What is enforced is the shape of the parts that
- * are actually used.
+ * Deliberately loose: this describes somebody else's payload, so a provider
+ * adding a field, or omitting one on an empty recording, must not turn a
+ * finished transcription into a rejected callback.
  */
-const TranscriptResultSchema = z.object({
+export const TranscriptResultSchema = z.object({
   type: z.string().optional(),
   attaches_to: z.string().optional(),
   end_time: z.number().optional(),
-  /**
-   * Where the identified language arrives. Speechmatics reports it per token
-   * rather than once per job, so the transcript carries it on the words
-   * themselves — see `resolveDetectedLanguage`.
-   */
+  /** Reported per token rather than once per job — see `resolveDetectedLanguage`. */
   language: z.string().optional(),
   alternatives: z.array(z.object({ content: z.string() })).optional(),
 });
@@ -52,18 +40,11 @@ export const SpeechmaticsTranscriptSchema = z.object({
   results: z.array(TranscriptResultSchema).default([]),
 });
 
-export type SpeechmaticsTranscript = z.infer<typeof SpeechmaticsTranscriptSchema>;
-
-type TranscriptResult = z.infer<typeof TranscriptResultSchema>;
-
 /**
- * Everything this platform needs to know about a Speechmatics callback, and
- * the only place that knowledge lives.
- *
- * An unusable job id is `unrecognised` rather than `failed`, even though the
- * callback may well be reporting a real failure: the id is what proves the
- * callback belongs to the record it names, and marking a transcription failed
- * on a callback that cannot be tied to it is a write the sender did not earn.
+ * An unusable job id is `unrecognised` rather than `failed`, even where the
+ * callback reports a real failure: the id is what proves the callback belongs
+ * to the record it names, and marking a transcription failed on a callback
+ * that cannot be tied to it is a write the sender did not earn.
  */
 export function interpretSpeechmaticsCallback(callback: ProviderCallback): ProviderJobOutcome {
   const externalJobId = readParameter(callback.query, JOB_ID_PARAMETER);
@@ -76,11 +57,10 @@ export function interpretSpeechmaticsCallback(callback: ProviderCallback): Provi
     return { kind: 'unrecognised', reason: 'The callback did not report a job status' };
   }
 
-  // Anything other than the one success word is a job that produced no
-  // transcript. Read this way round on purpose: a status the provider adds
-  // later becomes a failure, which ruling R2 allows a later completion to
-  // recover from, where guessing the other way would complete a transcription
-  // out of whatever the body happened to hold.
+  // Read this way round on purpose: a status the provider adds later becomes a
+  // failure, which FAILED -> COMPLETED lets a later callback recover from,
+  // whereas guessing the other way completes a transcription out of whatever
+  // the body happened to hold.
   if (providerStatus !== SPEECHMATICS_SUCCESS_STATUS) {
     return { kind: 'failed', externalJobId, providerStatus };
   }
@@ -100,17 +80,10 @@ export function interpretSpeechmaticsCallback(callback: ProviderCallback): Provi
 }
 
 /**
- * The language the provider identified, as this platform names it.
- *
- * The job was submitted with the platform's five languages as the only
- * candidates, so what comes back should always be one of them — but this is
- * somebody else's payload, and a code we do not recognise is read as "not
- * known" rather than forced into the union. The alternative is a stored
- * language the rest of the system cannot render.
- *
- * The first token that carries one decides it. A file is submitted as a single
- * language job, so the tokens agree; taking the first avoids counting votes to
- * answer a question the provider has already answered.
+ * An unrecognised code is read as "not known" rather than forced into the
+ * union: the alternative is a stored language the rest of the system cannot
+ * render. The first token carrying one decides it — a file is submitted as a
+ * single-language job, so the tokens agree.
  */
 export function resolveDetectedLanguage(
   transcript: SpeechmaticsTranscript,
@@ -139,10 +112,9 @@ function readParameter(
 }
 
 /**
- * An absent body is read as an empty payload rather than refused, for the same
- * reason the schema above is loose: `results` defaults, so a success callback
- * that carried nothing records an empty recording instead of being rejected
- * and redelivered until the provider gives up.
+ * An absent body is read as an empty payload rather than refused: a success
+ * callback carrying nothing records an empty recording instead of being
+ * rejected and redelivered until the provider gives up.
  */
 function readTranscript(body: string | undefined): SpeechmaticsTranscript | null {
   let payload: unknown = {};
@@ -161,20 +133,15 @@ function readTranscript(body: string | undefined): SpeechmaticsTranscript | null
 }
 
 /**
- * Flattens the provider's token list into the plain text the platform stores
- * and shows.
+ * Spacing is the whole job, and Spanish makes it a requirement rather than a
+ * nicety: `¿` and `¡` carry `attaches_to: "next"`, so they take a space before
+ * and none after, while `?`, `!`, `.` and `,` take the opposite. Joining every
+ * token with a space produces `el paciente refiere dolor .`, which is what a
+ * clinician would be asked to sign.
  *
- * Spacing is the whole job. Words are separated by a space; punctuation is
- * not, and Spanish makes that a real requirement rather than a nicety —
- * `¿` and `¡` open a sentence and carry `attaches_to: "next"`, so they take a
- * space before and none after, while `?`, `!`, `.` and `,` take the opposite.
- * Joining every token with a space produces `el paciente refiere dolor .`,
- * which is what a clinician would be asked to sign.
- *
- * The first alternative is the provider's own best guess; the rest are
- * lower-confidence candidates and are not the transcript. A token with no
- * alternatives at all — a speaker change marker, for instance — contributes
- * nothing and must not contribute a space either.
+ * Only the first alternative is the transcript; the rest are lower-confidence
+ * candidates. A token with none — a speaker change marker — must not
+ * contribute a space either.
  */
 export function buildTranscriptText(results: readonly TranscriptResult[]): string {
   let text = '';
@@ -197,14 +164,9 @@ export function buildTranscriptText(results: readonly TranscriptResult[]): strin
 }
 
 /**
- * The audio's length in seconds, as the provider measured it.
- *
- * `job.duration` is the authoritative value, but it is absent on some job
- * shapes, so the last token's end time stands in — it is the end of the
- * transcript rather than the end of the file, and slightly short is better
- * than a record that displays no duration at all. Zero is the floor: the
- * entity requires a non-negative number, and an empty recording genuinely
- * has no length.
+ * `job.duration` is authoritative but absent on some job shapes, so the last
+ * token's end time stands in — the end of the transcript rather than of the
+ * file, and slightly short beats a record showing no duration at all.
  */
 export function resolveDurationSeconds(transcript: SpeechmaticsTranscript): number {
   const reported = transcript.job?.duration;

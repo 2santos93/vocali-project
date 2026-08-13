@@ -158,8 +158,8 @@ resource "aws_s3_bucket_policy" "assets" {
 }
 
 # The Nuxt server. Its own role and its own log group rather than the
-# functions module's, because it is not one of the eight: it renders pages and
-# holds the session, and what it may reach is a different list.
+# functions module's, because it is not one of the API functions: it renders
+# pages and holds the session, and what it may reach is a different list.
 data "aws_iam_policy_document" "ssr_assume_role" {
   statement {
     sid     = "LambdaAssumeRole"

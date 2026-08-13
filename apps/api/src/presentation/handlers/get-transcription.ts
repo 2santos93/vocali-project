@@ -1,28 +1,23 @@
-import type { GetTranscription } from '../../application/use-cases/get-transcription.js';
-import type { Logger } from '../../domain/ports/logger.js';
-import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { OK } from '../http/http-status.js';
 import { TranscriptionPathParametersSchema } from '../http/request-schemas.js';
 import { withValidatedPathParameters } from '../http/validation.js';
-
-interface Dependencies {
-  readonly useCase: GetTranscription;
-  readonly logger: Logger;
-}
+import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
+import type { GetTranscriptionDependencies } from '../types/get-transcription-dependencies.js';
 
 /**
- * `GET /transcriptions/{transcriptionId}` — one record, for the client
- * polling an upload it has just made.
+ * `GET /transcriptions/{transcriptionId}`.
  *
- * The id comes from the path and the owner comes from the token. Both are
- * needed to address the record, and only one of them is the caller's to
- * choose: a path id belonging to somebody else resolves to nothing, because
- * the repository builds its partition key from the authenticated user.
+ * The id comes from the path and the owner from the token, and only one of
+ * those is the caller's to choose: a path id belonging to somebody else
+ * resolves to nothing, because the repository builds its partition key from
+ * the authenticated user.
  */
-export function getTranscriptionHandler(dependencies: Dependencies): ApiGatewayRequestHandler {
+export function getTranscriptionHandler(
+  dependencies: GetTranscriptionDependencies,
+): ApiGatewayRequestHandler {
   return withErrorMapping(
     dependencies.logger,
     withAuthenticatedUser(

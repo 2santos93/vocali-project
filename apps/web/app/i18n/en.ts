@@ -1,4 +1,4 @@
-import type { MessageKey } from './es';
+import type { MessageKey } from './types/MessageKey';
 
 /**
  * The English interface.

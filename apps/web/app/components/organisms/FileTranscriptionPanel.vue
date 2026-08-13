@@ -7,25 +7,18 @@ import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FileDropZone from '../molecules/FileDropZone.vue';
-import type { FileRejection } from '../component-vocabulary';
-import type { FileUploadFailure, FileUploadPhase } from '../../composables/upload-failures';
-import type { TranslatableMessage } from '../../i18n/translate';
+import type { FileRejection } from '../types/FileRejection';
+import type { FileUploadFailure } from '../../composables/types/FileUploadFailure';
+import type { FileUploadPhase } from '../../composables/types/FileUploadPhase';
+import type { TranslatableMessage } from '../../i18n/types/TranslatableMessage';
 import { useTranslations } from '../../i18n/translations';
 import { transcriptionLanguageName } from '../transcription-languages';
 
 /**
- * Choosing an audio file, sending it, and watching it become a transcription.
- *
- * Pure Vue: the phase, the progress and the outcome arrive as props and the
- * intent leaves as an event. It holds one piece of state that is nobody else's
- * business — which file is chosen — because a page that had to own that would
- * exist only to pass it straight back down.
- *
- * It no longer asks which language the recording is in. The provider
- * identifies that from the audio itself, which is the one party to this that
- * has heard it: whoever uploads a file may not have made the recording, and a
- * dropdown defaulted to Spanish was answered wrongly in silence. What the
- * screen does instead is report what was identified, once it knows.
+ * This screen deliberately does not ask which language the recording is in.
+ * The provider identifies that from the audio, which is the one party here
+ * that has heard it — whoever uploads a file may not have made the recording,
+ * and a dropdown defaulted to Spanish was answered wrongly in silence.
  */
 
 interface Props {
@@ -52,24 +45,15 @@ const { t } = useTranslations();
 const selectedFile = ref<File | null>(null);
 
 /**
- * Why the panel cannot proceed yet — a refused file, or no file at all.
- *
- * Held as a message rather than as a code because every producer of it already
- * knows which one applies: `FileDropZone` owns the limits it checked and names
- * its own refusal, and there is exactly one other case. It is a key rather
- * than a sentence so that a warning raised before a change of language is
- * still read in the language on screen.
+ * A key rather than a sentence, so a warning raised before a change of
+ * language is still read in the language on screen.
  */
 const warning = ref<TranslatableMessage | null>(null);
 
 /**
- * The identified language, named for the reader, or null while there is
- * nothing to report.
- *
- * Null covers two cases on purpose — no record yet, and a record whose
- * language the provider could not identify — because the screen says the same
- * thing in both: nothing. Announcing "language unknown" beside a finished
- * transcript would give a non-event a headline.
+ * Null covers both "no record yet" and "the provider could not identify it",
+ * because the screen says nothing in either case: "language unknown" beside a
+ * finished transcript gives a non-event a headline.
  */
 const detectedLanguage = computed<string | null>(() => {
   const code = props.transcription?.language ?? null;
@@ -100,13 +84,9 @@ function onReject(refusal: FileRejection): void {
 }
 
 /**
- * The button stays operable with no file chosen, and says why it cannot
- * proceed.
- *
- * A disabled control explains nothing: someone who has not noticed that the
- * drop zone rejected their file sees a dead button and no reason for it. This
- * way the guard that protects the emit is also the guard the user meets, so
- * there is one behaviour rather than two that have to agree.
+ * The button stays operable with no file chosen and says why it cannot
+ * proceed: a disabled control explains nothing to someone who has not noticed
+ * that the drop zone rejected their file.
  */
 function onSubmit(): void {
   const file = selectedFile.value;
@@ -126,18 +106,11 @@ function onReset(): void {
 </script>
 
 <template>
-  <!--
-    The same two columns as the dictation screen, and for the same reason: what
-    the user provides on the left, what comes back on the right, with one rule
-    between them. Reading them as one shape across both screens is worth more
-    than either arrangement is on its own.
-  -->
   <section
     class="overflow-hidden rounded-panel border border-line bg-surface"
     aria-labelledby="file-transcription-heading"
   >
-    <!-- The page's <h1> already says this. Kept as the section's name, and
-         hidden, rather than printed twice. -->
+    <!-- Repeated from the page's <h1> because the section is named by it. -->
     <h2 id="file-transcription-heading" class="sr-only">{{ t('file.heading') }}</h2>
 
     <div class="grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
@@ -150,10 +123,6 @@ function onReset(): void {
           @reject="onReject"
         />
 
-        <!-- Where the language question used to be. It says what the platform
-             will do rather than asking the reader to do it, because the answer
-             is in the audio and this is the one party to the exchange that has
-             not heard it. -->
         <p class="text-xs leading-relaxed text-ink-muted" data-testid="automatic-language-note">
           {{ t('file.automaticLanguage') }}
         </p>
@@ -182,8 +151,7 @@ function onReset(): void {
           </BaseButton>
         </div>
 
-        <!-- Real progress, from XMLHttpRequest's progress event. It is shown
-             only while the file is on its way: a bar during the transcription
+        <!-- Only while the file is on its way: a bar during the transcription
              itself would be measuring nothing. -->
         <ProgressBar
           v-if="phase === 'uploading'"
@@ -212,9 +180,7 @@ function onReset(): void {
         </p>
 
         <!-- A warning rather than an error: nothing has been attempted yet, and
-             the client-side checks are a courtesy — the storage policy is what
-             enforces the limit. It sits under the controls it is about, so the
-             refused file and the reason are read together. -->
+             the storage policy is what actually enforces the limit. -->
         <AlertBanner
           v-if="warning !== null"
           variant="warning"
@@ -236,8 +202,7 @@ function onReset(): void {
           {{ t('file.resultHeading') }}
         </h3>
 
-        <!-- Not an error: the audio is stored and the work is still running.
-             The history is where it will appear, so that is what this says. -->
+        <!-- Not an error: the audio is stored and the work is still running. -->
         <AlertBanner
           v-if="phase === 'stillProcessing'"
           variant="info"
@@ -257,11 +222,8 @@ function onReset(): void {
             <p class="text-sm font-medium text-ink">{{ transcription.fileName }}</p>
 
             <div class="flex items-center gap-2">
-              <!-- The answer to the question the screen stopped asking. It sits
-                   beside the status because it is a fact about the finished
-                   job, and because a reader who expected another language has
-                   to be able to see that here rather than by reading the
-                   transcript and wondering. -->
+              <!-- A reader who expected another language has to see that here
+                   rather than by reading the transcript and wondering. -->
               <span
                 v-if="detectedLanguage !== null"
                 class="text-xs text-ink-muted"
@@ -283,8 +245,6 @@ function onReset(): void {
           </p>
         </div>
 
-        <!-- The column has to say something before there is a result, or the
-             larger half of the screen is an unexplained empty space. -->
         <p
           v-else
           class="min-h-64 text-sm text-ink-muted lg:min-h-80"

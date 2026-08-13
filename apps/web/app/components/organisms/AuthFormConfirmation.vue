@@ -6,22 +6,14 @@ import BaseInput from '../atoms/BaseInput.vue';
 import FormField from '../molecules/FormField.vue';
 
 /**
- * The confirmation code, and the way out of one that has expired.
- *
- * The resend control is not an afterthought. A confirmation code sits in an
- * inbox while the user does something else, and by the time they come back it
- * has expired — so "the code no longer works" is the ordinary path through
- * this screen, not an edge case. Without a way to ask for another one the
- * account can never be used, and the screen is a dead end.
- *
- * Controlled and presentational: values in as props, intent out as events.
+ * A code expires while it sits in an inbox, so "the code no longer works" is
+ * the ordinary path through this screen. Without the resend control the
+ * account can never be used and the screen is a dead end.
  */
 
 interface Props {
-  /** The address being confirmed. Shown, not editable — it was just typed. */
   email: string;
   code: string;
-  /** A confirmation is in flight. */
   busy?: boolean;
   /** A resend is in flight, which must not lock the code field. */
   resending?: boolean;
@@ -57,10 +49,8 @@ function onSubmit(): void {
 
 <template>
   <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
-    <!-- One sentence with the address interpolated, rather than three nodes
-         with the address emphasised in the middle. A sentence split around a
-         value is a sentence a translator cannot reorder, and the address is
-         the only thing on this screen anybody is looking for anyway. -->
+    <!-- One interpolated sentence rather than three nodes: a sentence split
+         around a value is one a translator cannot reorder. -->
     <p class="text-sm text-ink-muted">{{ t('auth.confirm.codeSent', { email }) }}</p>
 
     <FormField
@@ -96,8 +86,8 @@ function onSubmit(): void {
       {{ t('auth.confirm.submit') }}
     </BaseButton>
 
-    <!-- Always present, not revealed only after a failure. A user whose code
-         never arrived has nothing to fail at first. -->
+    <!-- Always present, not revealed after a failure: a user whose code never
+         arrived has nothing to fail at first. -->
     <BaseButton
       type="button"
       variant="ghost"

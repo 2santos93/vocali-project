@@ -17,10 +17,9 @@ import { RedeemConnectionTicket } from './application/use-cases/redeem-connectio
 import { RegisterConnection } from './application/use-cases/register-connection.js';
 import { SaveRealtimeTranscription } from './application/use-cases/save-realtime-transcription.js';
 import { StartFileTranscription } from './application/use-cases/start-file-transcription.js';
-import type { Logger } from './domain/ports/logger.js';
-import type { SecretsProvider } from './domain/ports/secrets-provider.js';
-import type { TranscriptionProvider } from './domain/ports/transcription-provider.js';
-import { loadConfig, type AppConfig } from './infrastructure/config/environment.js';
+import { loadConfig } from './infrastructure/config/environment.js';
+import type { AppConfig } from './infrastructure/types/app-config.js';
+import type { Container } from './types/container.js';
 import { CryptoTokenGenerator } from './infrastructure/id/crypto-token-generator.js';
 import { UlidIdGenerator } from './infrastructure/id/ulid-id-generator.js';
 import { ApiGatewayConnectionPublisher } from './infrastructure/messaging/api-gateway-connection-publisher.js';
@@ -34,49 +33,12 @@ import { S3FileStorage } from './infrastructure/storage/s3-file-storage.js';
 import { SystemClock } from './infrastructure/time/system-clock.js';
 
 /**
- * Everything a handler is allowed to reach for. Use cases and the three
- * services no use case can express on a handler's behalf — the logger, the
- * secret the webhook authenticates against, and the provider that alone can
- * say what its own callback meant.
+ * One graph per container, not one per request. Building it inside the handler
+ * would create three AWS SDK clients on every call and throw away the secret
+ * cache that lets a warm invocation avoid Parameter Store entirely.
  *
- * All three are declared as ports, which is what keeps this list from becoming
- * a way in for adapters: a handler that could see `S3Client` would eventually
- * use it, and `SpeechmaticsTranscriptionProvider` named here would put one
- * vendor back inside the HTTP layer.
- */
-export interface Container {
-  readonly config: AppConfig;
-  readonly logger: Logger;
-  readonly secrets: SecretsProvider;
-  readonly transcriptionProvider: TranscriptionProvider;
-  readonly createAudioUploadIntent: CreateAudioUploadIntent;
-  readonly listUserTranscriptions: ListUserTranscriptions;
-  readonly getTranscription: GetTranscription;
-  readonly getTranscriptionDownloadUrl: GetTranscriptionDownloadUrl;
-  readonly saveRealtimeTranscription: SaveRealtimeTranscription;
-  readonly createRealtimeSession: CreateRealtimeSession;
-  readonly startFileTranscription: StartFileTranscription;
-  readonly completeTranscription: CompleteTranscription;
-  readonly failTranscription: FailTranscription;
-  readonly issueConnectionTicket: IssueConnectionTicket;
-  readonly redeemConnectionTicket: RedeemConnectionTicket;
-  readonly registerConnection: RegisterConnection;
-  readonly deregisterConnection: DeregisterConnection;
-  readonly publishTranscriptionUpdate: PublishTranscriptionUpdate;
-}
-
-/**
- * One graph per container, not one per request.
- *
- * A Lambda execution environment serves many invocations from one module
- * evaluation. Building the graph inside the handler would create three AWS
- * SDK clients on every call — each with its own connection pool, credential
- * resolution and region lookup — and would throw away the secret cache that
- * makes a warm invocation avoid Parameter Store entirely. Holding it here
- * means the second request through a container pays for none of that.
- *
- * The entry points in `src/lambda/` call this at module scope, so it runs
- * during initialisation. That is also where `loadConfig` belongs: a missing
+ * The entry points call this at module scope, so it runs during
+ * initialisation. That is also where `loadConfig` belongs: a missing
  * environment variable then fails the container's init, naming the variable,
  * instead of surfacing as a 500 on some user's first upload.
  */
@@ -100,19 +62,17 @@ export function buildContainer(config: AppConfig): Container {
   // in `string | null` rather than in `{ S: ... }` and `{ NULL: true }`.
   const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region: config.region }));
 
-  // Two buckets, two adapters, and which one a use case receives is a
-  // decision made here and nowhere else. `FileStorage` carries an object key
-  // and no bucket, so a use case cannot tell which store it was handed — and
-  // the execution roles grant `s3:PutObject` on the transcripts bucket alone,
-  // so a transcript writer holding the audio adapter is denied at the moment
-  // it writes, after the provider has already done the work.
+  // Which bucket a use case receives is decided here and nowhere else:
+  // `FileStorage` carries an object key and no bucket, so a use case cannot
+  // tell which store it was handed. The roles grant `s3:PutObject` on the
+  // transcripts bucket alone, so a transcript writer holding the audio adapter
+  // is denied at the moment it writes, after the provider has done the work.
   const audioStorage = new S3FileStorage(s3, config.audioBucketName, clock);
   const transcriptsStorage = new S3FileStorage(s3, config.transcriptsBucketName, clock);
   const repository = new DynamoTranscriptionRepository(dynamo, config.transcriptionsTableName);
   const secrets = new SsmSecretsProvider(ssm);
-  // Pointed at this deployment's own websocket API. The management client is
-  // the one AWS client whose endpoint is not derived from the region alone:
-  // without it the SDK addresses the service's default endpoint and every
+  // The one AWS client whose endpoint is not derived from the region alone:
+  // without this the SDK addresses the service's default endpoint and every
   // publish answers 404 for a connection that is open.
   const connectionPublisher = new ApiGatewayConnectionPublisher(
     new ApiGatewayManagementApiClient({

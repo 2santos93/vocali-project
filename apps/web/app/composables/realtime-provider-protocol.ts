@@ -1,36 +1,21 @@
 import type { RealtimeSessionResponse, TranscriptionLanguage } from '@vocali/contracts';
+import type { ProviderFrame } from './types/ProviderFrame';
 
 /**
- * What crosses the realtime websocket, in both directions: the two messages
- * this client sends, the frames the provider sends back, and the codes it
- * hangs up with.
- *
- * A vocabulary rather than a behaviour. It names the messages and reads the
- * fields out of them, and decides nothing about what the dictation should do
- * next — that decision belongs to the recorder, which is why nothing here
- * mentions a phase or a failure.
- *
- * The socket is a trust boundary. The frames arrive from a third party over a
- * connection this code did not authenticate itself, so every field is read as
- * `unknown` and checked. Asserting a type onto them would turn a protocol
- * change into an undefined-property crash in the middle of a dictation.
+ * The socket is a trust boundary: frames arrive from a third party, so every
+ * field is read as `unknown` and checked. Asserting a type onto them would
+ * turn a protocol change into a crash in the middle of a dictation.
  */
 
 /** Higher accuracy at the cost of latency, which a dictation can afford. */
 const OPERATING_POINT = 'enhanced';
 
-/** A normal closure, which is the one the client asks for after a clean stop. */
 export const CLOSE_NORMAL = 1000;
 export const CLOSE_INTERNAL_ERROR = 1011;
 /** The provider's own range. Documented in planning/phase-2-provider-integration-notes.md. */
 export const CLOSE_NOT_AUTHORISED = 4001;
 export const CLOSE_QUOTA_EXCEEDED = 4005;
 export const CLOSE_JOB_ERROR = 4013;
-
-export interface ProviderFrame {
-  readonly name: string;
-  readonly payload: unknown;
-}
 
 function propertyOf(source: unknown, key: string): unknown {
   if (typeof source !== 'object' || source === null) {
@@ -70,11 +55,9 @@ export function errorTypeOf(payload: unknown): string | null {
 }
 
 /**
- * Opens recognition.
- *
- * The audio format comes straight from the session the API minted rather than
- * being restated here. The provider rejects a mismatch, but only once the
- * socket is open and the user has already started speaking.
+ * The audio format comes from the session the API minted rather than being
+ * restated here: the provider rejects a mismatch, but only once the socket is
+ * open and the user has already started speaking.
  */
 export function buildStartRecognition(
   audioFormat: RealtimeSessionResponse['audioFormat'],
@@ -96,11 +79,8 @@ export function buildStartRecognition(
 }
 
 /**
- * Says no more audio is coming.
- *
- * `last_seq_no` is how the provider knows it has received everything that was
- * sent, so it counts the frames actually put on the wire rather than the ones
- * the microphone produced.
+ * `last_seq_no` is how the provider knows it has received everything, so it
+ * counts frames actually put on the wire, not frames the microphone produced.
  */
 export function buildEndOfStream(framesSent: number): Record<string, unknown> {
   return { message: 'EndOfStream', last_seq_no: framesSent };

@@ -2,16 +2,10 @@ import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { createCognitoGateway, type CognitoGateway } from './cognito-gateway';
 
 /**
- * Where the server's configuration comes from, and where the client secret
- * does not come from.
- *
- * The user pool id, the app client id and the API's base URL are ordinary
- * configuration and arrive as environment variables. The app client secret
- * does not: what the environment carries is the *path* to a SecureString
- * parameter, and the value is read from Parameter Store at runtime and
- * decrypted there. The same arrangement the API uses for the provider key, and
- * the reason no secret appears in this repository, in a variable default, or
- * in a plaintext environment variable.
+ * The pool id, client id and API base URL are ordinary configuration and
+ * arrive as environment variables. The app client secret does not: the
+ * environment carries the *path* to a SecureString parameter, read and
+ * decrypted at runtime, which is why no secret appears in this repository.
  */
 
 export class MissingConfigurationError extends Error {
@@ -31,10 +25,9 @@ export class MissingSecretError extends Error {
 }
 
 /*
- * Module scope, so a warm server process reads the parameter once and builds
- * one Cognito client no matter how many requests arrive. The promise is cached
- * rather than the resolved value, so two requests during a cold start share a
- * single Parameter Store call instead of racing to make two.
+ * Module scope, so a warm process reads the parameter once. The promise is
+ * cached rather than the resolved value, so two requests during a cold start
+ * share one Parameter Store call instead of racing to make two.
  */
 let gatewayPromise: Promise<CognitoGateway> | null = null;
 
@@ -56,9 +49,9 @@ export function useServerRuntime(): Promise<ServerRuntime> {
       'cognito.clientSecretParameter',
     ),
   }).catch((cause: unknown) => {
-    // A rejection must not be remembered. Caching it would turn one transient
+    // A rejection must not be remembered: caching it turns one transient
     // Parameter Store error into a process that can never sign anybody in
-    // again for the rest of its life.
+    // again.
     gatewayPromise = null;
     throw cause;
   });
@@ -82,9 +75,9 @@ async function buildGateway(settings: GatewaySettings): Promise<CognitoGateway> 
   const ssm = new SSMClient({ region: settings.region });
 
   const response = await ssm.send(
-    // `WithDecryption`, because the parameter is a SecureString. Without it
-    // the call succeeds and hands back the ciphertext, which then travels
-    // onwards as if it were the secret and fails every signature silently.
+    // `WithDecryption`, because the parameter is a SecureString: without it
+    // the call succeeds and hands back the ciphertext, which travels onwards
+    // as if it were the secret and fails every signature silently.
     new GetParameterCommand({ Name: settings.clientSecretParameter, WithDecryption: true }),
   );
 
@@ -102,13 +95,10 @@ async function buildGateway(settings: GatewaySettings): Promise<CognitoGateway> 
 }
 
 /**
- * Fails at the first request rather than defaulting.
- *
- * A missing pool id that defaults to an empty string produces
- * `ResourceNotFoundException` from Cognito, which the failure translation
- * quite correctly reports to the user as "vuelve a intentarlo en unos
- * minutos" — advice that will never work. Naming the setting turns a
- * mysterious outage into a deployment fix.
+ * Fails at the first request rather than defaulting: a missing pool id that
+ * defaults to an empty string produces `ResourceNotFoundException`, which the
+ * failure translation reports as "vuelve a intentarlo en unos minutos" —
+ * advice that will never work.
  */
 function requireSetting(value: string, name: string): string {
   if (value === '') throw new MissingConfigurationError(name);

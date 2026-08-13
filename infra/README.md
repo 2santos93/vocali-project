@@ -14,7 +14,7 @@ modules/
   api/              The HTTP API, its Cognito JWT authorizer and its stage
   websocket/        The websocket API finished transcriptions are pushed over
   lambda/           The twelve functions, their routes and the bucket notification
-  web/              CloudFront, the asset bucket and the Nuxt renderer
+  web/              The Nuxt renderer, the asset bucket, and the CloudFront distribution in front of them
   observability/    Four alarms and the topic they publish to
   deployment/       The role GitHub Actions assumes through OIDC
 environments/
@@ -53,24 +53,37 @@ terraform plan -var 'github_repository=owner/name' \
 
 ## What exists now
 
-All of it. Identity, the table, the buckets, the roles, the log groups, the
-twelve functions, the two APIs in front of them, the front end's distribution,
-the alarms and the deployment role.
+**This is applied.** `prod` is running in a real account: the Cognito user
+pool and its confidential client, the single table, both data buckets, twelve
+execution roles and twelve log groups, the twelve functions, the HTTP API with
+its Cognito JWT authorizer, the websocket API that carries pushed completions,
+the dead-letter queue, four alarms with the topic behind them, the asset
+bucket, the renderer, and the deployment role assumed through OIDC.
 
-Two things are complete in configuration and cannot be applied until an
-artefact exists:
+One thing is written here and not applied: **the public edge.** AWS has not
+verified this account, so `CreateDistribution` is refused, and the renderer's
+function URL opened to `NONE` answers 403 to every caller — the same gate
+blocks the intended edge and the substitute for it. A support case is open.
+`expose_ssr_publicly` is set while it is outstanding, because it is the only
+value that lets the environment apply at all; setting it back to `false` and
+applying is what restores the distribution once the case is answered. See
+`docs/adr/0009`, which records what that costs.
+
+So the API, the data plane and the identity plane are reachable, and the front
+end is run locally against them in the meantime.
+
+Both applies still depend on an artefact that Terraform does not build:
 
 - **The functions** need `infra/build/bundle-functions.sh` to have run.
-- **The renderer** needs `apps/web/.output/server`, which needs the front end
-  to build. It is being written as this is committed.
+- **The renderer** needs `apps/web/.output/server`, from the Nuxt build.
 
 Neither is stubbed and neither is behind a flag. The plan stops on the missing
 package, names it, and prints the command that produces it.
 
 ## Running it
 
-Nothing here has been applied. There is no AWS account wired up to it yet, and
-the commands below are what a first deployment would run, in this order.
+These are the commands a deployment into a fresh account runs, in this order.
+They are also what was run against this one.
 
 ```bash
 # Once per account.
@@ -113,6 +126,10 @@ aws s3 sync apps/web/.output/public "s3://$(terraform output -raw web_assets_buc
 aws cloudfront create-invalidation --distribution-id "$(terraform output -raw web_distribution_id)" --paths '/*'
 ```
 
+The invalidation is the one step that does not apply here yet: there is no
+distribution while `expose_ssr_publicly` is set, so `web_distribution_id` has
+no value to give.
+
 ## The checks
 
 ```bash
@@ -121,10 +138,12 @@ terraform init -backend=false            # in each module and environment
 terraform validate                       # likewise
 ```
 
-Every directory here passes all three. None of them contacts AWS: `validate`
-checks syntax, types, references and provider schemas without reading any
-remote state or resolving any data source. `plan` is the first command that
-needs credentials, and it has not been run.
+Every directory here passes all three, and these are the checks CI runs, so
+they are the ones to run before committing. None of them contacts AWS:
+`validate` checks syntax, types, references and provider schemas without
+reading any remote state or resolving any data source. `plan` is the first
+command that needs credentials, which is why it is not a gate — a contributor
+without an account can still verify everything above.
 
 ## Conventions
 
@@ -192,14 +211,21 @@ variables carry Parameter Store paths and never values; the deployment role
 holds no key, because there is no key; and the renderer reads the client
 secret from a `SecureString` put there by hand rather than from a variable.
 
-## One thing the code and this configuration disagree about
+## The bucket the code and this configuration once disagreed about
 
-`buildContainer` in `apps/api` constructs a single `S3FileStorage` over
-`AUDIO_BUCKET_NAME` and writes both audio and transcripts through it, so a
-finished transcript lands under `transcripts/` **inside the audio bucket**.
-The execution roles grant `s3:PutObject` on the transcripts bucket, so the two
-functions that write a transcript would be denied at the moment they write.
+They agree now, and the disagreement is worth recording because of what it
+cost. `buildContainer` in `apps/api` used to construct a single
+`S3FileStorage` over `AUDIO_BUCKET_NAME` and write both audio and transcripts
+through it, so a finished transcript landed under `transcripts/` **inside the
+audio bucket** — while the execution roles granted `s3:PutObject` on the
+transcripts bucket. The two functions that write a transcript were denied at
+the moment they wrote.
 
-The fix is a second bucket name in the composition root, in `apps/`, which
-this round does not touch. `TRANSCRIPTS_BUCKET_NAME` is already set on every
-function so that nothing here has to change when it is made.
+`TRANSCRIPTS_BUCKET_NAME` was set on every function ahead of the fix. The
+composition root now reads it and builds a second `S3FileStorage` over it, and
+`environment.ts` requires it, so a function started without it refuses to
+initialise rather than writing to the wrong bucket.
+
+The lesson is the one the deployment kept teaching: a grant that does not
+match what the code reads is invisible until it runs against IAM. The test
+suite doubles the storage adapter, so it saw a write that always succeeded.

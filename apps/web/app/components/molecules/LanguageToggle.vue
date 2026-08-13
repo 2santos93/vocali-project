@@ -1,34 +1,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { INTERFACE_LANGUAGES } from '../../i18n/language';
-import type { InterfaceLanguage } from '../../i18n/language';
+import type { InterfaceLanguage } from '../../i18n/types/InterfaceLanguage';
 import { useTranslations } from '../../i18n/translations';
-import type { MessageKey } from '../../i18n/translate';
+import type { MessageKey } from '../../i18n/types/MessageKey';
 import FlagIcon from '../atoms/FlagIcon.vue';
 import { useDropdown } from '../dropdown';
 
 /**
- * Choosing the language the **interface** is written in.
+ * The language the **interface** is written in, never the language of a
+ * recording. That one is chosen per dictation and sent to the transcription
+ * service; this one never leaves the browser, and the two must not be wired
+ * together — a clinician reading in English still dictates in Catalan.
  *
- * Not the language of a recording. That one is chosen per dictation, on the
- * screen that starts it, and is sent to the transcription service; this one
- * never leaves the browser and the two must never be wired to each other — a
- * clinician who reads this application in English still dictates in Catalan.
- *
- * **A listbox rather than a `<select>`, and the reason is narrow.** The header
- * has one line to spare, and the language belongs in it without a word of
- * label: closed, this is a flag and a chevron. A native select cannot show one
- * thing collapsed and another expanded — its button always shows the selected
- * option's own text — so the whole widget is built here, along with the
- * keyboard behaviour it costs. That is a real cost and it is paid once, in
- * this file, rather than by every reader of a cramped header.
- *
- * The flag is never the only thing said. Open, each row carries the language's
- * name; closed, that name is the button's accessible name. A flag is a country
- * and a language is not.
- *
- * Presentational, like every other component here: the current language
- * arrives as a prop and the chosen one leaves as an event.
+ * A hand-built listbox rather than a `<select>` because a native select
+ * always shows the selected option's own text, and closed this must be a flag
+ * and a chevron to fit the header. The keyboard behaviour below is that cost.
  */
 interface Props {
   language: InterfaceLanguage;
@@ -42,12 +29,8 @@ const emit = defineEmits<{ 'update:language': [language: InterfaceLanguage] }>()
 const { t } = useTranslations();
 
 /*
- * Keyed by the union, so a language added to the application stops this
- * compiling until it has a name in the control that switches to it.
- *
- * Each option is named in its own language in both catalogues, which is the
- * only way it helps the person it exists for: somebody looking at an interface
- * they cannot read is looking for the word they *can*.
+ * Each option is named in its own language in both catalogues: somebody
+ * looking at an interface they cannot read is looking for the word they can.
  */
 const OPTION_KEYS: Record<InterfaceLanguage, MessageKey> = {
   es: 'preferences.language.es',
@@ -55,10 +38,9 @@ const OPTION_KEYS: Record<InterfaceLanguage, MessageKey> = {
 };
 
 /*
- * Destructured rather than kept as one object, so that `ref="container"` in
- * the template resolves: a static ref is matched against a setup binding by
- * name, and `ref="dropdown.container"` would look for a binding with a dot in
- * it and silently find nothing.
+ * Destructured rather than kept as one object: a static `ref="container"` is
+ * matched against a setup binding by name, and `ref="dropdown.container"`
+ * would look for a binding with a dot in it and silently find nothing.
  */
 const { open, container, trigger, toggle, show, dismiss } = useDropdown();
 
@@ -73,18 +55,13 @@ const currentIndex = computed<number>(() =>
 );
 
 /**
- * The row the keyboard is on, which is not the row that is chosen.
- *
- * They start out the same and part company the moment somebody presses Down:
- * moving through a list is not choosing from it, and a listbox that committed
- * on every arrow key would redraw the entire application twice on the way to
- * the option the reader wanted.
+ * The row the keyboard is on, which is not the row that is chosen: committing
+ * on every arrow key would redraw the whole application on the way past.
  */
 const activeIndex = ref(0);
 
-// Reset each time it opens rather than left where the last visit ended: a list
-// that reopens three rows down from the current language has lost the reader's
-// place instead of keeping it.
+// Reset on open rather than left where the last visit ended, so the list does
+// not reopen three rows away from the current language.
 watch(open, (isOpen) => {
   if (isOpen) activeIndex.value = Math.max(currentIndex.value, 0);
 });
@@ -94,31 +71,25 @@ const triggerLabel = computed<string>(() =>
 );
 
 function choose(language: InterfaceLanguage): void {
-  // Focus goes back to the button, because the row that had it is about to
-  // stop existing. Left alone it would land on `<body>`, and the next Tab
-  // would start again from the top of the page.
+  // Returns focus to the button; the row holding it is about to stop existing,
+  // and the focus would otherwise land on `<body>`.
   dismiss();
 
-  // Emitted even when it is the language already in force. The parent writes a
-  // cookie it was already going to write, and the alternative — comparing here
-  // — is a component deciding on the parent's behalf that nothing happened.
+  // Emitted even when it is the language already in force: comparing here is a
+  // component deciding on the parent's behalf that nothing happened.
   emit('update:language', language);
 }
 
 function move(delta: number): void {
   const count = INTERFACE_LANGUAGES.length;
 
-  // Wraps, because the list is two rows long and a reader pressing Down twice
-  // to see the other one is not asking to be stopped at the bottom.
   activeIndex.value = (activeIndex.value + delta + count) % count;
 }
 
 /**
- * The whole keyboard contract, handled on the button.
- *
  * The focus never leaves the trigger — the active row is pointed at by
- * `aria-activedescendant` instead — which is what keeps this to one handler
- * rather than a roving tabindex across the rows.
+ * `aria-activedescendant` — which is what keeps this to one handler rather
+ * than a roving tabindex across the rows.
  */
 function onKeydown(event: KeyboardEvent): void {
   const { key } = event;
@@ -154,17 +125,15 @@ function onKeydown(event: KeyboardEvent): void {
     if (chosen !== undefined) choose(chosen);
   }
 
-  // Escape is not handled here. `useDropdown` listens for it on the document,
-  // so it closes this panel from wherever the focus happens to be, and one
-  // implementation of "cancel" cannot drift from the other.
+  // Escape is not handled here: `useDropdown` listens for it on the document,
+  // so it closes this panel from wherever the focus happens to be.
 }
 </script>
 
 <template>
   <div ref="container" class="relative">
-    <!-- `h-9`, the same fixed height `UserMenu` carries. They stand next to
-         each other in the header and hold contents of different sizes, so a
-         height derived from padding left one taller than the other. -->
+    <!-- `h-9`, the same fixed height `UserMenu` carries: they stand side by
+         side in the header, and padding-derived heights left one taller. -->
     <button
       :id="id"
       ref="trigger"
@@ -195,19 +164,10 @@ function onKeydown(event: KeyboardEvent): void {
     </button>
 
     <!--
-      Rendered only while it is open. A hidden panel left in the markup is a
-      set of rows a screen reader can still reach and a `Tab` can still land
-      on, and `aria-expanded` on the button above would be describing something
-      that is not true.
-
-      `@mousedown.prevent` on each row is not a detail. A row is not focusable
-      — the focus stays on the combobox and `aria-activedescendant` points at
-      the active row — so pressing one makes the browser blur the button and
-      move the focus to `<body>`. `useDropdown` watches for exactly that and
-      closes the panel, which unmounts the row *between its own mousedown and
-      its click*: the press does nothing at all, intermittently, depending on
-      how the two events happen to be scheduled. Preventing the default keeps
-      the focus where the pattern says it belongs, and the click lands.
+      `@mousedown.prevent` on each row is load-bearing. A row is not focusable,
+      so pressing one blurs the button; `useDropdown` closes the panel on that
+      blur, unmounting the row between its own mousedown and its click, and the
+      press intermittently does nothing at all.
     -->
     <ul
       v-if="open"

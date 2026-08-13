@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { ControlSize } from '../component-vocabulary';
+import type { ControlSize } from '../types/ControlSize';
 
 interface Props {
   size?: ControlSize;
   /**
-   * Announced to assistive technology. Visible text is the caller's job.
-   *
-   * Null rather than a default sentence, because the default has to be
-   * translated and a prop default cannot be: it is evaluated where the
-   * component is declared, not where it is rendered.
+   * Null rather than a default sentence: a prop default is evaluated where the
+   * component is declared, so it cannot be translated.
    */
   label?: string | null;
 }

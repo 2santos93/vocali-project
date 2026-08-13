@@ -4,29 +4,20 @@ import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { Logger } from '../../domain/ports/logger.js';
 import type { TranscriptionProvider } from '../../domain/ports/transcription-provider.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import { err, ok, type Result } from '../../domain/shared/result.js';
+import { err, ok } from '../../domain/shared/result.js';
+import type { Result } from '../../domain/types/result.js';
 import { canTransition } from '../../domain/value-objects/transcription-status.js';
 import { AUDIO_READ_URL_TTL_SECONDS } from '../constants.js';
+import type { StartFileTranscriptionConfig } from '../types/start-file-transcription-config.js';
+import type { StartFileTranscriptionError } from '../types/start-file-transcription-error.js';
+import type { StartFileTranscriptionInput } from '../types/start-file-transcription-input.js';
 import { parseAudioObjectKey } from './object-keys.js';
 
-interface StartFileTranscriptionInput {
-  readonly audioObjectKey: string;
-}
-
-interface StartFileTranscriptionConfig {
-  /** Base webhook URL; the transcription identity is appended as query parameters per job. */
-  readonly callbackBaseUrl: string;
-}
-
-type StartFileTranscriptionError = TranscriptionNotFoundError;
-
 /**
- * Appends the transcription's identity to the callback URL as query
- * parameters, so the webhook can be resolved by primary key even if the
- * `externalJobId` was never persisted (for example, a provider job that
- * submitted successfully but whose `PROCESSING` save then failed). Carrying
- * the identity here is what lets the webhook read by primary key, and so what
- * removes the need for any secondary index on `externalJobId`.
+ * The identity travels in the callback URL so the webhook resolves by primary
+ * key even when `externalJobId` was never persisted — a job that submitted
+ * successfully but whose `PROCESSING` save then failed. This is what removes
+ * the need for a secondary index on `externalJobId`.
  */
 export function buildProviderCallbackUrl(
   baseUrl: string,
@@ -39,14 +30,9 @@ export function buildProviderCallbackUrl(
 }
 
 /**
- * Submits an uploaded file to the transcription provider once S3 confirms the
- * object exists.
- *
- * S3 delivers upload events at least once, so a redelivered event for a
- * transcription that has already moved past `PENDING_UPLOAD` is not a
- * failure: it is logged and acknowledged with `ok` so Lambda does not retry
- * it, storage and the provider are never contacted, and no duplicate job
- * consumes provider quota.
+ * S3 delivers upload events at least once, so a redelivery for a transcription
+ * already past `PENDING_UPLOAD` is acknowledged with `ok` rather than failed:
+ * Lambda does not retry it, and no duplicate job consumes provider quota.
  */
 export class StartFileTranscription {
   constructor(
@@ -74,9 +60,8 @@ export class StartFileTranscription {
     const primitives = transcription.toPrimitives();
 
     // The key resolves a record by its `{userId}/{transcriptionId}` segments
-    // alone, so any object parked under that prefix — same ids, different file
-    // name — would otherwise be transcribed into this user's record. The key
-    // must match the one this transcription was created for, exactly.
+    // alone, so without an exact match any object parked under that prefix —
+    // same ids, different file name — is transcribed into this user's record.
     if (primitives.audioObjectKey !== input.audioObjectKey) {
       return err(new TranscriptionNotFoundError(input.audioObjectKey));
     }
@@ -104,23 +89,19 @@ export class StartFileTranscription {
 
     const transition = transcription.markAsProcessing(job.externalJobId, this.clock.now());
     if (!transition.success) {
-      // Unreachable in practice: the transition was already validated above
-      // and nothing else mutates this transcription in between. Since no
-      // reachable path produces it, it is not part of this use case's error
-      // union — a failure here is an invariant violation, not an expected
-      // outcome a caller must handle, so it throws rather than returning err.
+      // Unreachable: the transition was validated above and nothing mutates
+      // this transcription in between. Deliberately absent from the error
+      // union — an invariant violation is not an outcome a caller can handle,
+      // and an `err` here would make every caller pretend otherwise.
       throw new Error(
         `Invariant violated: transcription ${primitives.id} could not transition from ${primitives.status} to PROCESSING (${transition.error.message})`,
       );
     }
 
-    // A lost race is not a failure on this path. It means another writer
-    // advanced the record between the read above and this write, so whatever
-    // this upload notification would have applied is already applied or
-    // superseded — which is precisely the case the conditional write exists to
-    // stop being resolved by overwriting. The sender only needs a success to
-    // stop retrying, so the outcome is the same either way and is deliberately
-    // not branched on.
+    // A lost race is deliberately not branched on: another writer advanced the
+    // record between the read and this write, so what this notification would
+    // have applied is already applied or superseded, and S3 only needs a
+    // success to stop retrying.
     await this.repository.save(transcription);
 
     return ok(undefined);

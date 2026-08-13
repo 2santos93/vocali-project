@@ -1,4 +1,3 @@
-import type { TranslatableMessage } from '../i18n/translate';
 import { readStatusCode } from '../utils/http-failure';
 import {
   HTTP_PAYLOAD_TOO_LARGE,
@@ -6,60 +5,18 @@ import {
   HTTP_UNSUPPORTED_MEDIA_TYPE,
 } from '../utils/http-status';
 import { StorageUploadError } from './presigned-post-upload';
+import type { FileUploadFailure } from './types/FileUploadFailure';
 
 /**
- * How an upload can end, and what the user is told when it ends badly.
- *
- * The counterpart of `recording-failures`, and gathered for the same reason:
- * these were being built at four separate points in the flow, and the question
- * each one answers is the same — the file did not get transcribed, so what
- * should the person try next. Keeping them together is what makes it possible
- * to read that answer as a set rather than reconstruct it from four call
- * sites.
- *
- * The phase is here rather than with the composable for the same reason it is
- * in `recording-failures`: `failed` and `stillProcessing` are two of its
- * members, and the panel reads the phase and the failure as one pair.
- * `useFileUpload` is the flow that moves through these; this is the vocabulary
- * it moves through.
+ * The counterpart of `recording-failures`, gathered here so the answer to
+ * "what should the person try next" reads as a set rather than being
+ * reconstructed from the four call sites that used to build these.
  */
 
-export type FileUploadPhase =
-  | 'idle'
-  | 'requesting'
-  | 'uploading'
-  | 'processing'
-  /** Transcribed and stored. */
-  | 'completed'
-  /** The attempt ended badly; `failure` says how. */
-  | 'failed'
-  /**
-   * Uploaded and accepted, but still being transcribed when the watch budget
-   * ran out. Distinct from `failed` because nothing went wrong.
-   */
-  | 'stillProcessing';
-
-export type FileUploadFailureCode =
-  | 'SESSION_EXPIRED'
-  | 'UNSUPPORTED_FORMAT'
-  | 'INTENT_REFUSED'
-  | 'STORAGE_REFUSED'
-  | 'NETWORK_FAILED'
-  | 'TRANSCRIPTION_FAILED';
-
-export interface FileUploadFailure {
-  readonly code: FileUploadFailureCode;
-  /** Spanish, and phrased so it says what to do next. */
-  readonly message: TranslatableMessage;
-}
-
 /**
- * The API refused to issue an upload intent.
- *
- * The three statuses that are named say something the user can act on — sign
- * in again, choose a smaller file, choose a different format. Everything else
- * with a status collapses into one sentence, and no status at all means the
- * request never arrived, which is a different problem with a different remedy.
+ * The named statuses say something the user can act on. No status at all means
+ * the request never arrived, which is a different problem with a different
+ * remedy, so it does not collapse into the generic sentence.
  */
 export function describeIntentFailure(error: unknown): FileUploadFailure {
   const status = readStatusCode(error);
@@ -95,9 +52,8 @@ export function describeIntentFailure(error: unknown): FileUploadFailure {
 }
 
 /**
- * The transfer to the bucket failed. `StorageUploadError` already carries a
- * sentence chosen from what S3 answered, so it is passed through rather than
- * restated; anything else reaching here is not something this code predicted.
+ * `StorageUploadError` already carries a sentence chosen from what S3
+ * answered, so it is passed through rather than restated.
  */
 export function describeUploadFailure(error: unknown): FileUploadFailure {
   if (error instanceof StorageUploadError) {
@@ -113,9 +69,8 @@ export function describeUploadFailure(error: unknown): FileUploadFailure {
 }
 
 /**
- * The browser reported a type the contract does not name. Caught before
- * anything is sent, so the file name is quoted back — it is the one failure
- * where the user picked the wrong thing and needs to know which thing.
+ * The file name is quoted back: this is the one failure where the user picked
+ * the wrong thing and needs to know which thing.
  */
 export function describeUnsupportedFormat(fileName: string): FileUploadFailure {
   return {
@@ -124,10 +79,7 @@ export function describeUnsupportedFormat(fileName: string): FileUploadFailure {
   };
 }
 
-/**
- * The upload arrived and the transcription itself failed. Nothing to retry
- * from here: the record is in the history carrying the reason.
- */
+/** Nothing to retry from here: the record is in the history carrying the reason. */
 export const TRANSCRIPTION_FAILED: FileUploadFailure = {
   code: 'TRANSCRIPTION_FAILED',
   message: { key: 'failure.upload.transcriptionFailed' },

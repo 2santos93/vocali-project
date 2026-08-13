@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { SelectOption } from '../component-vocabulary';
+import type { SelectOption } from '../types/SelectOption';
 
 interface Props {
   /** Required, because a control with no id cannot be joined to a label. */
@@ -8,9 +8,8 @@ interface Props {
   modelValue: string;
   options: readonly SelectOption[];
   /**
-   * Rendered as a disabled first entry. A select whose first real option is
-   * silently pre-selected makes "I did not choose this" indistinguishable
-   * from "I chose the first one".
+   * Rendered as a disabled first entry: without it the first real option is
+   * pre-selected, and "I did not choose" reads as "I chose the first one".
    */
   placeholder?: string | null;
   disabled?: boolean;

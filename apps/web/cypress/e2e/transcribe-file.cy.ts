@@ -5,25 +5,15 @@ import { buildTranscription } from '../support/transcriptions';
 /**
  * Journey 4: transcribing an audio file.
  *
- * The upload goes straight from the browser to storage with a presigned POST,
- * so the interesting part of this journey never touches the application's own
- * server: the browser asks for an intent, assembles a multipart body from the
- * fields it was given, sends 20 MB somewhere else entirely, and then watches
- * the record until it settles.
+ * S3 is not reached — the presigned POST is answered by the interceptor, which
+ * is what makes the *shape* of that request assertable, and the shape is what
+ * goes wrong silently in production.
  *
- * S3 is not reached. The presigned POST is answered by the interceptor, which
- * is what makes the *shape* of that request assertable — and the shape is the
- * thing that goes wrong silently in production.
- *
- * **How the outcome arrives.** The application asks for a connection ticket,
- * opens a websocket with it, and waits to be told the record settled; only if
- * that does not deliver does it fall back to asking for the one record on a
- * slow schedule. A browser driven by Cypress has no API Gateway to hold a
- * socket open, so the ticket is refused here on purpose and what this spec
- * exercises is the fallback. That is the right half to pin from a browser: the
- * push is the API's to prove, and the fallback is the path that has to work
- * when the push silently does not — which is the failure the whole design was
- * built to answer for, and the one nothing else would notice.
+ * **The ticket is refused here on purpose**, so what this spec exercises is
+ * the polling fallback rather than the push. That is the right half to pin
+ * from a browser, which has no API Gateway to hold a socket open: the push is
+ * the API's to prove, and the fallback is the path that has to work when the
+ * push silently does not.
  */
 
 const AUDIO_CONTENT = 'RIFF----WAVEfmt consulta de cardiologia';
@@ -64,8 +54,7 @@ describe('Transcribing an audio file', () => {
     );
 
     // A cross-origin POST, so the stub has to say the origin may read the
-    // answer; without the header the browser reports a network failure and the
-    // screen would be reporting on the test rather than on the application.
+    // answer; without the header the browser reports a network failure.
     cy.intercept('POST', UPLOAD_URL, {
       statusCode: 204,
       headers: { 'access-control-allow-origin': '*' },
@@ -73,18 +62,14 @@ describe('Transcribing an audio file', () => {
 
     /*
      * Refused, so the run takes the fallback rather than waiting out the
-     * socket's five-minute budget on a connection this browser cannot open.
-     * Stubbed rather than left to fail on its own: an unstubbed call would
-     * reach the dev server and fail for a reason that has nothing to do with
-     * what is being tested.
+     * socket's budget on a connection this browser cannot open.
      */
     cy.intercept('POST', '/api/connection-tickets', { statusCode: 503, body: {} }).as('ticket');
 
     /*
-     * One record by id — what the fallback asks for. A glob of
-     * `/api/transcriptions*` does not match this path: `*` does not cross a
-     * `/`, so the request the fallback actually makes would go unstubbed and
-     * the record would never be seen to settle.
+     * A glob of `/api/transcriptions*` does not match this path — `*` does not
+     * cross a `/` — so the fallback's request would go unstubbed and the
+     * record would never be seen to settle.
      */
     cy.intercept('GET', `/api/transcriptions/${TRANSCRIPTION_ID}`, {
       statusCode: 200,
@@ -122,10 +107,10 @@ describe('Transcribing an audio file', () => {
       const partNames = readPartNames(interception.request.body);
 
       /*
-       * The whole point of this spec. S3 stops collecting form fields at the
-       * file part, so every policy field has to precede it — and a body that
-       * gets this wrong fails with a policy error that names none of the
-       * fields it never saw, at the end of however long the upload took.
+       * S3 stops collecting form fields at the file part, so every policy
+       * field has to precede it. A body that gets this wrong fails with a
+       * policy error naming none of the fields it never saw, at the end of
+       * however long the upload took.
        */
       expect(partNames).to.deep.equal([...Object.keys(PRESIGNED_FIELDS), 'file']);
     });
@@ -133,11 +118,9 @@ describe('Transcribing an audio file', () => {
     cy.get('[data-testid=processing-notice]').should('be.visible');
 
     /*
-     * The one assertion in the suite that has to outwait a real timer. The
-     * fallback's first request goes out fifteen seconds after the push is
-     * given up on, so the budget here has to clear that interval rather than
-     * merely match it — a timeout equal to the interval is a test that fails
-     * whenever the machine is a little busy.
+     * The one assertion that has to outwait a real timer. The budget must
+     * clear the fallback's interval rather than merely match it: a timeout
+     * equal to it fails whenever the machine is a little busy.
      */
     cy.wait('@record', { timeout: 25_000 });
     cy.get('[data-testid=transcription-result]', { timeout: 25_000 }).should('contain', FILE_NAME);
@@ -164,9 +147,9 @@ describe('Transcribing an audio file', () => {
     );
 
     /*
-     * The client check is a courtesy and the presigned POST policy is the real
-     * control — but the courtesy is the difference between a sentence now and
-     * a failed upload after twenty megabytes have been sent.
+     * The client check is a courtesy and the presigned POST policy is the
+     * control, but the courtesy is a sentence now rather than a failed upload
+     * after twenty megabytes have been sent.
      */
     cy.get('[data-testid=rejection-alert]').should(
       'contain',

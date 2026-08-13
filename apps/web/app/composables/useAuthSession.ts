@@ -1,32 +1,12 @@
 import type { SessionState } from '../../server/api/auth/session.get';
+import type { AuthenticatedUser } from './types/AuthenticatedUser';
+import type { AuthSession } from './types/AuthSession';
+import type { FailureDetail } from './types/FailureDetail';
 
 /**
- * Who is signed in, as far as the browser is allowed to know.
- *
- * There is no token here and there is nowhere one could be put: the session
- * lives in httpOnly cookies the server sets and script cannot read. What this
- * holds is an address to render and an identifier, both of which the server
- * hands back on request, and both of which are useless to anyone who steals
- * them.
- *
- * The state is shared through `useState` rather than through a module-level
- * ref, because a module-level ref on a server rendering two requests at once
- * is one user seeing another user's name.
+ * `useState` rather than a module-level ref: a module-level ref on a server
+ * rendering two requests at once is one user seeing another user's name.
  */
-
-export interface AuthenticatedUser {
-  readonly email: string;
-  readonly subject: string;
-}
-
-export interface AuthSession {
-  readonly user: Readonly<Ref<AuthenticatedUser | null>>;
-  ensureLoaded(): Promise<void>;
-  refresh(): Promise<void>;
-  adopt(user: AuthenticatedUser): void;
-  signOut(): Promise<void>;
-}
-
 export function useAuthSession(): AuthSession {
   const user = useState<AuthenticatedUser | null>('auth.user', () => null);
 
@@ -35,14 +15,9 @@ export function useAuthSession(): AuthSession {
   const loaded = useState<boolean>('auth.loaded', () => false);
 
   /*
-   * `useRequestFetch`, not `$fetch`.
-   *
-   * During server rendering, `$fetch` calls the Nitro handler directly and
-   * carries none of the incoming request's headers — including the cookie the
-   * whole session depends on. The first render of every page would then decide
-   * that nobody is signed in and redirect to /login, and the client would
-   * correct it a moment later. `useRequestFetch` forwards the headers, so the
-   * server and the browser reach the same answer.
+   * `useRequestFetch`, not `$fetch`: during server rendering `$fetch` carries
+   * none of the incoming request's headers, including the session cookie, so
+   * the first render of every page would redirect to /login.
    */
   const request = useRequestFetch();
 
@@ -51,10 +26,9 @@ export function useAuthSession(): AuthSession {
       const state = await request<SessionState>('/api/auth/session');
       user.value = state.user;
     } catch {
-      // The session route answers 200 with a null user when nobody is signed
-      // in, so reaching here means the request itself failed. Treating that as
-      // signed out is the safe reading: the alternative is showing application
-      // chrome to someone the server has not identified.
+      // The route answers 200 with a null user when nobody is signed in, so
+      // reaching here means the request itself failed. Signed out is the safe
+      // reading: the alternative shows chrome to an unidentified visitor.
       user.value = null;
     } finally {
       loaded.value = true;
@@ -77,39 +51,14 @@ export function useAuthSession(): AuthSession {
     try {
       await $fetch('/api/auth/logout', { method: 'POST' });
     } catch {
-      /*
-       * Handled here, and deliberately not carried to the user.
-       *
-       * The route fails in one way: it could not revoke the session at
-       * Cognito, so the refresh tokens belonging to this user's *other*
-       * sessions stay alive until they expire. It has already cleared this
-       * browser's cookies by the time it says so, which is the half the person
-       * in front of us asked for.
-       *
-       * Telling them the rest means a warning on the sign-in screen they have
-       * just been sent to, reporting that sessions elsewhere are still open
-       * and to try again shortly — advice whose only execution is to sign back
-       * in so as to sign out again, delivered at the moment they are leaving
-       * and quite possibly on a shared machine they have already walked away
-       * from. It reads as an alarm over an outcome that, for them, was
-       * correct.
-       *
-       * Staying quiet does not lose the fact either. The route answers 502
-       * with `SIGN_OUT_INCOMPLETE`, which is a signal to the people who can
-       * act on Cognito refusing a `GlobalSignOut`; this is not the place that
-       * failure gets fixed. What the browser owes is to not claim a session it
-       * no longer has, and to not fall over on the way out — and swallowing
-       * the rejection in a `finally` did the first while failing the second.
-       */
+      // Swallowed on purpose: the route only fails to say that this user's
+      // *other* sessions survive, which is nothing the person leaving can act
+      // on. It answers 502 with `SIGN_OUT_INCOMPLETE` for the operators.
     }
 
     /*
-     * Cleared even when the route reported a failure.
-     *
-     * The route only fails after it has already cleared the cookies, and it
-     * fails to say that the *other* sessions are still open — this browser's
-     * is over either way. Leaving the header showing a signed-in user after
-     * that would be a lie the next request would contradict.
+     * Cleared even when the route reported a failure: it clears the cookies
+     * before it fails, so this browser's session is over either way.
      */
     user.value = null;
     loaded.value = true;
@@ -119,22 +68,10 @@ export function useAuthSession(): AuthSession {
   return { user, ensureLoaded, refresh, adopt, signOut };
 }
 
-export interface FailureDetail {
-  readonly code: string | null;
-  readonly message: string | null;
-}
-
 /**
- * Reads the `{ code, message }` body every non-2xx from `/api/**` carries.
- *
- * Read structurally rather than asserted. A rejected `$fetch` is not obliged
- * to be a `FetchError` at all — a connection that never opened rejects with a
- * `TypeError` — and casting the rejection would put `undefined` where the page
- * is about to render a sentence.
- *
- * The `code` is what a screen branches on. The `message` is already in Spanish
- * and already says what to do next, because the server wrote it that way; a
- * page that rewrites it here is a second place for the wording to live.
+ * Read structurally rather than asserted: a rejected `$fetch` is not obliged
+ * to be a `FetchError` — a connection that never opened rejects with a
+ * `TypeError` — so a cast would put `undefined` where a sentence goes.
  */
 export function readFailure(error: unknown): FailureDetail {
   if (typeof error !== 'object' || error === null) return { code: null, message: null };

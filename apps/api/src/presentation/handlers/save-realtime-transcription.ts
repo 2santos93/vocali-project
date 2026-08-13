@@ -1,28 +1,21 @@
 import { SaveRealtimeTranscriptionRequestSchema } from '@vocali/contracts';
-import type { SaveRealtimeTranscription } from '../../application/use-cases/save-realtime-transcription.js';
-import type { Logger } from '../../domain/ports/logger.js';
-import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { CREATED } from '../http/http-status.js';
 import { withValidatedBody } from '../http/validation.js';
-
-interface Dependencies {
-  readonly useCase: SaveRealtimeTranscription;
-  readonly logger: Logger;
-}
+import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
+import type { SaveRealtimeTranscriptionDependencies } from '../types/save-realtime-transcription-dependencies.js';
 
 /**
  * `POST /transcriptions/realtime` — stores a finished microphone dictation.
  *
- * The use case returns a DTO rather than a `Result`: the transcript was
- * produced client-side during the session and arrives complete, so there is
- * no domain rule left to reject it. Anything that goes wrong from here is
- * storage or the table failing, which the error mapper answers with a 500.
+ * The use case returns a DTO rather than a `Result`: the transcript arrives
+ * complete, so no domain rule is left to reject it and anything that goes
+ * wrong is infrastructure the error mapper answers with a 500.
  */
 export function saveRealtimeTranscriptionHandler(
-  dependencies: Dependencies,
+  dependencies: SaveRealtimeTranscriptionDependencies,
 ): ApiGatewayRequestHandler {
   return withErrorMapping(
     dependencies.logger,

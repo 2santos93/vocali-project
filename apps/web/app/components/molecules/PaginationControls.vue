@@ -4,18 +4,14 @@ import BaseButton from '../atoms/BaseButton.vue';
 
 interface Props {
   /**
-   * Which page is on screen, counted by the caller.
-   *
-   * There is deliberately no total and no page list. The API paginates by an
-   * opaque DynamoDB cursor, so "page 7" is not expressible: reaching it means
-   * walking pages one to six first, which is the cost the data model was
-   * chosen to avoid. Previous is served from a client-side stack of cursors
+   * No total and no page list on purpose: the API paginates by an opaque
+   * DynamoDB cursor, so "page 7" is not expressible without walking pages one
+   * to six first. Previous is served from a client-side stack of cursors
    * already visited, never by asking the server for a page backwards.
    */
   pageNumber: number;
   hasPrevious: boolean;
   hasNext: boolean;
-  /** True while a page is loading, so neither button can be pressed twice. */
   busy?: boolean;
 }
 

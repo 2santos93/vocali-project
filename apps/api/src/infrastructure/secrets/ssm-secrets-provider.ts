@@ -2,15 +2,8 @@ import { GetParameterCommand, type SSMClient } from '@aws-sdk/client-ssm';
 import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
 
 /**
- * Deliberately at module scope rather than on the instance.
- *
- * A Lambda container survives many invocations, and the module is evaluated
- * once for all of them. Holding the cache here means a warm container reads
- * each parameter exactly once no matter how the dependency graph is rebuilt,
- * where an instance field would still re-fetch whenever something constructed
- * a new provider. Parameter Store is rate limited and every read is a network
- * round trip on the request path.
- *
+ * At module scope rather than on the instance, so a warm container reads each
+ * rate-limited parameter once however often the dependency graph is rebuilt.
  * The promise is cached, not the resolved value, so two concurrent callers
  * during a cold start share one request instead of racing to make two.
  */
@@ -29,9 +22,9 @@ export class MissingSecretError extends Error {
 
 export class SsmSecretsProvider implements SecretsProvider {
   /**
-   * The cache is a collaborator with the shared map as its default, so a test
-   * constructs a provider over a map of its own instead of production
-   * exporting a function whose only purpose is to empty it.
+   * The cache is a collaborator defaulting to the shared map, so a test builds
+   * a provider over a map of its own instead of production exporting a
+   * function whose only purpose is to empty it.
    */
   constructor(
     private readonly client: SSMClient,
@@ -43,9 +36,8 @@ export class SsmSecretsProvider implements SecretsProvider {
     if (cached !== undefined) return cached;
 
     const pending = this.read(name).catch((cause: unknown) => {
-      // A failure must not be remembered. Caching a rejected promise would
-      // turn one transient Parameter Store error into a container that can
-      // never fetch that secret again for the rest of its life.
+      // Caching a rejected promise would turn one transient Parameter Store
+      // error into a container that can never fetch that secret again.
       this.cache.delete(name);
       throw cause;
     });

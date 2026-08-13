@@ -9,36 +9,55 @@ viewer ──► CloudFront ──┬── /_nuxt/*  ──► S3 (private, rea
                         └── everything ──► Lambda function URL (IAM, signed by the OAC)
 ```
 
-## Not deployable yet
+## The distribution is written and not applied
 
-The front end is being written as this is committed. Two things wait on it:
+AWS has not verified this account, so `CreateDistribution` is refused
+outright: _"Your account must be verified before you can add new CloudFront
+resources."_ A support case is open, and until it is answered this module runs
+in its substitute shape.
+
+`expose_ssr_publicly` is what expresses that, and it is a switch rather than a
+hand edit precisely so the state and the repository cannot disagree about
+which shape is live. Set, it drops the distribution, sets the function URL's
+authorisation to `NONE`, adds a public invoke permission, and leaves the asset
+bucket with no read grant at all — there is no distribution to name, and a
+grant to the CloudFront service without one would be usable by any
+distribution in any account. Set back to `false`, everything above reverses
+and the diagram at the top of this file is what runs.
+
+**The substitute does not work either, which is the thing to know before
+reaching for it.** The renderer's function URL, opened to `NONE` with a
+resource policy admitting `*`, answers 403 to every caller. The function is
+healthy — invoked directly it returns the login page with a 200 — so what the
+unverified account refuses is public access to the URL, not the code behind
+it. The intended edge and the fallback are blocked by the same gate. The front
+end is run locally against the deployed API in the meantime, which is why
+`front_end_origins` carries `http://localhost:3000`.
+
+Two things are still not Terraform's to produce:
 
 - **The renderer's package.** The plan stops at `data.archive_file.ssr` until
   `apps/web/.output/server` exists, naming the command that produces it. That
   is deliberate: the alternative — a `count` on a flag, or an archive of an
-  empty directory — creates a distribution that serves 500s and looks
-  deployed.
+  empty directory — deploys a renderer that answers every request with an
+  initialisation error and looks deployed.
 - **The assets.** Terraform creates the bucket and never writes to it. A few
   thousand `aws_s3_object` resources in a state file is not how build output
   is shipped; the deployment syncs `.output/public` into it and invalidates
   the distribution, with the permissions the `deployment` module grants for
   exactly that.
 
-Everything else in this module — the distribution, the origins, the access
-controls, the bucket, the policies, the role — is complete and applies as
-written the moment the build output exists.
-
 ```bash
 NITRO_PRESET=aws_lambda pnpm --filter @vocali/web build
-cd infra/environments/dev && terraform apply
+cd infra/environments/prod && terraform apply
 
 aws s3 sync apps/web/.output/public "s3://$(terraform output -raw web_assets_bucket_name)" --delete
+# Only once a distribution exists.
 aws cloudfront create-invalidation --distribution-id "$(terraform output -raw web_distribution_id)" --paths '/*'
 ```
 
 `NITRO_PRESET` is set on the command rather than in `nuxt.config.ts` because
-the same source has to keep running under `nuxt dev`, and because this round
-does not modify `apps/`.
+the same source has to keep running under `nuxt dev`.
 
 ## Why a function URL and not API Gateway
 
@@ -47,12 +66,14 @@ adds: no authorizer, no per-route configuration, no request validation. A
 function URL is the same thing with none of it, at a lower price and a 6 MB
 response limit rather than 10.
 
-It is not public. `authorization_type = "AWS_IAM"`, and the only principal
-allowed to invoke it is the CloudFront service acting for one named
+It is not meant to be public. `authorization_type = "AWS_IAM"`, and the only
+principal allowed to invoke it is the CloudFront service acting for one named
 distribution, which reaches it through an origin access control that signs
 every request with SigV4. A public function URL would be a second address for
 the application, on a domain nobody thinks to check, with none of the headers
-or caching the distribution applies.
+or caching the distribution applies — which is exactly what the section above
+describes as the temporary shape, and exactly why it is temporary. Everything
+in this section is the `expose_ssr_publicly = false` design.
 
 ## Two behaviours, and only two
 

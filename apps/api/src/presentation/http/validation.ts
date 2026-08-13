@@ -1,11 +1,11 @@
 import type { z } from 'zod';
-import { err, ok, type Result } from '../../domain/shared/result.js';
-import {
-  readRawBody,
-  type ApiGatewayRequestEvent,
-  type HttpRequest,
-} from './api-gateway-request.js';
-import { errorResponse, type HttpResponse } from './http-response.js';
+import { err, ok } from '../../domain/shared/result.js';
+import type { Result } from '../../domain/types/result.js';
+import type { ApiGatewayRequestEvent } from '../types/api-gateway-request-event.js';
+import type { HttpRequest } from '../types/http-request.js';
+import type { HttpResponse } from '../types/http-response.js';
+import { readRawBody } from './api-gateway-request.js';
+import { errorResponse } from './http-response.js';
 import { BAD_REQUEST } from './http-status.js';
 
 const INVALID_REQUEST_CODE = 'INVALID_REQUEST';
@@ -17,12 +17,9 @@ const INVALID_REQUEST_CODE = 'INVALID_REQUEST';
 const MAX_VALIDATION_MESSAGE_LENGTH = 500;
 
 /**
- * Validates the request body against a shared contract schema before the
- * handler runs.
- *
  * The schemas come from `@vocali/contracts`, the same module the frontend
- * validates against, so the two cannot drift into disagreeing about what a
- * valid request is. Nothing here re-states a rule the schema already carries.
+ * validates against, so the two cannot drift about what a valid request is.
+ * Nothing here re-states a rule the schema already carries.
  */
 export function withValidatedBody<Schema extends z.ZodTypeAny, Request extends HttpRequest>(
   schema: Schema,
@@ -47,9 +44,8 @@ export function withValidatedQuery<Schema extends z.ZodTypeAny, Request extends 
 }
 
 /**
- * Path parameters are validated for the same reason bodies are: API Gateway
- * fills them from the URL, so `{transcriptionId}` is whatever the caller
- * typed. Validating it turns a missing or absurd segment into a 400 here,
+ * API Gateway fills these from the URL, so `{transcriptionId}` is whatever the
+ * caller typed. Validating turns a missing or absurd segment into a 400 here
  * rather than an unbounded string travelling into a DynamoDB key.
  */
 export function withValidatedPathParameters<
@@ -94,10 +90,9 @@ function readJsonBody(event: ApiGatewayRequestEvent): Result<unknown, string> {
 }
 
 /**
- * Names the offending fields and repeats Zod's own message for each. The
- * messages describe the constraint, and where one echoes a rejected value it
- * echoes the caller's own input back to the caller — nothing from storage,
- * from a provider or from another user is reachable from here.
+ * Repeats Zod's own message per field. Where one echoes a rejected value it
+ * echoes the caller's own input back to the caller — nothing from storage, a
+ * provider or another user is reachable from here.
  */
 function describeIssues(error: z.ZodError): string {
   const described = error.issues

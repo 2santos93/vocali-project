@@ -8,17 +8,11 @@ import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import StatusBadge from '../atoms/StatusBadge.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import FormField from '../molecules/FormField.vue';
-import type { RecordingFailure, RecordingPhase } from '../../composables/recording-failures';
+import type { RecordingFailure } from '../../composables/types/RecordingFailure';
+import type { RecordingPhase } from '../../composables/types/RecordingPhase';
 import { useTranslations } from '../../i18n/translations';
-import type { SelectOption } from '../component-vocabulary';
+import type { SelectOption } from '../types/SelectOption';
 import { transcriptionLanguageOptions, toTranscriptionLanguage } from '../transcription-languages';
-
-/**
- * Dictating into the microphone and watching the words appear.
- *
- * Pure Vue. The recorder's state arrives as props; starting, stopping,
- * recovering and discarding leave as events.
- */
 
 interface Props {
   phase: RecordingPhase;
@@ -60,12 +54,8 @@ const isBusy = computed<boolean>(
 const hasText = computed<boolean>(() => props.finalText !== '' || props.partialText !== '');
 
 /*
- * A recoverable failure is rendered as a warning rather than an error.
- *
- * Both interrupt a screen reader, but the colour and the wording are the
- * difference between "your dictation is gone" and "your dictation is safe,
- * press this". The message itself says the text is not lost; making it scarlet
- * would contradict it.
+ * A recoverable failure is a warning, not an error: the message says the text
+ * is not lost, and making it scarlet would contradict it.
  */
 const failureVariant = computed<'warning' | 'error'>(() =>
   props.failure?.recoverable === true ? 'warning' : 'error',
@@ -96,24 +86,12 @@ function onDiscard(): void {
 </script>
 
 <template>
-  <!--
-    Two columns and a rule between them: what the user sets up on the left,
-    what the machine produces on the right. The dictation is the long-lived
-    half of this screen — it grows for as long as somebody speaks — so it gets
-    the width, and the controls stop pushing it down the page every time a
-    notice appears.
-
-    The rule is a border on the left column rather than an element of its own,
-    so it exists only where the columns do: below `lg` the grid is one column
-    and the same border lies flat between the two halves.
-  -->
   <section
     class="overflow-hidden rounded-panel border border-line bg-surface"
     aria-labelledby="recording-heading"
   >
-    <!-- The page already carries this sentence as its <h1>. It stays in the
-         markup because the section is named by it, and a region announced as
-         "region" tells a screen reader user nothing. -->
+    <!-- Repeated from the page's <h1> because the section is named by it; a
+         region announced as "region" tells a screen reader user nothing. -->
     <h2 id="recording-heading" class="sr-only">{{ t('dictation.heading') }}</h2>
 
     <div class="grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
@@ -135,11 +113,6 @@ function onDiscard(): void {
           </template>
         </FormField>
 
-        <!-- Every control is a real button, so the whole screen works from the
-             keyboard. A recording control that answers only to a mouse is not
-             finished. Stacked and full width because the column is narrow:
-             buttons wrapping one at a time is what made this row look
-             accidental. -->
         <div class="flex flex-col gap-2">
           <BaseButton
             v-if="!isLive"
@@ -164,9 +137,9 @@ function onDiscard(): void {
             {{ t('dictation.stop') }}
           </BaseButton>
 
-          <!-- The recovery route out of a dropped socket. Prominent on purpose:
-               losing a clinician's dictation is the worst thing this screen can
-               do, so the way to keep it is a primary action, not a footnote. -->
+          <!-- The recovery route out of a dropped socket, a primary action
+               rather than a footnote: losing a dictation is the worst thing
+               this screen can do. -->
           <BaseButton
             v-if="hasRecoverableText"
             block
@@ -229,9 +202,6 @@ function onDiscard(): void {
           {{ t('dictation.savingNotice') }}
         </p>
 
-        <!-- The alerts belong beside the control that caused them, not above
-             the transcript: what failed is the recording, and what the reader
-             does about it is on this side of the rule. -->
         <AlertBanner
           v-if="failure !== null"
           :variant="failureVariant"
@@ -258,25 +228,19 @@ function onDiscard(): void {
             {{ t('dictation.placeholder') }}
           </p>
 
-          <!-- No `whitespace-pre-wrap` here, deliberately: the two spans sit on
-               separate lines in this file, and preserving whitespace would
-               render that indentation as a hanging indent in front of the
-               dictation and push the provisional tail onto its own line. -->
+          <!-- No `whitespace-pre-wrap`: the two spans sit on separate lines in
+               this file, and preserving whitespace would render that
+               indentation as a hanging indent before the dictation. -->
           <p v-else class="text-base leading-relaxed">
-            <!-- Confirmed text is the only part announced. The provisional tail
-                 is rewritten several times a second, and putting that in a live
-                 region makes a screen reader unusable. -->
+            <!-- Only confirmed text is announced. The provisional tail is
+                 rewritten several times a second, and a live region carrying
+                 that makes a screen reader unusable. -->
             <span aria-live="polite" class="text-ink" data-testid="final-text">{{
               finalText
             }}</span>
 
-            <!--
-              The visual distinction that keeps the interface honest: a partial
-              rendered like a final reads as the system contradicting itself the
-              moment it is revised. Muted and italic, and never only colour —
-              the slant survives a monochrome screen, and the legend below says
-              what it means for anyone the styling does not reach.
-            -->
+            <!-- Italic as well as muted, never colour alone: the slant survives
+                 a monochrome screen, and the legend below says what it means. -->
             <span
               v-if="partialText !== ''"
               class="italic text-ink-muted"

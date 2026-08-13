@@ -1,30 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { ThemePreference } from '../../utils/theme';
+import type { ThemePreference } from '../../utils/types/ThemePreference';
 import SpinnerIcon from '../atoms/SpinnerIcon.vue';
 import { useDropdown } from '../dropdown';
 import ThemeSwitch from './ThemeSwitch.vue';
 
 /**
- * Everything about the person signed in, behind one button.
- *
- * The header used to lay this out flat — a theme select, the address, and a
- * sign-out button — and the flat version has a hard ceiling: those three grow
- * whenever the account gains anything, they compete with the navigation for
- * the same line, and a long address is common, so the control nobody may lose
- * was the one being pushed off a narrow screen. Collapsed to a menu they cost
- * one avatar, and the address can be shown in full instead of truncated.
- *
- * **A disclosure, not a `role="menu"`.** The panel holds a switch, a button
- * and a link-like control, and `role="menu"` would promise a keyboard contract
- * — arrow keys between items, Tab leaving the whole menu — that these are not.
- * Left as ordinary controls in a panel, Tab walks them in order, Escape closes
- * it, and every one of them announces what it actually is. A menu role with
- * no arrow keys behind it is worse than no role at all.
- *
- * Presentational: it is told the address, the theme, and whether a sign-out is
- * in flight, and it reports what was pressed. The layout owns the session.
+ * A disclosure, deliberately not a `role="menu"`. The panel holds a switch and
+ * two buttons; `role="menu"` would promise arrow-key navigation and Tab
+ * leaving the whole menu, which these do not implement. As ordinary controls
+ * Tab walks them in order and each announces what it actually is.
  */
 interface Props {
   email: string;
@@ -48,26 +34,14 @@ const { open, container, trigger, toggle } = useDropdown();
 
 const panelId = computed<string>(() => `${props.id}-panel`);
 
-/**
- * The one letter on the avatar.
- *
- * A question mark rather than an empty circle when there is nothing to take it
- * from. The layout only renders this for a signed-in user so the address is
- * never blank in practice, but a blank avatar reads as a rendering fault and
- * this reads as an unknown account.
- */
+/** A question mark rather than an empty circle, which reads as a broken render. */
 const initial = computed<string>(() => props.email.trim().charAt(0).toUpperCase() || '?');
 </script>
 
 <template>
   <div ref="container" class="relative">
-    <!--
-      `h-9` rather than a height that falls out of the padding, and the same
-      `h-9` `LanguageToggle` carries. The two sit side by side in the header,
-      and their contents are different sizes — a 28px avatar here, a 16px flag
-      there — so padding alone made one button visibly taller than the other.
-      A fixed height is what keeps them level whatever goes inside.
-    -->
+    <!-- `h-9`, the same fixed height `LanguageToggle` carries: a 28px avatar
+         here and a 16px flag there left padding-derived heights unequal. -->
     <button
       :id="id"
       ref="trigger"
@@ -80,9 +54,6 @@ const initial = computed<string>(() => props.email.trim().charAt(0).toUpperCase(
       data-testid="user-menu"
       @click="toggle()"
     >
-      <!-- The initial is decoration on top of an accessible name that already
-           carries the whole address, so it is hidden rather than read out as a
-           lone letter between the button's name and its state. -->
       <span
         aria-hidden="true"
         class="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700"
@@ -106,12 +77,8 @@ const initial = computed<string>(() => props.email.trim().charAt(0).toUpperCase(
       :id="panelId"
       class="absolute right-0 z-20 mt-1 w-64 rounded-panel border border-line bg-surface p-1 shadow-lg"
     >
-      <!--
-        Shown in full and allowed to wrap. The flat header had to truncate it
-        to keep the sign-out button on screen; there is nothing to protect it
-        from here, and a half-shown address is exactly what somebody opening
-        this menu is trying to check — which account am I in.
-      -->
+      <!-- Shown in full and allowed to wrap: which account am I in is the
+           question this menu is opened to answer. -->
       <p class="px-2 py-2 text-sm break-all text-ink" data-testid="signed-in-user">
         {{ email }}
       </p>
@@ -126,17 +93,10 @@ const initial = computed<string>(() => props.email.trim().charAt(0).toUpperCase(
 
       <hr class="my-1 border-line" />
 
-      <!--
-        A row rather than a `BaseButton`, so that the three things in this
-        panel line up: same padding, same left-aligned icon, same hit area
-        spanning the panel. A centred pill between two left-aligned rows reads
-        as a different kind of thing, and it is not one.
-
-        The menu stays open while the request is in flight. Closing it on the
-        press would take the spinner away with it, leaving a header that looks
-        idle while a sign-out is happening; the layout replaces the whole
-        chrome when the session ends, which is what closes this.
-      -->
+      <!-- The menu stays open while the request is in flight: closing it on the
+           press would take the spinner with it, leaving a header that looks
+           idle mid sign-out. The layout replaces the chrome when the session
+           ends, which is what closes this. -->
       <button
         type="button"
         :disabled="signingOut"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TranscriptionStatus } from '@vocali/contracts';
 import { computed } from 'vue';
-import type { MessageKey } from '../../i18n/translate';
+import type { MessageKey } from '../../i18n/types/MessageKey';
 import { useTranslations } from '../../i18n/translations';
 
 interface Props {
@@ -13,14 +13,11 @@ const props = defineProps<Props>();
 const { t } = useTranslations();
 
 /*
- * The interface is translated; the code is English. `TranscriptionStatus` comes
- * from @vocali/contracts, so this map is `Record<TranscriptionStatus, …>` and
- * a status added to the backend stops the front end compiling until it has
- * been given words a clinician can read — in both catalogues, since the key it
- * names has to exist in each.
+ * Keyed by the contract's own union, so a status added to the backend stops
+ * the front end compiling until it has words a clinician can read.
  *
- * Colour alone does not carry the meaning: each badge keeps its own text, so
- * the state survives a monochrome screen and a colour-blind reader.
+ * Each badge keeps its text as well as its colour, so the state survives a
+ * monochrome screen and a colour-blind reader.
  */
 const STATUS_KEYS: Record<TranscriptionStatus, MessageKey> = {
   PENDING_UPLOAD: 'status.PENDING_UPLOAD',

@@ -48,11 +48,17 @@ locals {
 
     LOG_LEVEL = var.log_level
 
-    # Set although the configuration schema does not read it yet. The
-    # application currently writes transcripts through the same storage
-    # adapter, and therefore the same bucket, as the audio — see the note in
-    # README.md. The value the code will need the day that is corrected is
-    # already here, and an unrecognised variable is ignored by the schema.
+    # Required, not optional. `environment.ts` declares it as a non-empty
+    # string, so a function deployed without it fails `loadConfig` during
+    # initialisation and refuses to start; `composition-root.ts` builds a
+    # second S3FileStorage from it, separate from the audio one.
+    #
+    # It was set here before the code read it, and for a while the code wrote
+    # transcripts through the audio bucket's adapter while the execution roles
+    # granted PutObject on the transcripts bucket. Every finished transcript
+    # was denied at the moment it was written. The suite doubles the storage
+    # adapter, so it saw a write that always succeeded — a grant that does not
+    # match what the code reads is invisible until it runs against IAM.
     TRANSCRIPTS_BUCKET_NAME = var.transcripts_bucket_name
   }
 

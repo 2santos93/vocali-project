@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTranslations } from '../../i18n/translations';
-import type { AlertVariant } from '../component-vocabulary';
+import type { AlertVariant } from '../types/AlertVariant';
 
 interface Props {
   variant?: AlertVariant;
@@ -28,11 +28,9 @@ const VARIANT_CLASSES: Record<AlertVariant, string> = {
 };
 
 /*
- * A warning or a failure interrupts; an acknowledgement waits its turn.
- *
- * role="alert" carries an implicit aria-live="assertive", which cuts across
- * whatever a screen reader is currently saying. Using it for "sesión iniciada"
- * trains the user to ignore the one announcement that had to be heard.
+ * role="alert" is assertive, cutting across whatever a screen reader is
+ * saying. Using it for "sesión iniciada" trains the user to ignore the one
+ * announcement that had to be heard, so only warnings and failures get it.
  */
 const isUrgent = computed<boolean>(() => props.variant === 'warning' || props.variant === 'error');
 const role = computed<'alert' | 'status'>(() => (isUrgent.value ? 'alert' : 'status'));

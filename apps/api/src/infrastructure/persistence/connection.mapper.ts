@@ -1,47 +1,36 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import type { ConnectionItem } from '../types/connection-item.js';
+import type { TicketItem } from '../types/ticket-item.js';
 
 /**
- * `PK = CONN#<userId>`, `SK = <connectionId>` — a partition of their own, one
- * per user.
- *
  * **The partition is chosen for the IAM policy, not for the query.** DynamoDB
  * lets IAM condition on the partition key and not on the sort key, so a
  * partition of their own is what lets the delete grant carry
  * `LeadingKeys: CONN#*` and reach nothing else. Filing them beside the user's
- * transcriptions would answer the query identically and leave that grant
+ * transcriptions answers the query identically and leaves that grant
  * unconditionable. See `docs/adr/0011`.
- *
- * The sort key is the bare connection id. The partition holds one kind of item
- * and no other code builds this prefix, so a discriminating prefix on the sort
- * key would be describing an ambiguity that does not exist.
  */
 export const CONNECTION_PARTITION_KEY_PREFIX = 'CONN#';
 
 /**
- * `PK = TICKET#<sha256 of the ticket>`, `SK = TICKET`.
+ * `PK = TICKET#<sha256 of the ticket>`. Its own partition because the
+ * `$connect` authorizer holds the ticket and nothing else, so the ticket alone
+ * must address the item.
  *
- * Its own partition, and it has to be: the `$connect` authorizer holds the
- * ticket and nothing else — no user, no token — so the ticket alone must
- * address the item.
- *
- * What is stored is a digest, not the ticket. The ticket is a bearer
- * credential, and storing bearer credentials in the clear means a table export
- * is a set of usable credentials. Hashing costs nothing here because the
- * lookup is by exact value rather than by comparison, and SHA-256 without a
- * salt is right for the same reason it is wrong for passwords: the input is
- * 256 bits of entropy this platform generated, not something a human chose, so
- * there is no dictionary to precompute.
+ * A digest is stored rather than the ticket: it is a bearer credential, and a
+ * table export of those in the clear is a set of usable credentials. An
+ * unsalted SHA-256 is right here for the reason it is wrong for passwords —
+ * the input is 256 bits this platform generated, so there is no dictionary.
  */
 export const TICKET_PARTITION_KEY_PREFIX = 'TICKET#';
 export const TICKET_SORT_KEY = 'TICKET';
 
 /**
- * The attribute DynamoDB's TTL is configured against, in epoch *seconds* —
- * which is what the service requires and is not what `Date.now()` returns. A
- * value in milliseconds is accepted by the table and read as a date roughly
- * fifty thousand years out, so the item simply never expires and nothing
- * reports a problem.
+ * Epoch *seconds*, which is what the service requires and is not what
+ * `Date.now()` returns. A value in milliseconds is accepted by the table and
+ * read as a date fifty thousand years out, so the item never expires and
+ * nothing reports a problem.
  */
 export const TTL_ATTRIBUTE = 'ttlEpochSeconds';
 
@@ -59,13 +48,6 @@ export function toEpochSeconds(instant: Date): number {
   return Math.floor(instant.getTime() / MILLISECONDS_PER_SECOND);
 }
 
-export interface ConnectionItem {
-  readonly PK: string;
-  readonly SK: string;
-  readonly connectionId: string;
-  readonly [TTL_ATTRIBUTE]: number;
-}
-
 export function toConnectionItem(input: {
   userId: string;
   connectionId: string;
@@ -79,14 +61,6 @@ export function toConnectionItem(input: {
   };
 }
 
-export interface TicketItem {
-  readonly PK: string;
-  readonly SK: string;
-  readonly userId: string;
-  readonly expiresAt: string;
-  readonly [TTL_ATTRIBUTE]: number;
-}
-
 export function toTicketItem(input: {
   ticket: string;
   userId: string;
@@ -96,11 +70,9 @@ export function toTicketItem(input: {
     PK: buildTicketPartitionKey(input.ticket),
     SK: TICKET_SORT_KEY,
     userId: input.userId,
-    // Stored as an ISO string as well as in the TTL attribute, and read from
-    // here. The TTL attribute is a sweeper's instruction — DynamoDB deletes
-    // expired items within days, not at the instant they lapse — so a store
-    // that trusted it as a clock would honour a lapsed ticket. The redemption
-    // compares against this value.
+    // Redemption compares against this, not the TTL attribute: TTL is a
+    // sweeper that deletes within days rather than at the instant an item
+    // lapses, so trusting it as a clock would honour a lapsed ticket.
     expiresAt: input.expiresAt.toISOString(),
     [TTL_ATTRIBUTE]: toEpochSeconds(input.expiresAt),
   };
@@ -112,12 +84,9 @@ const StoredTicketSchema = z.object({
 });
 
 /**
- * Reads a spent ticket back, refusing anything that is not one.
- *
  * A ticket item whose shape has drifted must not resolve to a user: this value
  * becomes the identity of a websocket connection, and the alternative to
- * failing here is opening a socket as whoever a malformed attribute happened
- * to name.
+ * failing here is opening a socket as whoever a malformed attribute named.
  */
 export function toRedeemedTicket(item: unknown): { userId: string; expiresAt: Date } {
   const parsed = StoredTicketSchema.safeParse(item);
@@ -131,10 +100,9 @@ export function toRedeemedTicket(item: unknown): { userId: string; expiresAt: Da
 }
 
 /**
- * Not a `DomainError`, for the same reason `MalformedTranscriptionRecordError`
- * is not: `DomainErrorCode` is the closed union the front end branches on, and
- * no client can act on schema drift. What matters is that it arrives as a
- * deliberate failure with a stable `code` rather than as a `TypeError`.
+ * Not a `DomainError`: `DomainErrorCode` is the closed union the front end
+ * branches on, and no client can act on schema drift. What matters is that it
+ * arrives with a stable `code` rather than as a `TypeError`.
  */
 export class MalformedConnectionTicketError extends Error {
   readonly code = 'MALFORMED_CONNECTION_TICKET';

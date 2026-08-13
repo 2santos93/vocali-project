@@ -1,4 +1,12 @@
-# One table, keyed PK = USER#<cognito sub>, SK = TRANS#<ULID>.
+# One table, holding four kinds of item in three kinds of partition:
+# transcriptions and their idempotency claims under PK = USER#<cognito sub>,
+# with SK = TRANS#<ULID> and SK = IDEM#<clientSessionId>; unspent websocket
+# connection tickets under PK = TICKET#<sha256 of the ticket>; and open
+# websocket connections under PK = CONN#<cognito sub>, SK = <connectionId>.
+#
+# The last two have partitions of their own because IAM can condition on a
+# partition key and not on a sort key. See the LeadingKeys conditions in the
+# functions module and docs/adr/0011.
 #
 # Only the key attributes are declared. DynamoDB stores the rest — status,
 # language, object keys, the text preview, the timestamps — without being told

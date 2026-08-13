@@ -11,7 +11,6 @@ interface Props {
   disabled?: boolean;
   invalid?: boolean;
   required?: boolean;
-  /** The ids of the hint and error text, supplied by FormField. */
   describedBy?: string | null;
 }
 

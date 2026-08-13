@@ -1,8 +1,4 @@
-export interface PresignedUpload {
-  readonly url: string;
-  readonly fields: Record<string, string>;
-  readonly expiresAt: Date;
-}
+import type { PresignedUpload } from '../types/presigned-upload.js';
 
 export interface FileStorage {
   createPresignedUpload(input: {

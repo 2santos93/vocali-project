@@ -1,11 +1,5 @@
-export type Success<T> = { readonly success: true; readonly value: T };
-export type Failure<E> = { readonly success: false; readonly error: E };
-
-/**
- * Expected failures are returned as values so that callers must handle them.
- * Exceptions stay reserved for genuinely unexpected conditions.
- */
-export type Result<T, E> = Success<T> | Failure<E>;
+import type { Failure } from '../types/failure.js';
+import type { Success } from '../types/success.js';
 
 export function ok<T>(value: T): Success<T> {
   return { success: true, value };

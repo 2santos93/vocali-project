@@ -21,11 +21,10 @@ export default {
   coverageThreshold: {
     [DOMAIN_DIR]: { statements: 90, branches: 85, functions: 90, lines: 90 },
     [APPLICATION_DIR]: { statements: 90, branches: 85, functions: 90, lines: 90 },
-    // The adapters carry the rules nothing else can enforce — the upload size
-    // policy, the partition key that isolates one user's history from another's
-    // and the provider's retry policy. Without a key of their own they are
-    // collected, reported and never gated, so every one of those tests could be
-    // deleted with the build staying green.
+    // The adapters carry the upload size policy, the partition key that
+    // isolates one user's history, and the retry policy. Without a key of
+    // their own they are collected, reported and never gated, so every one of
+    // those tests could be deleted with the build staying green.
     [INFRASTRUCTURE_DIR]: { statements: 90, branches: 85, functions: 90, lines: 90 },
   },
 };

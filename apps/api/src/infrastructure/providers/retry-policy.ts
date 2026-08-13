@@ -1,45 +1,24 @@
 /**
- * When an outbound provider request is worth sending again, and how long to
- * wait before doing so.
- *
- * Separate from the adapter because it answers a question the adapter does not
- * ask: retryability is a property of the operation being attempted — whether
- * performing it twice can produce a second effect — not of the HTTP call that
- * carries it. Keeping the two apart is what lets each call site declare its own
- * policy beside itself instead of inheriting a global rule somebody has to
- * remember.
+ * Retryability is a property of the operation — whether performing it twice can
+ * produce a second effect — not of the HTTP call carrying it, which is why each
+ * call site declares its own policy instead of inheriting a global rule.
  */
 
+import type { BackoffSchedule } from '../types/backoff-schedule.js';
+import type { RetryPolicy } from '../types/retry-policy.js';
+
 /**
- * The two statuses that say the request was not accepted: the provider gave up
- * waiting for it (408), or the quota window has not rolled over yet (429).
- * Because neither can have been acted on, both are safe to send again whatever
- * the operation does. Everything else in the 4xx range describes the request
- * itself, and a request the provider has already rejected will be rejected
- * identically the second time — retrying it only spends quota and holds a
- * Lambda open.
+ * 408 and 429 say the request was never accepted, so neither can have been
+ * acted on and both are safe to send again whatever the operation does. Every
+ * other 4xx describes the request itself and will be rejected identically the
+ * second time, spending quota and holding a Lambda open for nothing.
  */
 const REQUEST_NOT_ACCEPTED_STATUS_CODES = new Set([408, 429]);
 
-/** The lowest status that reports a fault on the provider's side. */
 const FIRST_SERVER_FAULT_STATUS = 500;
 
 /**
- * What to do with the two outcomes where the request may or may not have been
- * acted on: one that produced no response at all, and a 5xx, which can be an
- * edge proxy answering for a server that already did the work.
- *
- * Retryability belongs to the operation rather than to the status, so it is
- * declared beside each call instead of being a global rule to remember.
- */
-export interface RetryPolicy {
-  readonly onUnansweredRequest: boolean;
-  readonly onServerFault: boolean;
-}
-
-/**
- * For an operation that can be performed twice without a second effect.
- * Minting a temporary key again costs one unused key that expires within the
+ * Minting a temporary key twice costs one unused key that expires within the
  * minute, so an unknown outcome is worth another attempt.
  */
 export const REPEATABLE_OPERATION_RETRY_POLICY: RetryPolicy = {
@@ -48,23 +27,19 @@ export const REPEATABLE_OPERATION_RETRY_POLICY: RetryPolicy = {
 };
 
 /**
- * `POST /v2/jobs/` creates a resource and Speechmatics documents no
- * idempotency key, so a second attempt cannot be recognised as the same
- * submission. A first attempt that reached the provider and then timed out —
- * or that an edge proxy answered 5xx after the job had been created — would
- * leave two jobs transcribing the same audio against the same callback URL:
- * the account's minutes spent twice, and a callback carrying a job id that
- * does not match the stored one, which the webhook can only answer 404 to.
- *
- * So an unknown outcome is treated as a submitted job and reported as a
- * failure, which the caller can act on, rather than retried blindly.
+ * `POST /v2/jobs/` creates a resource and Speechmatics documents no idempotency
+ * key, so a second attempt cannot be recognised as the same submission. An
+ * attempt that reached the provider and then timed out — or that an edge proxy
+ * answered 5xx after the job was created — would leave two jobs transcribing
+ * the same audio: minutes spent twice, and a callback carrying a job id that
+ * does not match the stored one. So an unknown outcome is reported as a
+ * failure the caller can act on, never retried.
  */
 export const JOB_SUBMISSION_RETRY_POLICY: RetryPolicy = {
   onUnansweredRequest: false,
   onServerFault: false,
 };
 
-/** Whether a response the provider did send is worth asking for again. */
 export function isRetryableStatus(status: number, policy: RetryPolicy): boolean {
   return (
     REQUEST_NOT_ACCEPTED_STATUS_CODES.has(status) ||
@@ -73,22 +48,10 @@ export function isRetryableStatus(status: number, policy: RetryPolicy): boolean 
 }
 
 /**
- * The numbers the backoff is computed from, and the source of randomness it
- * draws jitter from — injected rather than reached for, so a test gets the
- * same delay twice.
- */
-export interface BackoffSchedule {
-  readonly baseDelayMs: number;
-  readonly maxDelayMs: number;
-  readonly random: () => number;
-}
-
-/**
- * Equal jitter: half the delay is the exponential term, half is random.
- * Full jitter can return almost zero and stampede the provider again
- * immediately; no jitter puts every concurrent Lambda back on the wire in
- * the same millisecond. `Retry-After` wins outright when the provider sent
- * one — it knows when its quota window rolls over and this adapter does not.
+ * Equal jitter: half exponential, half random. Full jitter can return almost
+ * zero and stampede the provider again immediately; no jitter puts every
+ * concurrent Lambda back on the wire in the same millisecond. `Retry-After`
+ * wins outright — the provider knows when its quota window rolls over.
  */
 export function backoffDelayMs(
   schedule: BackoffSchedule,
@@ -104,10 +67,10 @@ export function backoffDelayMs(
 }
 
 /**
- * `Retry-After` is either a whole number of seconds or an HTTP date. The date
- * form is resolved against the injected clock so the wait is deterministic
- * under test, and a value in the past becomes zero rather than a negative
- * delay that would skip the backoff entirely.
+ * `Retry-After` is either whole seconds or an HTTP date. The date form resolves
+ * against the injected clock so the wait is deterministic under test, and a
+ * value in the past becomes zero rather than a negative delay that would skip
+ * the backoff entirely.
  */
 export function parseRetryAfterMs(header: string | null, now: Date): number | null {
   if (header === null) return null;

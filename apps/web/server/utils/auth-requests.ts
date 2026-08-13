@@ -1,25 +1,15 @@
 import { z } from 'zod';
 
 /**
- * The shapes the authentication routes accept from the browser.
- *
- * Validated rather than cast. A request body is the definition of a value
- * crossing a trust boundary: `body as Credentials` compiles, and then
- * `credentials.email.trim()` throws on `undefined` inside a Cognito call
- * whose failure is reported to the user as "no hemos podido completar la
- * operación".
- *
- * These are the only request shapes this application defines for itself.
- * Everything the API owns — a transcription, an upload intent, a page of
- * history — is defined once in `@vocali/contracts`, and the BFF proxy passes
- * those bodies through without a second opinion about their shape.
+ * Validated rather than cast: `body as Credentials` compiles, and then
+ * `credentials.email.trim()` throws on `undefined` inside a Cognito call whose
+ * failure reaches the user as "no hemos podido completar la operación".
  */
 
 /**
  * Deliberately loose. Cognito is the authority on what it will accept, and a
  * stricter pattern here would reject a valid address with a message the user
- * cannot act on. This only rejects what obviously is not an address, so the
- * common typo is caught before a network round trip.
+ * cannot act on.
  */
 const emailSchema = z
   .string()
@@ -31,11 +21,8 @@ const emailSchema = z
   });
 
 /**
- * No maximum below Cognito's, and no pattern.
- *
- * The password policy lives in the user pool, in Terraform, where it is
- * enforced. Restating it here would give two places to change and one of them
- * would be forgotten; worse, a client-side rule that is stricter than the
+ * No maximum below Cognito's, and no pattern: the password policy lives in the
+ * user pool, where it is enforced. A client-side rule stricter than the
  * server's silently forbids passwords the account could have had.
  */
 const passwordSchema = z.string().min(1).max(256);

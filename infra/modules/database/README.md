@@ -4,10 +4,22 @@ The single DynamoDB table.
 
 ## The key model
 
-| Attribute | Value          | Purpose                                                              |
-| --------- | -------------- | -------------------------------------------------------------------- |
-| `PK`      | `USER#<sub>`   | Partition per user, taken from the verified Cognito `sub`            |
-| `SK`      | `TRANS#<ULID>` | Chronological by construction, so newest-first is a descending query |
+The table holds four kinds of item, in three kinds of partition.
+
+| `PK`              | `SK`             | What it is                                                                                         |
+| ----------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
+| `USER#<sub>`      | `TRANS#<ULID>`   | A transcription. Chronological by construction, so newest-first is a descending query              |
+| `USER#<sub>`      | `IDEM#<id>`      | An idempotency claim on a realtime save, which is why the history query needs a `begins_with` term |
+| `TICKET#<digest>` | `TICKET`         | An unspent connection ticket, filed under a SHA-256 digest of itself rather than under its value   |
+| `CONN#<sub>`      | `<connectionId>` | An open websocket connection. One user has several — two tabs is normal                            |
+
+Connections and tickets have partitions of their own **because of the IAM
+policy, not the query**. Filing them under `USER#<sub>` answers every query
+identically, and it would mean the grant that deletes a departed connection
+was `DeleteItem` on every item in the table, clinical records included. IAM
+can condition on a partition key and not on a sort key, so a separate
+partition is what makes `LeadingKeys: CONN#*` expressible. `docs/adr/0011`
+records that in full.
 
 Two consequences that the application relies on and that are worth stating
 where the table is defined:
@@ -50,7 +62,16 @@ logged. Passing `kms_key_arn` goes further, to a key with a policy of our own
 Point-in-time recovery is on. The transcripts survive in S3, but the records
 that point at them, their status and their timestamps exist only here.
 
-There is no TTL attribute. The proposal mentioned one; the data model has no
-field that expires, and a transcription history that quietly deletes itself
-is the opposite of what this product promises. Raw audio expiry is a bucket
-lifecycle rule instead, which is where the bytes actually are.
+TTL is enabled, on `ttlEpochSeconds`, and it cannot reach a transcription. A
+transcription item does not carry that attribute at all, and DynamoDB never
+expires an item that lacks it; only connections and tickets are written with
+one. A transcription history that quietly deleted itself would be the opposite
+of what this product promises, and raw audio expiry is still a bucket
+lifecycle rule, which is where the bytes actually are.
+
+It is a sweeper rather than a clock — DynamoDB deletes within a couple of days
+of the expiry, not at it — so both readers compare the stored expiry
+themselves. A thirty-second ticket honoured for two more days is exactly the
+bug that would follow from trusting the TTL alone. What it is for is the
+residue: a browser that vanishes without a close frame never produces a
+`$disconnect`, and without this nothing would ever remove its entry.

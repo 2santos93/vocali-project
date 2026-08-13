@@ -9,12 +9,10 @@ export interface RegistrationAccepted {
 }
 
 /**
- * Creates the account and sends the confirmation code.
- *
- * The reply is the same whether the address was new or already had an account:
- * "we have sent a code, go and enter it". That is not politeness, it is the
- * only response that does not turn this route into a way of asking whether a
- * given doctor uses this service — see `describeRegistrationFailure`.
+ * The reply is the same whether the address was new or already had an account.
+ * That is not politeness: it is the only response that does not turn this
+ * route into a way of asking whether a given doctor uses this service. See
+ * `describeRegistrationFailure`.
  */
 export default defineEventHandler(
   async (event): Promise<RegistrationAccepted | AuthFailureBody> => {
@@ -30,9 +28,8 @@ export default defineEventHandler(
       if (failure !== null) return respondWithFailure(event, failure);
     }
 
-    // No cookie is written here. An account exists but cannot be used until
-    // the address is confirmed, and issuing a session now would let an
-    // unverified address reach protected resources.
+    // No cookie here: issuing a session now would let an unverified address
+    // reach protected resources.
     return { status: 'CONFIRMATION_REQUIRED', email: credentials.email };
   },
 );

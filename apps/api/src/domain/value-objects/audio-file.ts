@@ -8,30 +8,18 @@ import {
   InvalidAudioFileSizeError,
   UnsupportedAudioFormatError,
 } from '../errors/domain-error.js';
-import { err, ok, type Result } from '../shared/result.js';
+import { err, ok } from '../shared/result.js';
+import type { AudioFileError } from '../types/audio-file-error.js';
+import type { AudioFileInput } from '../types/audio-file-input.js';
+import type { Result } from '../types/result.js';
 
 const MAX_FILE_NAME_LENGTH = 255;
 
-interface AudioFileInput {
-  readonly fileName: string;
-  readonly contentType: string;
-  readonly sizeBytes: number;
-}
-
-type AudioFileError =
-  | UnsupportedAudioFormatError
-  | InvalidAudioFileSizeError
-  | AudioFileTooLargeError
-  | InvalidAudioFileNameError;
-
 /**
- * An AudioFile cannot exist in an invalid state: the only way to obtain one is
- * through `create`, which enforces every rule the platform accepts.
- *
- * The private `brand` field is not read anywhere; its only purpose is to make
- * this class nominal. Without it, a private *constructor* alone does not stop
- * a structurally matching plain object (e.g. a naive DynamoDB-row mapper)
- * from being assigned to the `AudioFile` type, bypassing every check below.
+ * The private `brand` field is never read; its only purpose is to make this
+ * class nominal. Without it, a private *constructor* alone does not stop a
+ * structurally matching plain object — a naive DynamoDB-row mapper, say —
+ * being assigned to the `AudioFile` type, bypassing every check below.
  */
 export class AudioFile {
   private readonly brand = Symbol('AudioFile');
@@ -69,19 +57,13 @@ function isSupportedContentType(contentType: string): boolean {
 }
 
 /**
- * The file name is interpolated into the object key an upload is signed for,
- * so the rules that keep that key well-formed belong here rather than only in
- * the request schema: a value object that promises invalid states cannot exist
- * has to enforce the promise itself, without depending on presentation code
- * having run first.
- *
- * Deliberately hand-rolled rather than reusing `SafeFileNameSchema` from
- * `@vocali/contracts`: the two rules must agree, but the domain layer cannot
- * import a validation library. Returns the reason so the caller can say which
- * rule was broken; `null` means the name is acceptable.
+ * Deliberately duplicates `SafeFileNameSchema` from `@vocali/contracts` rather
+ * than reusing it: the two rules must agree, but the domain layer cannot
+ * import a validation library, and this name is interpolated into the object
+ * key an upload is signed for whether or not presentation code ran first.
  *
  * Spanish clinical file names are the norm here, so spaces and accented
- * characters are explicitly allowed — `\p{C}` matches neither.
+ * characters must stay allowed — `\p{C}` matches neither.
  */
 function findFileNameProblem(fileName: string): string | null {
   if (fileName.length === 0) {

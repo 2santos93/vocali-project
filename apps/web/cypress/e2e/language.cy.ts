@@ -6,25 +6,16 @@ import { buildTranscriptions } from '../support/transcriptions';
 /**
  * Journey 9: reading the application in Spanish or in English.
  *
- * The catalogues and the translator are covered by unit tests, and the
- * components are mounted in both languages under Jest. What only a browser can
- * show is the part around them: that the choice survives a reload, that the
- * *server* reads it and renders the first frame in the right language, that the
- * URL does not change, and that switching redraws the screen already on the
- * display rather than the next one.
- *
- * The control is a listbox rather than a `<select>` now — collapsed it is a
- * flag and nothing else, so it fits a header with no room for a label — and
- * `chooseInterfaceLanguage` is the two presses that costs. Everything these
- * specs are about is unchanged by that.
+ * The catalogues and the translator are covered by unit tests. What only a
+ * browser shows is the part around them: that the choice survives a reload,
+ * that the *server* renders the first frame in the right language, that the
+ * URL does not change, and that switching redraws the screen on display.
  */
 
 /**
- * Signing in the way `signInOnTheWayTo` does, but through the English form.
- *
- * Reaching each field by its label rather than by its id, exactly as the shared
- * helper does, so this also fails if a translated label stops naming the field
- * it sits above — which is an accessibility defect no visual check would find.
+ * Reaching each field by its label rather than its id, so this also fails if a
+ * translated label stops naming the field it sits above — an accessibility
+ * defect no visual check would find.
  */
 function signInReadingEnglish(path: string): void {
   stubSignIn();
@@ -68,9 +59,9 @@ describe('Choosing the interface language', () => {
   });
 
   /*
-   * The point of the cookie. Read before a line of JavaScript has run: the
-   * alternative is a Spanish first frame rewritten into English on every page
-   * load, which is what a language kept in local storage looks like.
+   * Read before a line of JavaScript has run: the alternative is a Spanish
+   * first frame rewritten into English on every page load, which is what a
+   * language kept in local storage looks like.
    */
   it('is already in the HTML the server sends', () => {
     cy.visit('/login');

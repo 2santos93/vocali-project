@@ -10,10 +10,8 @@ import type {
   TranscriptionLanguage,
 } from '@vocali/contracts';
 import { computed, readonly, ref } from 'vue';
-import type { ComputedRef, DeepReadonly, Ref } from 'vue';
-import type { ApiRequester } from '../utils/api-request';
 import { REALTIME_SESSIONS_PATH, REALTIME_TRANSCRIPTIONS_PATH } from '../utils/api-routes';
-import type { AudioCapture } from './audio-capture';
+import type { ApiRequester } from '../utils/types/ApiRequester';
 import {
   buildEndOfStream,
   buildStartRecognition,
@@ -31,23 +29,15 @@ import {
   describeSessionFailure,
   NOTHING_TO_SAVE,
 } from './recording-failures';
-import type { RecordingFailure, RecordingPhase } from './recording-failures';
+import type { AudioRecorderController } from './types/AudioRecorderController';
+import type { AudioRecorderDependencies } from './types/AudioRecorderDependencies';
+import type { RecordingFailure } from './types/RecordingFailure';
+import type { RecordingPhase } from './types/RecordingPhase';
 
 /**
- * Dictating into the microphone and having it transcribed as you speak.
- *
- * Like `useFileUpload`, nothing here opens a connection of its own: the
- * session request, the socket and the save are all collaborators the page
- * supplies. That is what lets Jest drive a socket that drops halfway through a
- * sentence, which is the failure this screen exists to survive.
- *
- * Three collaborators carry what this file used to hold as well. The
- * microphone is in `audio-capture`, the messages crossing the socket are in
- * `realtime-provider-protocol`, and what the user is told when any of it fails
- * is in `recording-failures`, which also holds the phase and failure
- * vocabulary this file moves through. What remains is the state machine they
- * feed: which phase the dictation is in, what text has been confirmed, and
- * when the transcript is safe to persist.
+ * Nothing here opens a connection of its own: the session request, the socket
+ * and the save are all collaborators the page supplies, which is what lets
+ * Jest drive a socket that drops halfway through a sentence.
  */
 
 const MILLISECONDS_PER_SECOND = 1000;
@@ -56,34 +46,15 @@ const WEBSOCKET_OPEN = 1;
 
 /**
  * How long to wait for the provider to flush its last words after
- * `EndOfStream`.
- *
- * Bounded, because a provider that never answers must not leave the interface
- * stuck on "finalizando" holding text the user cannot save. On expiry the
- * transcript is saved as it stands rather than discarded.
+ * `EndOfStream`. Bounded, so a provider that never answers cannot leave the
+ * interface stuck on "finalizando" holding text the user cannot save.
  */
 const DRAIN_TIMEOUT_MS = 5000;
 
-export interface AudioRecorderDependencies {
-  /** Mints the short-lived provider credential. */
-  createSession(): Promise<RealtimeSessionResponse>;
-  /** Stores the finished dictation. */
-  saveTranscription(request: SaveRealtimeTranscriptionRequest): Promise<Transcription>;
-  capture: AudioCapture;
-  createSocket(url: string): WebSocket;
-  now(): number;
-  wait(milliseconds: number): Promise<void>;
-}
-
 /**
- * The two API calls a dictation makes, bound to their paths.
- *
  * Separated from the page for the same reason as `createUploadRequests`: a
  * page is the one layer Jest never mounts, so a path living only in a page is
  * a path nothing asserts until it 404s on a deployed environment.
- *
- * The paths are the ones the API serves — `POST /realtime-sessions` and
- * `POST /transcriptions/realtime` — with `/api` prefixed for the proxy.
  */
 export function createRealtimeRequests(
   request: ApiRequester,
@@ -92,10 +63,9 @@ export function createRealtimeRequests(
     async createSession(): Promise<RealtimeSessionResponse> {
       const response = await request(REALTIME_SESSIONS_PATH, { method: 'POST' });
       /*
-       * Validation matters more here than anywhere else in the front end.
-       * This response carries the credential and the sample rate the capture
-       * is built from, and a wrong rate does not fail — it transcribes noise,
-       * convincingly enough that nothing downstream can tell.
+       * This response carries the sample rate the capture is built from, and a
+       * wrong rate does not fail — it transcribes noise, convincingly enough
+       * that nothing downstream can tell.
        */
       return RealtimeSessionResponseSchema.parse(response);
     },
@@ -108,31 +78,6 @@ export function createRealtimeRequests(
       return TranscriptionSchema.parse(response);
     },
   };
-}
-
-export interface AudioRecorderController {
-  readonly phase: DeepReadonly<Ref<RecordingPhase>>;
-  /** Everything the provider has confirmed. Rendered as settled text. */
-  readonly finalText: DeepReadonly<Ref<string>>;
-  /** The provisional tail, which the provider may still revise. Rendered as such. */
-  readonly partialText: DeepReadonly<Ref<string>>;
-  readonly failure: DeepReadonly<Ref<RecordingFailure | null>>;
-  readonly transcription: DeepReadonly<Ref<Transcription | null>>;
-  readonly isRecording: ComputedRef<boolean>;
-  readonly isBusy: ComputedRef<boolean>;
-  readonly hasRecoverableText: ComputedRef<boolean>;
-  /*
-   * Properties holding functions rather than methods: they are closures over
-   * the state above and have no receiver, so a page may destructure them off
-   * the controller without the type calling it unsafe.
-   */
-  readonly start: (language: TranscriptionLanguage) => Promise<void>;
-  readonly stop: () => Promise<void>;
-  /** Persists what survived a failure, so a dropped socket costs nothing but time. */
-  readonly saveRecoveredText: () => Promise<void>;
-  /** Also releases the microphone and the socket, so it is safe to call on unmount. */
-  readonly discard: () => Promise<void>;
-  readonly dismissFailure: () => void;
 }
 
 export function useAudioRecorder(dependencies: AudioRecorderDependencies): AudioRecorderController {
@@ -248,13 +193,11 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
 
     if (frame.name === 'AddTranscript') {
       const confirmed = transcriptOf(frame.payload);
-      // The provider sends its confirmed text with the spacing already in it,
-      // so the segments are concatenated rather than joined with a space —
-      // joining would double every gap between sentences.
+      // Concatenated rather than joined with a space: the provider's confirmed
+      // text already carries its spacing, and joining doubles every gap.
       finalText.value += confirmed;
-      // Cleared only now. The partial is the provisional version of exactly
-      // this text, and dropping it any earlier makes the tail flicker away and
-      // back on every confirmation.
+      // Cleared only now — the partial is the provisional version of exactly
+      // this text, so dropping it earlier makes the tail flicker.
       partialText.value = '';
       return;
     }
@@ -279,12 +222,10 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     try {
       await dependencies.capture.start({
         /*
-         * The contract's rate, not a number restated here. The `AudioContext`
-         * is constructed at it rather than resampled afterwards, and it is
-         * needed before a session exists — so it cannot be read off the
-         * session response, and a copy that drifted would not fail: it would
-         * transcribe noise, convincingly enough that nothing downstream could
-         * tell.
+         * The contract's rate, never a copy: the `AudioContext` is constructed
+         * at it rather than resampled afterwards, and it is needed before a
+         * session exists, so it cannot be read off the session response. A
+         * drifted copy would not fail — it would transcribe noise.
          */
         sampleRate: REALTIME_AUDIO_FORMAT.sampleRate,
         onFrame: (frame: ArrayBuffer) => {
@@ -323,11 +264,9 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     framesSent = 0;
 
     /*
-     * The credential travels as a query parameter because that is the only
-     * place the provider's websocket handshake accepts one — a browser
-     * WebSocket cannot set an Authorization header. Built through `URL` rather
-     * than concatenated so a websocketUrl that already carries a query string
-     * does not produce a second `?`.
+     * The credential travels as a query parameter because a browser WebSocket
+     * cannot set an Authorization header. Built through `URL` so a
+     * websocketUrl already carrying a query string gets no second `?`.
      */
     const url = new URL(session.websocketUrl);
     url.searchParams.set('jwt', session.token);
@@ -356,16 +295,11 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     });
 
     opened.addEventListener('error', () => {
-      // The error event carries no detail by design, and it is always followed
-      // by a close event. Failing here as well would overwrite the specific
-      // message the close code affords with a vague one.
+      // Deliberately empty: the error event carries no detail and is always
+      // followed by a close event, whose code affords a specific message.
     });
   }
 
-  /**
-   * Ends the dictation cleanly: stop the microphone, tell the provider no more
-   * audio is coming, wait for its last words, then save.
-   */
   async function stop(): Promise<void> {
     if (phase.value !== 'recording' && phase.value !== 'connecting') {
       return;
@@ -374,10 +308,9 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     phase.value = 'finishing';
     endedAtMs = dependencies.now();
 
-    // Armed before anything is awaited. Releasing the microphone takes a turn
-    // of the event loop, and a provider frame that arrives during it would
-    // otherwise land with nothing listening for it and leave the drain waiting
-    // for a message that has already been and gone.
+    // Armed before anything is awaited: releasing the microphone takes a turn
+    // of the event loop, and a frame arriving during it would leave the drain
+    // waiting for a message that has already been and gone.
     const drained = new Promise<void>((resolve) => {
       onDrained = resolve;
     });
@@ -385,8 +318,8 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
     await dependencies.capture.stop();
     sendJson(buildEndOfStream(framesSent));
 
-    // Whichever comes first. The transcript is saved either way: a provider
-    // that never sends EndOfTranscript must not cost the user their dictation.
+    // The transcript is saved either way: a provider that never sends
+    // EndOfTranscript must not cost the user their dictation.
     await Promise.race([drained, dependencies.wait(DRAIN_TIMEOUT_MS)]);
     onDrained = null;
 
@@ -402,12 +335,9 @@ export function useAudioRecorder(dependencies: AudioRecorderDependencies): Audio
   }
 
   /**
-   * Throws the dictation away and puts every resource back.
-   *
-   * It releases the microphone as well as the socket, because this is what a
-   * page calls when it is being unmounted: a user who navigates away
-   * mid-dictation must not leave the tab holding the device with the browser's
-   * recording indicator still lit.
+   * Releases the microphone as well as the socket, because a page calls this
+   * on unmount: navigating away mid-dictation must not leave the tab holding
+   * the device with the browser's recording indicator lit.
    */
   async function discard(): Promise<void> {
     onDrained = null;

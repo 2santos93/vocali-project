@@ -138,7 +138,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.test.ts', 'apps/api/test/**/*.ts'],
+    files: ['**/*.test.ts', 'apps/api/test-support/**/*.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
 

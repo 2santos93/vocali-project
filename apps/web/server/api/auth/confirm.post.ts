@@ -21,8 +21,7 @@ export default defineEventHandler(
       return respondWithFailure(event, describeConfirmationFailure(error));
     }
 
-    // Still no session. Confirmation proves the address, not the password —
-    // the user signs in next, through the same route as everybody else.
+    // Still no session: confirmation proves the address, not the password.
     return { status: 'CONFIRMED' };
   },
 );

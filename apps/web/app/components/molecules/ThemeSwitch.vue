@@ -1,28 +1,16 @@
 <script setup lang="ts">
 import { useTranslations } from '../../i18n/translations';
-import type { ThemePreference } from '../../utils/theme';
+import type { ThemePreference } from '../../utils/types/ThemePreference';
 import ToggleSwitch from '../atoms/ToggleSwitch.vue';
 
 /**
- * Choosing between the light theme and the dark one — and giving the machine
- * its say back.
+ * A switch plus a separate control, because the preference has three values
+ * and a switch has two positions. Dropping `system` is the tempting shortcut
+ * and the wrong one: it is the default, so it would pin every reader who has
+ * never touched this to light the first time anything wrote the cookie.
  *
- * A switch plus a link, because the preference has three values and a switch
- * has two positions. The obvious shortcut is to drop `system`, and it is the
- * wrong one: `system` is the default, so most readers have never touched this
- * control and are being shown the palette their operating system asked for. A
- * two-value model would pin all of them to light the first time anything wrote
- * the cookie, including the reader whose laptop turns dark at sunset.
- *
- * So the switch answers "is it dark right now", which is `dark` — the resolved
- * palette, not the preference — and `Como el sistema` is a separate control
- * that hands the decision back. A preference with no way back has to be got
- * right first time, and nobody gets a theme right first time.
- *
- * Presentational: both the preference and the palette it resolves to arrive as
- * props, and the chosen preference leaves as an event. Resolving `system`
- * against the machine needs `matchMedia`, which is the browser, which is
- * `useThemePreference`'s job and not a component's.
+ * The switch therefore answers "is it dark right now" — the resolved palette,
+ * not the preference — and `Como el sistema` hands the decision back.
  */
 interface Props {
   preference: ThemePreference;
@@ -37,9 +25,8 @@ const emit = defineEmits<{ 'update:preference': [preference: ThemePreference] }>
 const { t } = useTranslations();
 
 /**
- * A switch reports where it was moved to, and that position is an explicit
- * choice by definition: somebody who turns dark off while following a dark
- * machine is asking for light, not asking to keep following.
+ * Moving the switch is always an explicit choice: turning dark off while
+ * following a dark machine asks for light, not for continuing to follow.
  */
 function onSwitch(dark: boolean): void {
   emit('update:preference', dark ? 'dark' : 'light');
@@ -47,8 +34,7 @@ function onSwitch(dark: boolean): void {
 </script>
 
 <template>
-  <!-- Named as a group, so a screen reader announces the two controls as one
-       setting rather than as a switch and an unrelated button beside it. -->
+  <!-- Named as a group, so the two controls are announced as one setting. -->
   <div role="group" :aria-label="t('preferences.theme')" class="flex flex-col gap-0.5">
     <ToggleSwitch
       :model-value="dark"
@@ -57,9 +43,8 @@ function onSwitch(dark: boolean): void {
       @update:model-value="onSwitch"
     >
       <template #icon>
-        <!-- A moon for the setting, in both positions. An icon that changed
-             with the state would be a second, quieter answer to the same
-             question, and the two disagree the moment one of them is wrong. -->
+        <!-- A moon in both positions: an icon that changed with the state is a
+             second, quieter answer to the question the switch already answers. -->
         <svg viewBox="0 0 24 24" class="h-4 w-4 text-ink-muted" fill="none" aria-hidden="true">
           <path
             d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"
@@ -71,12 +56,8 @@ function onSwitch(dark: boolean): void {
       </template>
     </ToggleSwitch>
 
-    <!--
-      Always rendered, never hidden while it is the current state. A control
-      that disappears once it applies is a control nobody discovers: the reader
-      who has to find it is precisely the one who has already chosen something
-      else. `aria-pressed` says which of the two it is.
-    -->
+    <!-- Always rendered, never hidden while it is the current state: the reader
+         who needs to find it is the one who has already chosen otherwise. -->
     <button
       type="button"
       :aria-pressed="preference === 'system' ? 'true' : 'false'"

@@ -7,31 +7,23 @@ import BaseButton from '../atoms/BaseButton.vue';
 import AlertBanner from '../molecules/AlertBanner.vue';
 import EmptyState from '../molecules/EmptyState.vue';
 import PaginationControls from '../molecules/PaginationControls.vue';
-import type { MessageKey, TranslatableMessage } from '../../i18n/translate';
+import type { MessageKey } from '../../i18n/types/MessageKey';
+import type { TranslatableMessage } from '../../i18n/types/TranslatableMessage';
 import { useTranslations } from '../../i18n/translations';
 import { formatDateTime, formatDuration, formatFileSize } from '../format';
 
 interface Props {
   transcriptions: readonly Transcription[];
-  /** True while a page is in flight, whether the first one or a later one. */
   loading?: boolean;
-  /**
-   * Why the page on screen is not the truth. Null while it is.
-   *
-   * A failed load and an empty history are different facts, and this component
-   * keeps them apart: one invites a first upload, the other admits a failure
-   * and offers a way out of it.
-   */
+  /** A failed load and an empty history are different facts, kept apart. */
   loadErrorMessage?: TranslatableMessage | null;
   /**
-   * Whether that failure was the session ending rather than a fault, which is
-   * the third case: retrying a request that will 401 again is not a remedy,
+   * The third case: retrying a request that will 401 again is not a remedy,
    * and signing in is.
    */
   sessionExpired?: boolean;
   /** Reported separately: the list is fine, the download is what failed. */
   downloadErrorMessage?: TranslatableMessage | null;
-  /** The transcription whose signed URL is being fetched, if any. */
   downloadingId?: string | null;
   pageNumber?: number;
   hasPrevious?: boolean;
@@ -68,12 +60,7 @@ const SOURCE_KEYS: Record<TranscriptionSource, MessageKey> = {
   MICROPHONE: 'history.source.MICROPHONE',
 };
 
-/**
- * A record that is still uploading or has failed has no duration and no size
- * yet. An em dash says "not yet"; a zero would say "silent audio". How the
- * numbers themselves are written is the design system's business, not this
- * table's, so only the absence is decided here.
- */
+/** An em dash says "not yet"; a zero would say "silent audio". */
 function durationCell(seconds: number | null): string {
   return seconds === null ? NOT_AVAILABLE : formatDuration(seconds);
 }
@@ -91,18 +78,15 @@ function sourceLabel(source: TranscriptionSource): string {
 }
 
 /**
- * Download is offered on a completed transcription and on nothing else: any
- * other status has no transcript object behind it, so the action could only
- * fail. The rule is enforced again in `useTranscriptionDownload`, which is
- * what actually issues the request; this is the affordance, not the control.
+ * The affordance, not the control: `useTranscriptionDownload` enforces the
+ * same rule where the request is actually issued.
  */
 function isDownloadable(transcription: Transcription): boolean {
   return transcription.status === 'COMPLETED';
 }
 
-// A spinner replaces the table only when there is nothing to replace. Once a
-// page is on screen, the next one loads underneath it rather than blanking the
-// screen the user was reading.
+// A spinner replaces the table only when there is nothing to replace: later
+// pages load underneath rather than blanking what the user was reading.
 const isFirstLoad = computed<boolean>(() => props.loading && props.transcriptions.length === 0);
 
 const isEmpty = computed<boolean>(
@@ -118,9 +102,8 @@ const errorActionLabel = computed<string>(() =>
 );
 
 /*
- * One button, two intents. Reintentar repeats the request that just failed,
- * which is right for a dropped connection and useless for an ended session:
- * the second 401 would look to the user like the product refusing to work.
+ * One button, two intents. Repeating a request that will 401 again looks to
+ * the user like the product refusing to work.
  */
 function onErrorAction(): void {
   if (props.sessionExpired) {
@@ -131,10 +114,9 @@ function onErrorAction(): void {
 }
 
 /*
- * An empty first page means the user has never transcribed anything, and the
- * useful answer is an invitation. An empty later page means the history ran
- * out between one cursor and the next — nothing is wrong, and telling someone
- * with a hundred transcriptions that they have none would be a lie.
+ * An empty later page means the history ran out between one cursor and the
+ * next. Telling someone with a hundred transcriptions that they have none
+ * would be a lie, so the two say different things.
  */
 const isFirstPage = computed<boolean>(() => props.pageNumber <= 1);
 
@@ -195,9 +177,8 @@ const showsPagination = computed<boolean>(
       @action="emit('upload')"
     />
 
-    <!-- The table is wide, so it scrolls inside its own box. Letting it set the
-         width of the document instead drags the whole page sideways on a
-         phone, taking the navigation and the headings with it. -->
+    <!-- The table scrolls inside its own box; letting it set the document width
+         drags the whole page sideways on a phone. -->
     <div
       v-else
       class="overflow-x-auto rounded-panel border border-line bg-surface"
@@ -232,8 +213,6 @@ const showsPagination = computed<boolean>(
             data-testid="history-row"
           >
             <th scope="row" class="max-w-xs px-4 py-3 font-medium text-ink">
-              <!-- Clinical file names run long and are distinguished by their
-                   ends, so the truncated text keeps the full name reachable. -->
               <span class="block truncate" :title="transcription.fileName">
                 {{ transcription.fileName }}
               </span>
@@ -265,9 +244,9 @@ const showsPagination = computed<boolean>(
               {{ dateCell(transcription.createdAt) }}
             </td>
             <td class="px-4 py-3">
-              <!-- A button, not a link. The signed URL is short-lived, so it
-                   is asked for when this is pressed; a link address rendered
-                   with the page would be stale before most users reached it. -->
+              <!-- A button, not a link: the signed URL is short-lived and is
+                   asked for on press, so an address rendered with the page
+                   would be stale before most users reached it. -->
               <BaseButton
                 v-if="isDownloadable(transcription)"
                 variant="secondary"
@@ -279,9 +258,8 @@ const showsPagination = computed<boolean>(
               >
                 {{ t('history.download') }}
               </BaseButton>
-              <!-- An em dash reads aloud as punctuation, which says nothing
-                   about why the row has no button. The sentence is for the
-                   screen reader; the dash is for everyone else. -->
+              <!-- An em dash reads aloud as punctuation, so the sentence is for
+                   the screen reader and the dash for everyone else. -->
               <span v-else class="text-ink-muted" data-testid="history-no-actions">
                 <span aria-hidden="true">{{ NOT_AVAILABLE }}</span>
                 <span class="sr-only">{{ t('history.noDownload') }}</span>

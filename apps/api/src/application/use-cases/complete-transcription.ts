@@ -1,4 +1,3 @@
-import type { TranscriptionLanguage } from '@vocali/contracts/constants';
 import {
   InvalidStatusTransitionError,
   TranscriptionNotFoundError,
@@ -6,35 +5,19 @@ import {
 import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import { err, ok, type Result } from '../../domain/shared/result.js';
+import { err, ok } from '../../domain/shared/result.js';
+import type { Result } from '../../domain/types/result.js';
 import { canTransition } from '../../domain/value-objects/transcription-status.js';
+import type { CompleteTranscriptionError } from '../types/complete-transcription-error.js';
+import type { CompleteTranscriptionInput } from '../types/complete-transcription-input.js';
 import { buildTranscriptObjectKey } from './object-keys.js';
 
-interface CompleteTranscriptionInput {
-  readonly userId: string;
-  readonly transcriptionId: string;
-  readonly externalJobId: string;
-  readonly text: string;
-  readonly durationSeconds: number;
-  /** What the provider identified, or null where it identified nothing. */
-  readonly language: TranscriptionLanguage | null;
-}
-
-type CompleteTranscriptionError = TranscriptionNotFoundError | InvalidStatusTransitionError;
-
 /**
- * Applies a provider completion webhook.
- *
- * The record is looked up by primary key `(userId, transcriptionId)` — both
- * carried in the callback URL — rather than by `externalJobId`. That is why no
- * secondary index on `externalJobId` exists: such an index would be eventually
- * consistent, so a fast webhook could miss a record that had already been
- * written.
- *
- * It also recovers the case where the provider accepted a job but the save
- * that would have recorded its id failed. That record is still
- * `PENDING_UPLOAD` with no `externalJobId`, so a lookup by job id alone would
- * never find it.
+ * Looked up by primary key `(userId, transcriptionId)`, both carried in the
+ * callback URL, rather than by `externalJobId`. A secondary index would be
+ * eventually consistent, so a fast webhook could miss a record already written
+ * — and a job accepted by the provider whose save then failed has no
+ * `externalJobId` to find it by at all.
  */
 export class CompleteTranscription {
   constructor(
@@ -53,35 +36,27 @@ export class CompleteTranscription {
 
     const primitives = transcription.toPrimitives();
 
-    // Defence in depth, not the primary control: the handler verifies the
-    // provider's shared secret in constant time before this runs. This check
-    // only rejects a callback whose job id contradicts one already on record,
-    // and is necessarily void while `externalJobId` is null — which is every
-    // PENDING_UPLOAD record, the case the repair branch below exists to serve.
-    // Reported as not found rather than a distinct error, so the response
-    // cannot be used to probe for records.
+    // Defence in depth; the handler verifies the shared secret before this
+    // runs. Reported as not found rather than a distinct error, so the
+    // response cannot be used to probe for records.
     if (primitives.externalJobId !== null && primitives.externalJobId !== input.externalJobId) {
       return err(new TranscriptionNotFoundError(input.transcriptionId));
     }
 
-    // A redelivered webhook for a job already completed with the same id: the
-    // provider only needs a 2xx to stop retrying, and there is nothing left
-    // to change. Handled before touching storage so a stray redelivery can
-    // never overwrite a good transcript.
+    // A redelivery only needs a 2xx to stop. Answered before touching storage
+    // so it can never overwrite a good transcript.
     if (primitives.status === 'COMPLETED') {
       return ok(undefined);
     }
 
     if (primitives.status === 'PENDING_UPLOAD') {
-      // Orphan repair: the provider accepted the job, but the save that
-      // would have recorded PROCESSING and the job id failed. Recording it
-      // now, through the normal transition, closes that gap without any
-      // change to the state machine.
+      // Orphan repair: the provider accepted the job, but the save that would
+      // have recorded PROCESSING and the job id failed.
       const recovered = transcription.markAsProcessing(input.externalJobId, this.clock.now());
       if (!recovered.success) {
         // Unreachable: PENDING_UPLOAD always permits PROCESSING. An invariant
-        // violation, not a caller's problem, so it throws — see
-        // `StartFileTranscription` for the full reasoning.
+        // violation, not a caller's problem, so it throws rather than
+        // returning an error the caller would have to pretend to handle.
         throw new Error(
           `Invariant violated: transcription ${input.transcriptionId} could not transition from PENDING_UPLOAD to PROCESSING (${recovered.error.message})`,
         );
@@ -119,22 +94,19 @@ export class CompleteTranscription {
       at: this.clock.now(),
     });
     if (!transition.success) {
-      // Unreachable: `canTransition` was checked immediately above. Throws for
-      // the same reason as the recovery branch. The error union keeps
-      // `InvalidStatusTransitionError` because that one *is* reachable, from
-      // the explicit check above, which a corrupted stored status can trigger.
+      // Unreachable: `canTransition` was checked immediately above, so this
+      // throws for the same reason as the recovery branch. The error union
+      // still carries `InvalidStatusTransitionError` because the explicit
+      // check above *is* reachable, from a corrupted stored status.
       throw new Error(
         `Invariant violated: transcription ${input.transcriptionId} could not transition from ${currentStatus} to COMPLETED (${transition.error.message})`,
       );
     }
 
-    // A lost race is not a failure on this path. It means another writer
-    // advanced the record between the read above and this write, so whatever
-    // this completion webhook would have applied is already applied or
-    // superseded — which is precisely the case the conditional write exists to
-    // stop being resolved by overwriting. The sender only needs a success to
-    // stop retrying, so the outcome is the same either way and is deliberately
-    // not branched on.
+    // A lost race is deliberately not branched on: another writer advanced the
+    // record between the read and this write, so what this webhook would have
+    // applied is already applied or superseded, and the sender only needs a
+    // success to stop retrying.
     await this.repository.save(transcription);
 
     return ok(undefined);

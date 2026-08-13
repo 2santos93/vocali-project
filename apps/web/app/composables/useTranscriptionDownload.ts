@@ -1,30 +1,11 @@
 import { ref } from 'vue';
-import type { Ref } from 'vue';
 import { DownloadUrlResponseSchema } from '@vocali/contracts';
 import type { Transcription, TranscriptFormat } from '@vocali/contracts';
-import type { TranslatableMessage } from '../i18n/translate';
+import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
 import { isSessionExpired, SESSION_EXPIRED_MESSAGE } from '../utils/http-failure';
-
-/**
- * Asks the API for a signed URL for one transcript, as a collaborator so the
- * rules around it can be driven under Jest. Resolves to `unknown`: the answer
- * has crossed a trust boundary and is parsed, not asserted.
- */
-export type RequestDownloadUrl = (
-  transcriptionId: string,
-  format: TranscriptFormat,
-) => Promise<unknown>;
-
-/** Hands the signed URL to the browser. Substituted in tests. */
-export type FollowDownloadUrl = (url: string, fileName: string) => void;
-
-export interface TranscriptionDownload {
-  /** The transcription whose URL is being fetched, so its row can show it. */
-  readonly downloadingId: Readonly<Ref<string | null>>;
-  readonly errorMessage: Readonly<Ref<TranslatableMessage | null>>;
-  download: (transcription: Transcription, format?: TranscriptFormat) => Promise<void>;
-  dismissError: () => void;
-}
+import type { FollowDownloadUrl } from './types/FollowDownloadUrl';
+import type { RequestDownloadUrl } from './types/RequestDownloadUrl';
+import type { TranscriptionDownload } from './types/TranscriptionDownload';
 
 export const DOWNLOAD_FAILURE_MESSAGE: TranslatableMessage = { key: 'failure.download' };
 
@@ -47,13 +28,9 @@ export function buildTranscriptFileName(fileName: string, format: TranscriptForm
 }
 
 /**
- * The default way of following the URL, in a browser.
- *
  * An anchor rather than `window.open`: the URL only exists after an await, and
- * a popup opened outside the synchronous part of a click is what Safari
- * blocks. The `download` attribute is a hint only — the URL is cross-origin,
- * so the object's own `Content-Disposition` decides the file name — but it
- * costs nothing and is honoured where it can be.
+ * Safari blocks a popup opened outside the synchronous part of a click. The
+ * `download` attribute is a hint only, since the URL is cross-origin.
  */
 export function followDownloadUrlInBrowser(url: string, fileName: string): void {
   const anchor = document.createElement('a');
@@ -77,12 +54,9 @@ export function useTranscriptionDownload(
     format: TranscriptFormat = 'txt',
   ): Promise<void> {
     /*
-     * Only a COMPLETED transcription has a transcript object behind it. Asking
-     * for a URL for any other status earns a 404, and a download that 404s
-     * reads to a clinician as their dictation having been lost. The table
-     * already offers the action only on a completed row; this is the rule
-     * itself rather than the affordance, so a row that is refreshed into
-     * another status between render and click still cannot fire the request.
+     * The rule itself, not the affordance the table renders: a row refreshed
+     * into another status between render and click still cannot fire the
+     * request, which would 404 and read to a clinician as data loss.
      */
     if (transcription.status !== 'COMPLETED') {
       errorMessage.value = DOWNLOAD_NOT_READY_MESSAGE;
@@ -96,11 +70,9 @@ export function useTranscriptionDownload(
     errorMessage.value = null;
     try {
       /*
-       * Asked for here, at click time, and never rendered into the page ahead
-       * of it. The URL is signed and short-lived: one minted when the page
-       * loaded may well have expired by the time a user reaches for it, and
-       * the expiry surfaces as a broken link rather than as anything a user
-       * could act on.
+       * Asked for at click time, never rendered into the page ahead of it: the
+       * URL is signed and short-lived, and one minted at page load would have
+       * expired into a broken link by the time a user reached for it.
        */
       const response = DownloadUrlResponseSchema.parse(await requestUrl(transcription.id, format));
       followUrl(response.url, buildTranscriptFileName(transcription.fileName, response.format));

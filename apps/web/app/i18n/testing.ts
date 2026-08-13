@@ -1,6 +1,6 @@
 import type { Plugin } from 'vue';
 import { DEFAULT_INTERFACE_LANGUAGE } from './language';
-import type { InterfaceLanguage } from './language';
+import type { InterfaceLanguage } from './types/InterfaceLanguage';
 import { createInterfaceI18n } from './translate';
 
 /**

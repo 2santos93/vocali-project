@@ -4,9 +4,8 @@ import { useTranslations } from '../../i18n/translations';
 
 interface Props {
   /**
-   * Owns the identity of the whole group: the label points at it, and the
-   * hint and error ids are derived from it. One value, so the three can
-   * never drift apart.
+   * Owns the identity of the whole group: the label points at it and the hint
+   * and error ids are derived from it, so the three cannot drift apart.
    */
   id: string;
   label: string;
@@ -30,12 +29,8 @@ const isInvalid = computed<boolean>(() => props.error !== null && props.error !=
 const hasHint = computed<boolean>(() => props.hint !== null && props.hint !== '');
 
 /*
- * The whole point of the component. A message rendered next to a control but
- * not referenced by it is invisible to a screen reader: the user hears
- * "Correo electrónico, campo de texto" and no reason why the form refused.
- *
- * Both ids are listed when both are shown, and the error goes last so it is
- * the final thing announced. Null when there is nothing to point at, which
+ * A message rendered next to a control but not referenced by it is invisible
+ * to a screen reader. The error goes last so it is announced last, and null
  * drops the attribute rather than emitting a dangling reference.
  */
 const describedBy = computed<string | null>(() => {

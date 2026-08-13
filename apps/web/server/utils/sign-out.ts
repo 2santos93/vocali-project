@@ -3,18 +3,12 @@ import { eraseSessionCookies, type CookieJar } from './session-cookie';
 import { resolveActiveSession, type SessionRefresher } from './session';
 
 /**
- * Ending a session, in the order that makes it an ending.
+ * A refresh token stays valid until it expires no matter what the browser
+ * forgets, so clearing cookies alone leaves a live session for anybody holding
+ * a copy. `GlobalSignOut` revokes it at the identity provider.
  *
- * Deleting the cookies is the easy half and, on its own, is not signing out. A
- * Cognito refresh token stays valid until it expires no matter what the
- * browser forgets, so a sign-out that only clears cookies leaves a live
- * session behind for anybody holding a copy of the token — which is exactly
- * the failure acceptance criterion A3 is written to catch. `GlobalSignOut`
- * revokes it at the identity provider, in this browser and every other.
- *
- * This lives apart from the route so the order is assertable: a test can watch
- * the revocation happen before the cookies go, and fail if the revocation
- * stops happening at all.
+ * Apart from the route so the order is assertable: a test can watch the
+ * revocation happen before the cookies go.
  */
 
 export interface SignOutGateway extends SessionRefresher {
@@ -27,16 +21,14 @@ export async function endSession(
   nowSeconds: number,
 ): Promise<AuthFailure | null> {
   /*
-   * The access token is resolved first, and refreshed if it has expired,
-   * because `GlobalSignOut` authenticates with it. Handing Cognito a token
-   * that expired four minutes ago fails the call and leaves the refresh token
-   * alive for the rest of its eight hours — a sign-out that looks like one
-   * from the browser and is not one anywhere else.
+   * The access token is resolved first, and refreshed if expired, because
+   * `GlobalSignOut` authenticates with it. An expired one fails the call and
+   * leaves the refresh token alive for the rest of its eight hours.
    */
   const session = await resolveActiveSession(jar, gateway, nowSeconds);
 
-  // No live session to end. `resolveActiveSession` has already cleared
-  // whatever was left behind, so the sign-out is complete by definition.
+  // No live session to end, and `resolveActiveSession` has already cleared
+  // whatever was left behind.
   if (session === null) return null;
 
   try {
@@ -45,9 +37,9 @@ export async function endSession(
     const failure = describeSignOutFailure(error);
 
     if (failure !== null) {
-      // The cookies still go. The user asked to leave this browser and that
-      // much is honoured; the caller reports plainly that the other sessions
-      // are still open, rather than claiming a sign-out that did not happen.
+      // The cookies still go: the user asked to leave this browser. The caller
+      // reports that the other sessions are still open rather than claiming a
+      // sign-out that did not happen.
       eraseSessionCookies(jar);
 
       return failure;

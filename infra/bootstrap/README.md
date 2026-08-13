@@ -19,9 +19,11 @@ terraform init
 terraform apply
 ```
 
-Nothing here is environment specific — one state bucket serves `dev` and
-`prod`, which are separated by the key prefix in their backend blocks, not by
-the bucket.
+Nothing here is environment specific. One state bucket serves every
+environment, separated by the key prefix in their backend blocks rather than
+by the bucket. Today that is `prod` alone — an `environments/dev` existed
+briefly and was removed, because a second composition nobody deploys is a
+maintenance cost paid for a benefit nobody collects.
 
 ## Its own state
 

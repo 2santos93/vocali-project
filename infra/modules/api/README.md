@@ -54,10 +54,11 @@ callback URL handed to the transcription provider has no version segment to go
 stale. `auto_deploy` is on: with a single stage, a deployment resource would
 be a second step whose only failure mode is being forgotten.
 
-`throttling_rate_limit` defaults to 50 requests a second with a burst of 100.
-That is not a capacity estimate — it is a ceiling. The account default is ten
-thousand a second, which is the number of Lambda invocations a loop in a
-client can bill before anybody notices.
+`throttling_rate_limit` defaults to 50 requests a second with a burst of 100;
+`environments/prod` raises them to 100 and 200. Either way it is not a
+capacity estimate — it is a ceiling. The account default is ten thousand a
+second, which is the number of Lambda invocations a loop in a client can bill
+before anybody notices.
 
 ## The access log
 

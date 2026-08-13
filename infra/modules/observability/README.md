@@ -16,11 +16,18 @@ and each has an obvious first action.
 
 ## Why these four and not others
 
-**Errors** is one alarm summing all eight functions rather than eight alarms.
-The first action is the same in every case, and eight notifications during a
-bad deploy describe one event. The threshold is one: every expected failure in
+**Errors** is one alarm across every function rather than one alarm each. The
+first action is the same in every case, and twelve notifications during a bad
+deploy describe one event. The threshold is one: every expected failure in
 this application is a returned result and a 4xx, so a data point on this metric
 means an exception escaped a handler, which is a defect.
+
+It reads the service-wide `AWS/Lambda` metric rather than summing a
+per-function metric for each. The first version did sum them, and that put a
+ceiling on the platform: a metric-math alarm takes ten elements, and the
+twelfth function passed it. This account holds nothing but this application,
+so the aggregate is the same number without the arithmetic — and a function
+added later is covered without anyone remembering to add it.
 
 **Throttles** is the failure with no log line. Nothing ran, so nothing was
 written. A user on a route sees 429; an upload event is retried and then

@@ -10,11 +10,9 @@ export interface SignedInUser {
 }
 
 /**
- * Exchanges an email address and a password for a session.
- *
  * The tokens Cognito returns go straight into httpOnly cookies and are never
- * part of the response body. The browser is told who signed in — an address to
- * put in the header — and nothing it could replay.
+ * part of the response body: the browser is told who signed in and nothing it
+ * could replay.
  */
 export default defineEventHandler(async (event): Promise<SignedInUser | AuthFailureBody> => {
   const credentials = parseRequest(credentialsSchema, await readBody(event));

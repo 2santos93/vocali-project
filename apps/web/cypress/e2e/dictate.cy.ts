@@ -6,19 +6,13 @@ import { buildTranscription } from '../support/transcriptions';
 /**
  * Journey 5: dictating into the microphone and having it transcribed live.
  *
- * Two capabilities here cannot be reached from the network boundary, and both
- * are replaced at the boundary the application uses rather than skipped: the
- * microphone, through `getUserMedia`, and the provider's stream, through the
- * `WebSocket` constructor. Everything between them is real — the session
- * request through the proxy, the audio graph, the state machine, the screen,
- * and the save.
+ * The microphone and the provider's stream are replaced at the boundary the
+ * application uses rather than skipped; everything between them is real — the
+ * session request through the proxy, the audio graph, the state machine, the
+ * screen, and the save.
  *
- * So no audio is transcribed in this spec and no provider is contacted. What
- * is under test is the application's half of the protocol: that it announces
- * the audio format the session gave it rather than one it assumed, that a
- * provisional transcript is shown as provisional and a confirmed one replaces
- * it, and that a connection dropping mid-sentence does not cost a clinician
- * their dictation.
+ * No audio is transcribed and no provider is contacted. Under test is the
+ * application's half of the protocol.
  */
 
 const SESSION = {

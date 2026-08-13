@@ -1,22 +1,11 @@
 /**
- * Reading the claims out of a Cognito token, without verifying it.
+ * Reads claims **without verifying** the token. Nothing here checks a
+ * signature and nothing here may ever be the reason a request is allowed:
+ * the API Gateway JWT authorizer verifies before any handler runs.
  *
- * That distinction is the whole file. Nothing here checks a signature, and
- * nothing here may ever be the reason a request is allowed. Verification
- * happens where it belongs: the API Gateway JWT authorizer checks signature,
- * issuer, audience and expiry before any handler runs, and Cognito itself
- * checks the token on `GlobalSignOut`.
- *
- * What this is for is the two decisions the BFF has to make on its own:
- *
- *   - when to refresh, so a request is not sent with a token that expires in
- *     flight;
- *   - which address to show in the header, which is display text.
- *
- * The token arrives in a cookie this server set and the browser cannot read
- * or write, so tampering with it means having already taken over the cookie
- * jar. Even then the worst outcome is a wrong name in the header or a
- * needless refresh, because the API still rejects a token it cannot verify.
+ * This exists for the two decisions the BFF makes on its own — when to
+ * refresh, and which address to show in the header. The worst a tampered
+ * token achieves is a wrong name or a needless refresh.
  */
 
 const JWT_SEGMENT_COUNT = 3;
@@ -38,10 +27,9 @@ export function readTokenClaims(token: string): TokenClaims | null {
   const expiresAt = payload['exp'];
   const email = payload['email'];
 
-  // Validated rather than asserted. A payload is attacker-shaped input in the
-  // general case, and `as TokenClaims` over `JSON.parse` would hand the rest
-  // of the server a `subject` that is undefined at runtime and a string to
-  // the type checker.
+  // Validated rather than asserted: `as TokenClaims` over `JSON.parse` hands
+  // the rest of the server a `subject` that is undefined at runtime and a
+  // string to the type checker.
   if (typeof subject !== 'string' || subject === '') return null;
   if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) return null;
 
@@ -68,8 +56,7 @@ function decodePayload(token: string): Record<string, unknown> | null {
 
     return decoded as Record<string, unknown>;
   } catch {
-    // A cookie carrying something that is not a token is a malformed request,
-    // not a crash. The caller reads null as "no usable session".
+    // A malformed request, not a crash: the caller reads null as no session.
     return null;
   }
 }

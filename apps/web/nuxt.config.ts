@@ -28,7 +28,7 @@ export default defineNuxtConfig({
   // `pathPrefix: false` keeps a component's name its file name, so the
   // atoms/molecules/organisms folders classify the design system without
   // renaming `BaseButton` to `AtomsBaseButton` in every template.
-  components: [{ path: '~/components', pathPrefix: false }],
+  components: [{ path: '~/components', pathPrefix: false, extensions: ['vue'] }],
 
   /*
    * Everything here is read on the server only.

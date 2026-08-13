@@ -1,5 +1,4 @@
 import { computed } from 'vue';
-import type { ComputedRef } from 'vue';
 import {
   DEFAULT_THEME_PREFERENCE,
   THEME_COOKIE,
@@ -8,48 +7,28 @@ import {
   themeClass,
   toThemePreference,
 } from '../utils/theme';
-import type { ThemePreference } from '../utils/theme';
+import type { ThemePreference } from '../utils/types/ThemePreference';
+import type { ThemeControl } from './types/ThemeControl';
 import { useSystemPrefersDark } from './useSystemColorScheme';
 
 /**
- * The chosen theme, kept where the server can read it.
+ * **A cookie, not `localStorage`.** Every screen is server-rendered and the
+ * server cannot read browser storage, so a theme restored after hydration
+ * paints the first frame of every page load in the wrong one.
  *
- * The rules are in `utils/theme.ts` and are tested there. What is left here is
- * the part that needs the Nuxt runtime: a cookie, and a piece of shared state.
- *
- * **A cookie, not `localStorage`.** Every screen is server-rendered, and the
- * server cannot read storage that lives in the browser. A theme restored by
- * JavaScript after hydration means the first frame of every page load is
- * painted in the wrong one — a white flash on a dark theme, at every
- * navigation, in a room where the lights are off.
- *
- * **`useState` on top of the cookie, not the cookie alone.** Each `useCookie`
- * call returns its own ref, so the header's toggle and the `<html>` element's
- * class would hold two different copies and only the reloaded page would agree
- * with itself. One piece of shared state, written through to the cookie.
+ * **`useState` on top of it, not the cookie alone.** Each `useCookie` call
+ * returns its own ref, so the header's toggle and the `<html>` class would
+ * hold two copies and only a reload would agree with itself.
  */
-export interface ThemeControl {
-  readonly preference: ComputedRef<ThemePreference>;
-  /** What `<html>` carries: `theme-light`, `theme-dark`, or nothing at all. */
-  readonly rootClass: ComputedRef<string>;
-  /**
-   * The palette actually on screen, with `system` already resolved against the
-   * machine. What a two-position switch shows, and nothing else: the class on
-   * `<html>` is still decided by the preference, because `system` has to stay
-   * the absence of a class for the stylesheet to reach the operating system.
-   */
-  readonly isDark: ComputedRef<boolean>;
-  choose: (preference: ThemePreference) => void;
-}
 
 export const THEME_STATE_KEY = 'theme.preference';
 
 export function useThemePreference(): ThemeControl {
   const cookie = useCookie<string | null>(THEME_COOKIE, {
     maxAge: THEME_COOKIE_MAX_AGE_SECONDS,
-    // Not `httpOnly`: this one exists to be read by both sides. It carries no
-    // authority — the worst a forged value can do is show the reader the other
-    // palette — and `toThemePreference` refuses anything it does not know.
+    // Not `httpOnly`: this exists to be read by both sides. It carries no
+    // authority — the worst a forged value does is show the other palette —
+    // and `toThemePreference` refuses anything it does not know.
     sameSite: 'lax',
     secure: true,
     path: '/',

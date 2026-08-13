@@ -1,18 +1,10 @@
 /**
- * The Spanish interface, and the source of truth for what a message key is.
+ * The source of truth for what a message key is: `MessageKey` is derived from
+ * the keys of this object, so a key added here and forgotten in `en.ts` fails
+ * to compile, and a key in `en.ts` that does not exist here fails too.
  *
- * `MessageKey` is derived from the keys of this object, so this catalogue
- * defines the set and every other one has to match it exactly: a key added
- * here and forgotten in `en.ts` fails to compile, and a key in `en.ts` that
- * does not exist here fails to compile too. Neither can reach a reader as a
- * blank space or as a dotted identifier.
- *
- * Spanish is first because it is the product's language, not because it is
- * alphabetically convenient. When the two catalogues disagree about what a
- * screen says, this one is right.
- *
- * `{name}` marks a value supplied at the call site. A placeholder with nothing
- * to fill it is an error rather than an empty gap — see `translate.ts`.
+ * When the two catalogues disagree about what a screen says, this one is
+ * right. `{name}` marks a value supplied at the call site.
  */
 export const SPANISH_MESSAGES = {
   /* Words the whole interface shares. */
@@ -25,30 +17,21 @@ export const SPANISH_MESSAGES = {
   /* The two preference controls. */
   'preferences.theme': 'Tema',
   /*
-   * The switch is named for what turning it on *does*, not for the value it
-   * holds. "Oscuro" beside a switch reads as a label on a state — is it the
-   * current one, or the one I would get? — and "Modo oscuro" cannot be read
-   * either way.
+   * Named for what turning it on does, not for the value it holds: "Oscuro"
+   * beside a switch reads as a label on a state — is it the current one, or
+   * the one I would get?
    */
   'preferences.theme.darkMode': 'Modo oscuro',
-  /*
-   * The way back to the machine, which a two-position switch cannot express
-   * on its own. It is a third control rather than a third position because a
-   * switch with three states is not a switch.
-   */
+  // A third control rather than a third position, because a switch with three
+  // states is not a switch.
   'preferences.theme.system': 'Como el sistema',
   'preferences.language': 'Idioma',
-  /*
-   * Read out where the flag is the only thing on screen. A flag is a country
-   * and a language is not, so the button that shows one has to say which
-   * language it means to anybody who is not looking at it.
-   */
+  // Read out where the flag is the only thing on screen: a flag is a country
+  // and a language is not.
   'preferences.language.current': 'Idioma: {language}',
   /*
-   * A language is named in its own language in both catalogues, deliberately.
-   * Somebody looking for the way out of a language they cannot read has to
-   * recognise the name of the one they want; "Spanish" would be no help at all
-   * to the reader who most needs this control.
+   * Named in its own language in both catalogues: "Spanish" is no help to the
+   * reader who most needs this control.
    */
   'preferences.language.es': 'Español',
   'preferences.language.en': 'English',
@@ -61,17 +44,13 @@ export const SPANISH_MESSAGES = {
   'nav.history': 'Historial',
   'session.signOut': 'Cerrar sesión',
   'session.signingOut': 'Cerrando sesión',
-  /*
-   * The name of the button that opens the account menu. It carries the address
-   * because the button itself shows only an initial, and "Cuenta" repeated in
-   * a list of links tells a screen reader user nothing about whose it is.
-   */
+  // Carries the address because the button itself shows only an initial.
   'session.account': 'Cuenta de {email}',
 
   /*
-   * The language spoken in a recording — not the language of the interface.
-   * These two lists exist for different reasons and neither decides the other:
-   * a clinician reading this application in English still dictates in Catalan.
+   * The language spoken in a recording, not the language of the interface.
+   * Neither list decides the other: a clinician reading this application in
+   * English still dictates in Catalan.
    */
   'audioLanguage.es': 'Español',
   'audioLanguage.en': 'Inglés',
@@ -88,10 +67,9 @@ export const SPANISH_MESSAGES = {
   /* Signing in, registering, confirming an address. */
   'auth.email': 'Correo electrónico',
   /*
-   * `{'@'}` is an escaped at sign, not a placeholder. `vue-i18n` reads a bare
+   * `{'@'}` is an escaped at sign, not a placeholder: `vue-i18n` reads a bare
    * `@` as the start of a link to another message and refuses the whole
-   * catalogue with "Invalid linked format" — loudly, at least, but it has to be
-   * written this way. What a reader sees is `nombre@centro.es`.
+   * catalogue. What a reader sees is `nombre@centro.es`.
    */
   'auth.emailPlaceholder': "nombre{'@'}centro.es",
   'auth.emailMissing': 'Introduce tu correo electrónico.',
@@ -134,13 +112,10 @@ export const SPANISH_MESSAGES = {
   'auth.confirm.createAnother': 'Crear otra cuenta',
 
   /*
-   * The failures the authentication routes report, keyed by the stable code
-   * they carry rather than by the sentence they arrive with.
-   *
-   * The route's own sentence is the HTTP contract and stays where it is: it is
-   * what a log records and what anything other than this browser would read.
-   * What a reader sees is written here, in the language they chose, because
-   * the server has no business knowing which language that is.
+   * Keyed by the stable code the routes carry, not the sentence they arrive
+   * with. The route's own sentence is the HTTP contract and stays there; what
+   * a reader sees is written here, because the server has no business knowing
+   * which language they chose.
    */
   'authFailure.RATE_LIMITED':
     'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.',
@@ -186,11 +161,7 @@ export const SPANISH_MESSAGES = {
     'El texto aparecerá aquí en cuanto termine la transcripción. También quedará guardado en tu historial.',
   'file.chooseFirst': 'Elige primero un archivo de audio para transcribirlo.',
   'file.failureTitle': 'No se ha podido transcribir',
-  /*
-   * The upload screen reports the language instead of asking for it. Both
-   * sentences are about the same fact, before and after: what we are going to
-   * do, and what we found.
-   */
+  // The upload screen reports the language instead of asking for it.
   'file.automaticLanguage':
     'Detectamos el idioma de la grabación automáticamente. Admitimos español, inglés, catalán, euskera y gallego.',
   'file.detectedLanguage': 'Idioma detectado: {language}',
@@ -265,11 +236,9 @@ export const SPANISH_MESSAGES = {
   'history.page': 'Página {number}',
 
   /*
-   * What went wrong, as prose the reader can act on.
-   *
    * The composables that decide which of these applies hold the key and not
-   * the sentence, so a failure raised while the interface was in one language
-   * still reads correctly after the reader switches to the other.
+   * the sentence, so a failure raised in one language still reads correctly
+   * after the reader switches to the other.
    */
   'failure.sessionExpired': 'Tu sesión ha caducado. Vuelve a iniciar sesión.',
   'failure.historyLoad':
@@ -330,11 +299,3 @@ export const SPANISH_MESSAGES = {
   'failure.dictation.sessionUnavailable':
     'No hemos podido preparar la sesión de dictado. Inténtalo de nuevo en unos segundos.',
 } as const;
-
-/**
- * Every message this application can render, as a union of literal keys.
- *
- * Derived rather than declared, so the type and the Spanish catalogue cannot
- * disagree, and every other catalogue is a `Record` over it.
- */
-export type MessageKey = keyof typeof SPANISH_MESSAGES;

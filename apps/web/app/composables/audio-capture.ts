@@ -1,32 +1,19 @@
-import type { TranslatableMessage } from '../i18n/translate';
+import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
+import type { AudioCapture } from './types/AudioCapture';
+import type { AudioCaptureDependencies } from './types/AudioCaptureDependencies';
+import type { AudioCaptureOptions } from './types/AudioCaptureOptions';
+import type { MicrophoneFailureCode } from './types/MicrophoneFailureCode';
 
-/**
- * Getting audio out of a microphone and into the caller's hands as PCM.
- *
- * Separate from the dictation flow because it is the one part of that flow
- * that talks to the device rather than to the provider: it knows about
- * permissions, tracks, worklets and the browser's recording indicator, and
- * nothing about sessions, sockets or transcripts. The recorder holds it behind
- * the `AudioCapture` interface below, which is what lets a test drive a
- * dictation with no hardware and no `AudioContext` at all.
- */
-
-/** The URL the browser fetches the worklet module from. `public/` is served at the site root. */
+/** `public/` is served at the site root. */
 export const PCM_ENCODER_WORKLET_URL = '/worklets/pcm-encoder.js';
 
 /** Must match the name `registerProcessor` is called with inside the worklet. */
 export const PCM_ENCODER_PROCESSOR_NAME = 'pcm-encoder';
 
-export type MicrophoneFailureCode = 'PERMISSION_DENIED' | 'NO_MICROPHONE' | 'CAPTURE_FAILED';
-
 export class MicrophoneError extends Error {
   public readonly code: MicrophoneFailureCode;
 
-  /**
-   * What the reader is told. `Error.message` has to be a string and is what a
-   * developer meets in a stack trace, so it carries the key; the sentence is
-   * produced from `detail` at the moment it reaches the screen.
-   */
+  /** The sentence is produced from this at the moment it reaches the screen. */
   public readonly detail: TranslatableMessage;
 
   constructor(code: MicrophoneFailureCode, detail: TranslatableMessage) {
@@ -35,23 +22,6 @@ export class MicrophoneError extends Error {
     this.code = code;
     this.detail = detail;
   }
-}
-
-export interface AudioCaptureOptions {
-  readonly sampleRate: number;
-  /** Called once per rendered block, with the PCM the worklet produced. */
-  readonly onFrame: (frame: ArrayBuffer) => void;
-}
-
-export interface AudioCapture {
-  start(options: AudioCaptureOptions): Promise<void>;
-  stop(): Promise<void>;
-}
-
-export interface AudioCaptureDependencies {
-  requestMicrophone(constraints: MediaStreamConstraints): Promise<MediaStream>;
-  createAudioContext(options: AudioContextOptions): AudioContext;
-  createWorkletNode(context: AudioContext, name: string): AudioWorkletNode;
 }
 
 function nameOf(error: unknown): string | null {
@@ -63,13 +33,9 @@ function nameOf(error: unknown): string | null {
 }
 
 /**
- * Translates what `getUserMedia` rejects with into something a clinician can
- * act on.
- *
  * The distinction that matters is "you said no" versus "there is nothing to
- * say yes with": the first is fixed in the browser's address bar, the second
- * by plugging something in. A single "no se pudo acceder al micrófono" sends
- * the user looking in the wrong place.
+ * say yes with": the first is fixed in the address bar, the second by plugging
+ * something in. One message for both sends the user to the wrong place.
  */
 function toMicrophoneError(error: unknown): MicrophoneError {
   const name = nameOf(error);
@@ -88,16 +54,13 @@ function toMicrophoneError(error: unknown): MicrophoneError {
 }
 
 /**
- * Microphone capture through an `AudioWorklet`.
- *
- * `ScriptProcessorNode` is deprecated and runs on the main thread, so it drops
- * samples exactly when the page is busy rendering the transcript that is
- * growing beneath it. The worklet runs on the audio thread instead.
+ * An `AudioWorklet` rather than `ScriptProcessorNode`, which runs on the main
+ * thread and drops samples exactly when the page is busy rendering the
+ * transcript growing beneath it.
  *
  * The `AudioContext` is constructed at the provider's sample rate rather than
- * resampled afterwards. Resampling in JavaScript costs quality and main-thread
- * time for something the audio hardware and the browser will do properly if
- * simply asked; asking is one option object.
+ * resampled afterwards: resampling in JavaScript costs quality and main-thread
+ * time for something the browser does properly if simply asked.
  */
 export function createWorkletAudioCapture(
   dependencies: AudioCaptureDependencies = {
@@ -117,8 +80,7 @@ export function createWorkletAudioCapture(
     node = null;
 
     // Stopping every track is what turns the browser's recording indicator
-    // off. Closing the context alone leaves the tab showing as listening,
-    // which for a microphone is not a cosmetic difference.
+    // off; closing the context alone leaves the tab showing as listening.
     for (const track of stream?.getTracks() ?? []) {
       track.stop();
     }
@@ -155,13 +117,9 @@ export function createWorkletAudioCapture(
       context.createMediaStreamSource(stream).connect(node);
 
       /*
-       * Connecting to the destination is what keeps the graph rendering: a
-       * node with no path to the output is not guaranteed to be pulled, and
-       * the symptom is a worklet whose `process` is simply never called.
-       *
-       * It causes no feedback. The worklet writes nothing to its outputs, so
-       * the node emits silence; the connection exists to keep the clock
-       * running, not to make a sound.
+       * Keeps the graph rendering: a node with no path to the output is not
+       * guaranteed to be pulled, and the symptom is a worklet whose `process`
+       * is never called. No feedback — the worklet emits silence.
        */
       node.connect(context.destination);
     } catch (error: unknown) {

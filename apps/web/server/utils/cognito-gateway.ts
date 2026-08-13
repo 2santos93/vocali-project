@@ -10,17 +10,12 @@ import { computeSecretHash } from './secret-hash';
 import { readTokenClaims } from './token-claims';
 
 /**
- * Every conversation this application has with Cognito, behind one interface.
+ * The seam where `SECRET_HASH` is applied once rather than at five call sites,
+ * and where the rest of the server stops depending on the AWS SDK.
  *
- * The interface exists so the rest of the server depends on six named
- * operations rather than on the AWS SDK, which is what lets the session logic,
- * the error translation and the proxy be tested with a double instead of an
- * AWS account. It is also the seam where the `SECRET_HASH` the confidential
- * client requires is applied once rather than at five call sites.
- *
- * Nothing here interprets a failure. The SDK's exception is allowed to
- * propagate exactly as thrown, because what `NotAuthorizedException` means to
- * a user depends entirely on which flow raised it — see `auth-failures.ts`.
+ * Nothing here interprets a failure: the SDK's exception propagates exactly as
+ * thrown, because what `NotAuthorizedException` means to a user depends on
+ * which flow raised it. See `auth-failures.ts`.
  */
 
 export interface CognitoConfiguration {
@@ -54,12 +49,9 @@ export class CognitoResponseError extends Error {
 }
 
 /**
- * Five seconds, and a total of three attempts.
- *
- * Sign-in sits on a request a person is watching. Waiting out the SDK's
- * default two-minute socket timeout for a Cognito endpoint that is not
- * answering means the browser gives up first and the user presses the button
- * again, which starts a second sign-in rather than replacing the first.
+ * Sign-in sits on a request a person is watching, and waiting out the SDK's
+ * default two-minute socket timeout means the browser gives up first and the
+ * user presses the button again, starting a second sign-in.
  */
 const REQUEST_TIMEOUT_MS = 5000;
 const CONNECTION_TIMEOUT_MS = 3000;
@@ -134,10 +126,9 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
       const accessToken = result?.AccessToken;
       const refreshToken = result?.RefreshToken;
 
-      // A response with no tokens means Cognito answered with a challenge —
-      // multi-factor enrolment, or a forced password change. The pool is
-      // configured with neither, so reaching here is a configuration drift and
-      // not something to paper over with an empty session.
+      // No tokens means Cognito answered with a challenge — MFA enrolment or a
+      // forced password change. The pool has neither, so this is configuration
+      // drift rather than something to paper over with an empty session.
       if (accessToken === undefined || refreshToken === undefined) {
         throw new CognitoResponseError('Cognito returned no tokens for a password sign-in');
       }
@@ -168,14 +159,11 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
           AuthParameters: {
             REFRESH_TOKEN: refreshToken,
             /*
-             * The subject, not the email address.
-             *
-             * A pool whose username attribute is `email` gives each user a
-             * generated username equal to their `sub`, and Cognito computes
-             * the secret hash for a refresh against that username. Passing the
-             * address here produces a hash that fails to match, and the
-             * failure arrives as `NotAuthorizedException` — the same exception
-             * a genuinely expired refresh token produces, so the mistake
+             * The subject, not the email address: on a pool keyed by email the
+             * generated username equals the `sub`, and Cognito computes the
+             * refresh secret hash against that. The address produces a hash
+             * that fails to match, arriving as `NotAuthorizedException` — the
+             * same exception an expired refresh token gives, so the mistake
              * presents as "users are signed out at random".
              */
             SECRET_HASH: secretHashFor(subject),
@@ -193,14 +181,10 @@ export function createCognitoGateway(configuration: CognitoConfiguration): Cogni
 
     async signOutEverywhere(accessToken: string): Promise<void> {
       /*
-       * `GlobalSignOut`, not a cookie deletion.
-       *
-       * It revokes every refresh token the user holds, in this browser and any
-       * other. Deleting the cookies alone would leave the refresh token valid
-       * for the rest of its eight hours in whatever copy of it exists
-       * elsewhere, which is not signing out — it is forgetting.
-       *
-       * This is what `enable_token_revocation` on the app client is for.
+       * `GlobalSignOut`, not a cookie deletion: deleting the cookies alone
+       * leaves the refresh token valid for the rest of its eight hours in
+       * whatever copy of it exists elsewhere, which is forgetting rather than
+       * signing out. This is what `enable_token_revocation` is for.
        */
       await client.send(new GlobalSignOutCommand({ AccessToken: accessToken }));
     },

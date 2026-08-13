@@ -212,12 +212,13 @@ locals {
   ticket_partition_key_prefix     = "TICKET#"
   connection_partition_key_prefix = "CONN#"
 
-  # The functions this platform will run, and what each is allowed to touch.
-  # They do not exist yet — the round that creates them consumes the role and
-  # the log group produced here — but their permissions do, because a role
-  # written alongside a function tends to be written to make the function
-  # work, and a role written from its use cases tends to be written to be
-  # small.
+  # The functions this platform runs, and what each is allowed to touch.
+  #
+  # The functions themselves are created by the `lambda` module, which consumes
+  # the role and the log group produced here. The permissions live apart from
+  # them on purpose: a role written alongside a function tends to be written
+  # until the function works, and a role written from its use cases tends to be
+  # written to be small.
   functions = {
     "create-upload-intent" = [
       local.statements.write_record,

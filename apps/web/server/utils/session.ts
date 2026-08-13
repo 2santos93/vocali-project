@@ -7,20 +7,9 @@ import {
 import { readTokenClaims } from './token-claims';
 
 /**
- * Turning the cookies into an access token that is worth sending, or into
- * nothing at all.
- *
- * Everything that answers 401 goes through here, so there is one definition of
- * "signed in" rather than one per route.
- */
-
-/**
- * A token with twenty seconds left is treated as expired.
- *
- * Cognito issues access tokens for fifteen minutes. Without a margin, a
+ * A token with twenty seconds left is treated as expired: without a margin, a
  * request that passes this check and then spends its remaining life in a TLS
- * handshake reaches the API already expired, and the user sees a random 401
- * with no way to reproduce it.
+ * handshake reaches the API already expired, as an unreproducible 401.
  */
 export const EXPIRY_MARGIN_SECONDS = 20;
 
@@ -34,13 +23,9 @@ export interface SessionRefresher {
 }
 
 /**
- * Whether there is anything here worth authenticating with.
- *
- * A cheap check that costs no network call, so a request from a browser with
- * no cookies — an anonymous visitor loading the sign-in page, a crawler
- * walking `/api/**` — is answered without building a Cognito client, which
- * means without a Parameter Store read. It says nothing about whether the
- * token is still valid; `resolveActiveSession` decides that.
+ * Costs no network call, so a browser with no cookies is answered without
+ * building a Cognito client and therefore without a Parameter Store read. It
+ * says nothing about validity; `resolveActiveSession` decides that.
  */
 export function hasSessionCookies(jar: CookieJar): boolean {
   return readSessionCookies(jar) !== null;
@@ -60,17 +45,17 @@ export async function resolveActiveSession(
 ): Promise<ActiveSession | null> {
   const stored = readSessionCookies(jar);
   if (stored === null) {
-    // Nothing usable, but there may still be a stray cookie from a partial
-    // write. Clearing costs nothing and stops the browser resending it.
+    // A stray cookie from a partial write may still be here; clearing costs
+    // nothing and stops the browser resending it.
     eraseSessionCookies(jar);
     return null;
   }
 
   const claims = readTokenClaims(stored.accessToken);
 
-  // Unreadable claims are treated exactly like expiry rather than as a hard
-  // failure: the refresh token may still be good, and the alternative is
-  // signing a user out because a token format changed.
+  // Unreadable claims are treated like expiry rather than a hard failure: the
+  // refresh token may still be good, and the alternative signs a user out
+  // because a token format changed.
   const usable = claims !== null && claims.expiresAt - EXPIRY_MARGIN_SECONDS > nowSeconds;
 
   if (usable) {
@@ -89,14 +74,9 @@ export async function resolveActiveSession(
     return { accessToken, subject: stored.subject, email: stored.email };
   } catch {
     /*
-     * The only correct reading of a failed refresh is that the session is
-     * over: the refresh token has expired, or it was revoked by a global
-     * sign-out — possibly the one this user performed in another browser.
-     *
-     * The failure is deliberately not distinguished from expiry and
-     * deliberately not surfaced. Leaving the cookies in place would leave the
-     * browser retrying a dead session on every request for the next eight
-     * hours.
+     * A failed refresh means the session is over — expired, or revoked by a
+     * global sign-out elsewhere. Not distinguished from expiry, and the
+     * cookies are cleared: leaving them retries a dead session for eight hours.
      */
     eraseSessionCookies(jar);
     return null;

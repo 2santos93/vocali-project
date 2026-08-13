@@ -4,20 +4,14 @@ import { buildTranscriptions } from '../support/transcriptions';
 /**
  * Journey 6: browsing the paginated history.
  *
- * Two things are pinned here and neither is reachable below the browser.
- *
- * **Ten per page.** The number is a product requirement, and the screen states
- * it in a sentence the user reads. Asserting the literal ten — rather than the
- * constant the application computes it from — is what makes the assertion fail
- * when the page size changes, instead of agreeing with whatever the constant
- * happens to say.
+ * **Ten per page**, asserted as the literal rather than the constant the
+ * application computes it from, so the assertion fails when the page size
+ * changes instead of agreeing with whatever the constant happens to say.
  *
  * **The cursor.** The API pages forwards over an opaque key and has no
- * backwards page to ask for, so "Anterior" is served from a trail of cursors
- * the browser remembers. Nothing below the running application holds that
- * trail. There are deliberately no page numbers asserted: a page number is not
- * expressible against an opaque cursor, and asserting one would pin a
- * counter rather than a journey.
+ * backwards page to ask for, so "Anterior" is served from a trail the browser
+ * remembers, and nothing below the running application holds it. No page
+ * numbers are asserted: one is not expressible against an opaque cursor.
  */
 
 const SECOND_PAGE_CURSOR = 'eyJwayI6InVzZXIjNGIxZiIsInNrIjoiMDFKQlFY';
@@ -47,9 +41,8 @@ describe('Browsing the transcription history', () => {
     signInOnTheWayTo('/historial');
     cy.wait('@history');
 
-    // Eleven records is not something this screen can show without silently
-    // breaking the requirement, so it reports a failure the user can retry
-    // rather than quietly growing the page.
+    // Eleven records would silently break the requirement, so the screen
+    // reports a failure the user can retry rather than growing the page.
     cy.get('[data-testid=history-row]').should('not.exist');
     cy.contains('No hemos podido cargar tu historial').should('be.visible');
   });
@@ -75,9 +68,8 @@ describe('Browsing the transcription history', () => {
 
     cy.get('[data-testid=pagination-next]').click();
 
-    // The cursor the first page returned is the one the second page is asked
-    // for. A client that invented an offset instead would ask for something
-    // this API does not serve.
+    // The cursor the first page returned is the one the second is asked for; a
+    // client inventing an offset asks for something this API does not serve.
     cy.wait('@history')
       .its('request.url')
       .should('contain', `cursor=${encodeURIComponent(SECOND_PAGE_CURSOR)}`);
@@ -119,9 +111,9 @@ describe('Browsing the transcription history', () => {
     signInOnTheWayTo('/historial');
     cy.wait('@history');
 
-    // A 401 is the session being over, not the network being unreliable, and
-    // the two need different remedies: repeating a request that will 401 again
-    // reads to a clinician as the product refusing to work.
+    // A 401 is the session being over, not the network being unreliable:
+    // repeating a request that will 401 again reads as the product refusing
+    // to work.
     cy.contains('Tu sesión ha caducado').should('be.visible');
     cy.contains('button', 'Iniciar sesión').should('be.visible');
     cy.contains('button', 'Reintentar').should('not.exist');

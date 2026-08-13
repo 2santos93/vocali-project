@@ -109,10 +109,10 @@ resource "aws_sns_topic_subscription" "email" {
 
 # 1. A function threw.
 #
-# One alarm summing Errors across all eight rather than eight alarms, because
-# the first action is the same in every case — read the log group — and eight
-# alarms firing together during a bad deploy is eight notifications describing
-# one event.
+# One alarm across every function rather than one alarm each, because the
+# first action is the same in every case — read the log group — and twelve
+# alarms firing together during a bad deploy is twelve notifications
+# describing one event.
 #
 # The threshold is not zero-tolerance by accident. Every expected failure in
 # this application is a returned Result and a 4xx; an Errors data point means

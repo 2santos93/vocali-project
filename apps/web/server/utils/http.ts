@@ -3,12 +3,9 @@ import type { AuthFailure } from './auth-failures';
 import type { CookieJar, SessionCookieOptions } from './session-cookie';
 
 /**
- * The adapter between h3 and the parts of this server that are worth testing.
- *
- * Everything else on the server side is written against `CookieJar` and plain
- * values, which is what lets the cookie flags, the refresh logic and the proxy
- * run under Jest with no Nitro, no event and no network. This file is the
- * seam, and it is kept to the two functions that cannot be anything else.
+ * The seam between h3 and the rest of the server, which is written against
+ * `CookieJar` and plain values so it runs under Jest with no Nitro. Kept to
+ * the two functions that cannot be anything else.
  */
 
 export function createCookieJar(event: H3Event): CookieJar {
@@ -20,25 +17,19 @@ export function createCookieJar(event: H3Event): CookieJar {
       setCookie(event, name, value, options);
     },
     erase(name: string): void {
-      // The path has to match the one the cookie was written with, or the
-      // browser keeps the original and the "deletion" adds a second cookie of
-      // the same name. `deleteCookie` sends the expiry, so the flags beyond
-      // path are irrelevant here.
+      // The path must match the one the cookie was written with, or the browser
+      // keeps the original and the "deletion" adds a second cookie of the
+      // same name.
       deleteCookie(event, name, { path: '/' });
     },
   };
 }
 
 /**
- * An expected failure, answered as data rather than thrown.
- *
- * `createError` would wrap the message in h3's own envelope — `statusMessage`,
- * a `data` field, sometimes a stack — and the page would have to reach two
- * levels deep for a sentence to show the user. Setting the status and
- * returning the body keeps one shape for every non-2xx this application
- * produces, `{ code, message }`, which is the same shape the API's own errors
- * arrive in through the proxy. `$fetch` still rejects on the status, so the
- * caller's `catch` is unchanged.
+ * Answered as data rather than thrown: `createError` wraps the message in
+ * h3's own envelope, and the page would reach two levels deep for a sentence.
+ * Returning the body keeps one `{ code, message }` shape for every non-2xx,
+ * matching what the API's own errors arrive as through the proxy.
  */
 export function respondWithFailure(event: H3Event, failure: AuthFailure): AuthFailureBody {
   setResponseStatus(event, failure.statusCode);

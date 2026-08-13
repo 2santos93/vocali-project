@@ -4,14 +4,9 @@ import { buildTranscription } from '../support/transcriptions';
 /**
  * Journey 7: downloading a transcription.
  *
- * Two properties are pinned, and both are properties of the running screen
- * rather than of any function under it.
- *
  * **The signed URL is asked for at click time.** It is short-lived, so one
- * minted while the page was rendering may well be dead by the time a user
- * reaches for it — and an expired signature surfaces as a broken link, which
- * is not something a user can act on. Nothing is rendered into the page ahead
- * of the click, and no request is made until the button is pressed.
+ * minted while the page was rendering may be dead by the time a user reaches
+ * for it, and an expired signature surfaces as a broken link.
  *
  * **Only a completed transcription can be downloaded.** Anything else has no
  * transcript object behind it, so the action could only 404 — which to a
@@ -106,9 +101,8 @@ describe('Downloading a transcription', () => {
 
     cy.get('[data-testid=history-download]').should('be.visible');
 
-    // Nothing has been asked for, and there is no address on the page that
-    // could have been. A rendered link would carry a signature that expires
-    // while the page is open.
+    // Nothing asked for, and no address on the page that could have been: a
+    // rendered link carries a signature that expires while the page is open.
     cy.get('@downloadUrl.all').should('have.length', 0);
     cy.get('[data-testid=history-download]').should('match', 'button');
     cy.get('a[href*="transcripciones.example.test"]').should('not.exist');
@@ -119,8 +113,7 @@ describe('Downloading a transcription', () => {
       .its('request.url')
       .should('contain', '/api/transcriptions/tr-consulta-01/download');
 
-    // The browser followed the URL it was handed: the transcript itself was
-    // fetched, and it landed as a file rather than as a page.
+    // The browser followed the URL it was handed, and it landed as a file.
     cy.wait('@transcriptFile');
     cy.readFile('cypress/downloads/consulta-cardiologia.txt').should(
       'contain',

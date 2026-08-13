@@ -1,77 +1,14 @@
-import type {
-  TranscriptionLanguage,
-  TranscriptionSource,
-  TranscriptionStatus,
-} from '@vocali/contracts/constants';
+import type { TranscriptionStatus } from '@vocali/contracts/constants';
 import { InvalidStatusTransitionError } from '../errors/domain-error.js';
-import { err, ok, type Result } from '../shared/result.js';
-import type { AudioFile } from '../value-objects/audio-file.js';
+import { err, ok } from '../shared/result.js';
+import type { CompletionInput } from '../types/completion-input.js';
+import type { FileUploadInput } from '../types/file-upload-input.js';
+import type { RealtimeSessionInput } from '../types/realtime-session-input.js';
+import type { Result } from '../types/result.js';
+import type { TranscriptionPrimitives } from '../types/transcription-primitives.js';
 import { canTransition } from '../value-objects/transcription-status.js';
 
 const TEXT_PREVIEW_LENGTH = 200;
-
-export interface TranscriptionPrimitives {
-  readonly id: string;
-  readonly userId: string;
-  /**
-   * The revision this entity was read at, and the value every write is
-   * conditioned on. `0` means the record has never been stored, so its first
-   * write is an insert. Mutating the entity deliberately does not touch it:
-   * a use case may apply two transitions before saving once, and what the
-   * write has to match is the revision the store held when it was read, not
-   * the number of changes made to it since.
-   */
-  readonly version: number;
-  readonly fileName: string;
-  readonly source: TranscriptionSource;
-  readonly status: TranscriptionStatus;
-  /**
-   * The language of the audio, once it is known. Null on an uploaded file
-   * until the provider identifies it and the completion webhook records it; a
-   * dictation carries the speaker's choice from the moment it is created.
-   */
-  readonly language: TranscriptionLanguage | null;
-  readonly sizeBytes: number | null;
-  readonly durationSeconds: number | null;
-  readonly audioObjectKey: string | null;
-  readonly transcriptObjectKey: string | null;
-  readonly externalJobId: string | null;
-  readonly textPreview: string | null;
-  readonly errorMessage: string | null;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-interface FileUploadInput {
-  readonly id: string;
-  readonly userId: string;
-  readonly audioFile: AudioFile;
-  readonly audioObjectKey: string;
-  readonly createdAt: Date;
-}
-
-interface RealtimeSessionInput {
-  readonly id: string;
-  readonly userId: string;
-  readonly language: TranscriptionLanguage;
-  readonly durationSeconds: number;
-  readonly transcriptObjectKey: string;
-  readonly text: string;
-  readonly createdAt: Date;
-}
-
-interface CompletionInput {
-  readonly transcriptObjectKey: string;
-  readonly text: string;
-  readonly durationSeconds: number;
-  /**
-   * The language the provider identified, where it could. Null leaves whatever
-   * the record already held: a completion that failed to identify anything
-   * must not erase a language, and on an upload there was none to erase.
-   */
-  readonly language: TranscriptionLanguage | null;
-  readonly at: Date;
-}
 
 export class Transcription {
   private constructor(private state: TranscriptionPrimitives) {}
@@ -86,7 +23,7 @@ export class Transcription {
       fileName: input.audioFile.fileName,
       source: 'FILE',
       status: 'PENDING_UPLOAD',
-      // Unknown until the provider says so. See `CompletionInput`.
+      // Unknown until the provider identifies it on completion.
       language: null,
       sizeBytes: input.audioFile.sizeBytes,
       durationSeconds: null,
@@ -145,9 +82,8 @@ export class Transcription {
       durationSeconds: input.durationSeconds,
       language: input.language ?? this.state.language,
       textPreview: buildPreview(input.text),
-      // A late success following a recorded FAILED status (see
-      // `transcription-status.ts`) must not leave the earlier failure text
-      // attached to what is now a completed transcription.
+      // FAILED -> COMPLETED is allowed, so a late success must not leave the
+      // earlier failure text attached to a completed transcription.
       errorMessage: null,
     });
   }
@@ -179,12 +115,9 @@ function buildPreview(text: string): string {
 }
 
 /**
- * A microphone session has no uploaded file, but the history list still shows
- * a name per row, so one is derived from the moment of recording. Formatted
- * rather than using the raw ISO string: that contains colons, which are
- * invalid in filenames on Windows, and it is what the user sees in a clinical
- * history list. `microphone-YYYYMMDD-HHmmss` sorts in recording order as
- * plain text, and the single hyphen separates date from time unambiguously.
+ * Formatted rather than the raw ISO string: that contains colons, which are
+ * invalid in filenames on Windows, and this name is what the user sees and
+ * downloads. `microphone-YYYYMMDD-HHmmss` still sorts in recording order.
  */
 function buildRealtimeFileName(at: Date): string {
   const pad = (value: number): string => String(value).padStart(2, '0');

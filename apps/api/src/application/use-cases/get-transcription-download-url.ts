@@ -1,4 +1,4 @@
-import type { DownloadUrlResponse, TranscriptFormat } from '@vocali/contracts';
+import type { DownloadUrlResponse } from '@vocali/contracts';
 import {
   TranscriptionNotFoundError,
   TranscriptionNotReadyError,
@@ -6,17 +6,12 @@ import {
 import type { Clock } from '../../domain/ports/clock.js';
 import type { FileStorage } from '../../domain/ports/file-storage.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import { err, ok, type Result } from '../../domain/shared/result.js';
+import { err, ok } from '../../domain/shared/result.js';
+import type { Result } from '../../domain/types/result.js';
 import { DOWNLOAD_URL_TTL_SECONDS } from '../constants.js';
+import type { GetTranscriptionDownloadUrlError } from '../types/get-transcription-download-url-error.js';
+import type { GetTranscriptionDownloadUrlInput } from '../types/get-transcription-download-url-input.js';
 import { buildTranscriptObjectKey } from './object-keys.js';
-
-interface GetTranscriptionDownloadUrlInput {
-  readonly userId: string;
-  readonly transcriptionId: string;
-  readonly format: TranscriptFormat;
-}
-
-type GetTranscriptionDownloadUrlError = TranscriptionNotFoundError | TranscriptionNotReadyError;
 
 export class GetTranscriptionDownloadUrl {
   constructor(
@@ -30,10 +25,9 @@ export class GetTranscriptionDownloadUrl {
   ): Promise<Result<DownloadUrlResponse, GetTranscriptionDownloadUrlError>> {
     const transcription = await this.repository.findById(input.userId, input.transcriptionId);
     if (transcription === null) {
-      // `findById` is scoped by userId, so this also covers a record that
-      // belongs to another user. Returning the same error for "absent" and
-      // "not yours" keeps the response from being usable to enumerate other
-      // users' transcription ids.
+      // `findById` is scoped by userId, so this also covers another user's
+      // record. The same error for "absent" and "not yours" keeps the response
+      // from being usable to enumerate transcription ids.
       return err(new TranscriptionNotFoundError(input.transcriptionId));
     }
 

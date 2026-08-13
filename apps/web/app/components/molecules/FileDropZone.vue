@@ -4,19 +4,17 @@ import { computed, ref } from 'vue';
 import { useTranslations } from '../../i18n/translations';
 import BaseButton from '../atoms/BaseButton.vue';
 import { formatMegabytes } from '../format';
-import type { FileRejection } from '../component-vocabulary';
+import type { FileRejection } from '../types/FileRejection';
 
 interface Props {
   /**
-   * Defaults come straight from @vocali/contracts, so the courtesy check the
-   * browser performs and the policy S3 enforces are the same numbers. A
-   * second copy here is how a client starts refusing files the server would
-   * have accepted, or promising ones it will reject.
+   * Defaults come from @vocali/contracts, so the browser's courtesy check and
+   * the policy S3 enforces are the same numbers. A second copy here is how a
+   * client starts refusing files the server would have accepted.
    */
   accept?: readonly string[];
   maxSizeBytes?: number;
   disabled?: boolean;
-  /** Shown once a file has been chosen. */
   selectedFileName?: string | null;
   inputId?: string;
 }
@@ -53,30 +51,19 @@ const isDragActive = ref(false);
 
 const acceptAttribute = computed<string>(() => props.accept.join(','));
 
-/*
- * Derived from the accept list rather than written out, so the formats the
- * user is told about are the formats the component will actually take.
- */
 const acceptedFormatsText = computed<string>(() => {
   const labels = props.accept.map((type) => EXTENSION_LABELS[type] ?? type.toUpperCase());
   // Array.from rather than a spread: @vue/vue3-jest forces an ES5 target when
-  // it transpiles an SFC, and without downlevelIteration TypeScript compiles
-  // `[...set]` to `set.slice()`, which a Set does not have. It fails only
-  // under test, which is the worst place for a difference to live.
+  // it transpiles an SFC, so `[...set]` compiles to `set.slice()`, which a Set
+  // does not have. It breaks only under test.
   return Array.from(new Set(labels)).join(', ');
 });
 
 const maxSizeText = computed<string>(() => formatMegabytes(props.maxSizeBytes, locale.value));
 
 /**
- * The client check is a courtesy — the presigned POST policy is what enforces
- * the limit — but it is the difference between a clear sentence now and a
- * failed upload in twenty seconds.
- *
- * The refusal leaves as a key and its values rather than as a finished
- * sentence. The parent shows it, and by the time it does the reader may have
- * changed language; a sentence frozen at the moment of the refusal would then
- * be the one line on the screen in the wrong one.
+ * The refusal leaves as a key and its values, not a finished sentence: the
+ * parent renders it, and by then the reader may have changed language.
  */
 function findRejection(file: File): FileRejection | null {
   if (!props.accept.includes(file.type)) {
@@ -173,9 +160,6 @@ function openFilePicker(): void {
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
   >
-    <!-- Decorative, and marked as such: the instruction below already says
-         what the zone is for, and a screen reader announcing "upload arrow"
-         first would only put a word in front of the sentence. -->
     <svg
       class="h-7 w-7 text-ink-muted"
       viewBox="0 0 24 24"
@@ -195,8 +179,8 @@ function openFilePicker(): void {
       {{ t('upload.limits', { formats: acceptedFormatsText, maxSize: maxSizeText }) }}
     </p>
 
-    <!-- The input carries the real file picker; the button drives it, so the
-         control is reachable by keyboard instead of by drag alone. -->
+    <!-- The button drives this input, so the zone is reachable by keyboard
+         rather than by drag alone. -->
     <input
       :id="inputId"
       ref="fileInput"
@@ -212,9 +196,6 @@ function openFilePicker(): void {
       {{ t('upload.choose') }}
     </BaseButton>
 
-    <!-- The chosen file is the one fact the zone still has to report after it
-         has done its job, so it is set apart from the instructions above it
-         rather than added to the same stack of grey lines. -->
     <p
       v-if="selectedFileName !== null"
       class="mt-1 w-full break-all border-t border-line pt-3 text-sm text-ink"

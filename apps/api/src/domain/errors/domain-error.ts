@@ -38,7 +38,7 @@ export class AudioFileTooLargeError extends DomainError {
 /**
  * Carries the reason rather than the rejected name: the name is client-supplied
  * and may be long or full of control characters, neither of which belongs in a
- * message that ends up in a log line or an HTTP response.
+ * log line or an HTTP response.
  */
 export class InvalidAudioFileNameError extends DomainError {
   readonly code = 'INVALID_AUDIO_FILE_NAME';
@@ -73,15 +73,9 @@ export class TranscriptionNotReadyError extends DomainError {
 }
 
 /**
- * Raised when the transcription provider could not be made to do its job:
- * it rejected the request, it stayed unreachable across every retry, or it
- * answered with something the adapter cannot read.
- *
- * The reason is written for a person and deliberately carries no HTTP status,
- * no response body and no request detail. A provider's status code describes a
- * conversation the client was never part of, and repeating it invites a
- * frontend to branch on a third party's numbering. One code, one remedy: the
- * transcription did not start, so try again.
+ * The reason deliberately carries no HTTP status, no response body and no
+ * request detail: repeating a third party's numbering invites the frontend to
+ * branch on it. One code, one remedy — the transcription did not start.
  */
 export class TranscriptionProviderError extends DomainError {
   readonly code = 'TRANSCRIPTION_PROVIDER_FAILED';
@@ -92,10 +86,9 @@ export class TranscriptionProviderError extends DomainError {
 }
 
 /**
- * Raised when a pagination cursor cannot be decoded, or was not issued for
- * the user requesting the page. A malformed or foreign cursor is
- * attacker-controlled input arriving over HTTP, so it is an expected
- * failure the caller must handle, not an exceptional condition.
+ * A malformed or foreign cursor is attacker-controlled input arriving over
+ * HTTP, so it is an expected failure the caller must handle rather than an
+ * exceptional condition.
  */
 export class InvalidCursorError extends DomainError {
   readonly code = 'INVALID_CURSOR';
@@ -106,20 +99,10 @@ export class InvalidCursorError extends DomainError {
 }
 
 /**
- * Returned by `TranscriptionRepository.save` when the record changed in the
- * store after the entity was read, so the write would have overwritten
- * somebody else's newer state.
- *
- * A `Result` value rather than a thrown error: every write path here is
- * driven by at-least-once delivery — an S3 event, a provider callback, a
- * browser retry — so two writers meeting is an ordinary outcome the caller
- * must decide about, not an infrastructure fault.
- *
- * Deliberately not a `DomainError`, for the same reason
- * `MalformedTranscriptionRecordError` is not: `DomainErrorCode` is the closed
- * union the front end branches on, and no client ever sees this. Every caller
- * absorbs it — by acknowledging the delivery it lost, or by treating it as an
- * impossible id collision.
+ * Deliberately not a `DomainError`: `DomainErrorCode` is the closed union the
+ * front end branches on, and no client ever sees this. Every caller absorbs it
+ * — by acknowledging the delivery it lost, or by treating it as an impossible
+ * id collision.
  */
 export class ConcurrentModificationError extends Error {
   readonly code = 'CONCURRENT_MODIFICATION';

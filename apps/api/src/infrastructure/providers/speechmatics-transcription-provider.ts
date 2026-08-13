@@ -6,13 +6,11 @@ import { TranscriptionProviderError } from '../../domain/errors/domain-error.js'
 import type { Clock } from '../../domain/ports/clock.js';
 import type { Logger } from '../../domain/ports/logger.js';
 import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
-import type {
-  ProviderCallback,
-  ProviderJobOutcome,
-  RealtimeCredentials,
-  SubmittedJob,
-  TranscriptionProvider,
-} from '../../domain/ports/transcription-provider.js';
+import type { TranscriptionProvider } from '../../domain/ports/transcription-provider.js';
+import type { ProviderCallback } from '../../domain/types/provider-callback.js';
+import type { ProviderJobOutcome } from '../../domain/types/provider-job-outcome.js';
+import type { RealtimeCredentials } from '../../domain/types/realtime-credentials.js';
+import type { SubmittedJob } from '../../domain/types/submitted-job.js';
 import {
   AUTOMATIC_LANGUAGE,
   BATCH_JOBS_URL,
@@ -30,58 +28,16 @@ import {
   parseRetryAfterMs,
   REPEATABLE_OPERATION_RETRY_POLICY,
 } from './retry-policy.js';
-import type { RetryPolicy } from './retry-policy.js';
 import { interpretSpeechmaticsCallback } from './speechmatics-callback.js';
-
-export interface SpeechmaticsProviderOptions {
-  /** SSM parameter holding the long-lived provider key. */
-  readonly apiKeySecretName: string;
-  /** SSM parameter holding the secret the provider echoes back on the callback. */
-  readonly webhookSecretName: string;
-  readonly requestTimeoutMs: number;
-  readonly maxAttempts: number;
-  readonly retryBaseDelayMs: number;
-  readonly maxRetryDelayMs: number;
-}
+import type { AttemptResult } from '../types/attempt-result.js';
+import type { RequestInitWithHeaders } from '../types/request-init-with-headers.js';
+import type { RetryPolicy } from '../types/retry-policy.js';
+import type { SpeechmaticsProviderOptions } from '../types/speechmatics-provider-options.js';
+import type { SpeechmaticsRuntimeHooks } from '../types/speechmatics-runtime-hooks.js';
 
 /**
- * Everything ambient this adapter touches, in one place so a test can replace
- * it. Production takes the defaults.
- *
- * `fetch` is injected rather than reached for as a global because the suite
- * intercepts HTTP with undici's `MockAgent`, and Jest runs each file in its
- * own VM realm: a dispatcher installed inside that realm is invisible to the
- * `fetch` Node injected from the outer one, so requests would quietly leave
- * the machine. Passing the implementation in makes "no test touches the
- * network" a property of the wiring rather than of a global side effect.
- */
-export interface SpeechmaticsRuntimeHooks {
-  readonly fetch: (url: string, init: RequestInit) => Promise<Response>;
-  readonly sleep: (milliseconds: number) => Promise<void>;
-  readonly random: () => number;
-}
-
-type RequestInitWithHeaders = RequestInit & { headers: Record<string, string> };
-
-type AttemptResult =
-  | { readonly kind: 'success'; readonly response: Response }
-  | { readonly kind: 'permanent'; readonly reason: string; readonly status: number | null }
-  | {
-      readonly kind: 'transient';
-      readonly reason: string;
-      readonly status: number | null;
-      readonly retryAfterMs: number | null;
-    };
-
-/**
- * Speechmatics behind the `TranscriptionProvider` port.
- *
- * Two properties shape everything below. The audio is never read into this
- * process: the job carries a presigned S3 URL in `fetch_data` and the provider
- * downloads the file itself, so a 20 MB upload never becomes 20 MB of Lambda
- * memory and a second copy over the wire. And the API key is fetched through
- * the secrets port for each operation, used to build one `Authorization`
- * header, and never placed in a log context — a key in CloudWatch is a key
+ * The API key is fetched per operation, used to build one `Authorization`
+ * header, and never placed in a log context: a key in CloudWatch is a key
  * disclosed to everyone who can read logs.
  */
 export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider {
@@ -103,13 +59,12 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
 
   /**
    * `fetch_data` rather than `data_file`: the provider is handed a presigned
-   * GET URL and fetches the audio itself. Sending the bytes would mean loading
-   * the whole file into the Lambda first, which is slower, bounded by the
-   * function's memory, and buys nothing.
+   * GET URL and fetches the audio itself, so a 20 MB upload never becomes
+   * 20 MB of Lambda memory and a second copy over the wire.
    *
-   * The callback is authenticated with a header carried in `auth_headers`
-   * rather than a signature in the query string, so the shared secret never
-   * lands in an access log or a proxy's URL history.
+   * The callback authenticates with a header in `auth_headers` rather than a
+   * signature in the query string, so the shared secret never lands in an
+   * access log or a proxy's URL history.
    */
   async submitFileJob(input: { audioUrl: string; callbackUrl: string }): Promise<SubmittedJob> {
     const [apiKey, webhookSecret] = await Promise.all([
@@ -163,9 +118,9 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
   }
 
   /**
-   * Mints a short-lived key for the browser. The long-lived key never leaves
-   * the backend; what the browser receives expires within the minute, so a
-   * token captured from a page is worth almost nothing.
+   * The long-lived key never leaves the backend; what the browser receives
+   * expires within the minute, so a token captured from a page is worth almost
+   * nothing.
    */
   async createRealtimeCredentials(input: { ttlSeconds: number }): Promise<RealtimeCredentials> {
     const apiKey = await this.secrets.getSecret(this.options.apiKeySecretName);
@@ -190,30 +145,23 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
 
     return {
       token,
-      // The socket URL is returned without the `jwt` query parameter, and the
-      // caller appends the token when it opens the connection. Putting the
-      // credential in a URL duplicates it into anything that records URLs.
+      // Returned without the `jwt` query parameter; the caller appends the
+      // token when it opens the connection. A credential in a URL is
+      // duplicated into anything that records URLs.
       websocketUrl: REALTIME_WEBSOCKET_URL,
       expiresAt: new Date(this.clock.now().getTime() + ttlSeconds * 1_000),
     };
   }
 
-  /**
-   * Speechmatics posts the transcript in the callback body, so answering needs
-   * no second request and the whole translation is the pure function this
-   * delegates to — which is where the vendor's payload shape stays, and where
-   * it is tested against real payloads rather than through an HTTP handler.
-   */
   interpretCallback(callback: ProviderCallback): Promise<ProviderJobOutcome> {
     return Promise.resolve(interpretSpeechmaticsCallback(callback));
   }
 
   /**
    * The provider answers a TTL outside its documented range with a 400, which
-   * is exactly the status this adapter refuses to retry — so a caller's bad
-   * value would cost a round trip and fail the request outright. Clamping
-   * turns that into a working session, and the adjustment is logged so it is
-   * visible rather than silent.
+   * this adapter refuses to retry, so a caller's bad value would fail the
+   * request outright. Clamping turns that into a working session, and the
+   * adjustment is logged so it is visible rather than silent.
    */
   private resolveKeyTtlSeconds(requested: number): number {
     const applied = Math.min(
@@ -245,13 +193,10 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
       if (result.kind === 'success') return result.response;
 
       if (result.kind === 'permanent') {
-        // At `error`, because for a submission this line is the only record
-        // that a clinical transcription will never happen, and an operator who
-        // raises `LOG_LEVEL` to cut noise must not lose it.
-        //
-        // The status is logged, never carried into the thrown error: it is
-        // operational detail for whoever reads CloudWatch, not something a
-        // client should see or branch on.
+        // At `error`, because for a submission this is the only record that a
+        // clinical transcription will never happen. The status is logged and
+        // never carried into the thrown error — operational detail for
+        // CloudWatch, not something a client should branch on.
         this.logger.error('Transcription provider request failed and was not retried', {
           operation,
           attempt,
@@ -310,8 +255,7 @@ export class SpeechmaticsTranscriptionProvider implements TranscriptionProvider 
         ...init,
         // A fresh signal per attempt, and never absent: without it a provider
         // that accepts the connection and then says nothing holds this Lambda
-        // open until the function's own timeout, which is far longer and
-        // costs the caller a hung request rather than a fast failure.
+        // open until the function's own far longer timeout.
         signal: AbortSignal.timeout(this.options.requestTimeoutMs),
       });
     } catch (cause) {
@@ -349,9 +293,9 @@ function defaultSleep(milliseconds: number): Promise<void> {
 }
 
 /**
- * Describes why a request never produced a response, without repeating the
- * cause's message: a fetch failure message can contain the full URL, and for
- * the batch job that URL is the presigned link to a patient's audio.
+ * Never repeats the cause's message: a fetch failure message can contain the
+ * full URL, and for a batch job that URL is the presigned link to a patient's
+ * audio.
  */
 function describeRequestFailure(cause: unknown): string {
   // Branching on `code`, never on `name` or `instanceof`: esbuild mangles
@@ -368,8 +312,8 @@ async function discardBody(response: Response): Promise<void> {
   try {
     await response.body?.cancel();
   } catch {
-    // A body that cannot be cancelled is already gone; the request being
-    // reported has failed either way and this must not mask its reason.
+    // A body that cannot be cancelled is already gone, and this must not mask
+    // the failure being reported.
   }
 }
 

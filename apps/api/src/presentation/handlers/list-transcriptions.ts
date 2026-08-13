@@ -1,27 +1,22 @@
 import { ListTranscriptionsQuerySchema } from '@vocali/contracts';
-import type { ListUserTranscriptions } from '../../application/use-cases/list-user-transcriptions.js';
-import type { Logger } from '../../domain/ports/logger.js';
-import type { ApiGatewayRequestHandler } from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
 import { jsonResponse } from '../http/http-response.js';
 import { OK } from '../http/http-status.js';
 import { withValidatedQuery } from '../http/validation.js';
-
-interface Dependencies {
-  readonly useCase: ListUserTranscriptions;
-  readonly logger: Logger;
-}
+import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
+import type { ListTranscriptionsDependencies } from '../types/list-transcriptions-dependencies.js';
 
 /**
  * `GET /transcriptions` — the signed-in user's history, newest first.
  *
- * The cursor is optional and opaque. A cursor minted for a different user is
- * rejected by the repository as `INVALID_CURSOR`, which the mapper answers
- * 400 — the check lives there because that is where the cursor is decoded and
- * where it can be compared against the partition it would be applied to.
+ * A cursor minted for a different user is rejected by the repository as
+ * `INVALID_CURSOR`: the check lives there because that is where the cursor is
+ * decoded and can be compared against the partition it would be applied to.
  */
-export function listTranscriptionsHandler(dependencies: Dependencies): ApiGatewayRequestHandler {
+export function listTranscriptionsHandler(
+  dependencies: ListTranscriptionsDependencies,
+): ApiGatewayRequestHandler {
   return withErrorMapping(
     dependencies.logger,
     withAuthenticatedUser(

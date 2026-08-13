@@ -1,8 +1,12 @@
 # lambda
 
-The eight functions, and every way they are invoked: seven HTTP routes on the
-API the `api` module created, and one `ObjectCreated` notification on the
-audio bucket.
+The twelve functions, and every way they are invoked: eight HTTP routes on the
+API the `api` module created, `$connect` and `$disconnect` on the websocket
+API the `websocket` module created, and one `ObjectCreated` notification on
+the audio bucket.
+
+The websocket API's authorizer is here too, for the same reason the routes
+are: it has to name the function that runs it.
 
 Each function is created with the role and the log group the `functions`
 module already published. Nothing about permissions is decided here.
@@ -13,7 +17,7 @@ Terraform is not the bundler.
 
 ```bash
 infra/build/bundle-functions.sh          # writes infra/build/dist
-cd infra/environments/dev && terraform plan
+cd infra/environments/prod && terraform plan
 ```
 
 The script runs `esbuild` over each entry point in `apps/api/src/lambda` and
@@ -39,11 +43,22 @@ Building first and planning second is the only order that cannot be wrong.
 | `create-realtime-session`        | 512 MB |    29 s | `POST /realtime-sessions`                        |
 | `handle-provider-callback`       |   1 GB |    29 s | `POST /webhooks/transcription-provider`          |
 | `start-transcription-job`        |   1 GB |    60 s | `s3:ObjectCreated:*` under `audio/`              |
+| `create-connection-ticket`       | 512 MB |    10 s | `POST /connection-tickets`                       |
+| `authorize-connection`           | 512 MB |    10 s | The websocket `$connect` authorizer              |
+| `handle-connection-opened`       | 512 MB |    10 s | `$connect` on the websocket API                  |
+| `handle-connection-closed`       | 512 MB |    10 s | `$disconnect` on the websocket API               |
 
 Memory is CPU: Lambda scales the two together, so 512 MB is not generosity for
 a handler that initialises three AWS SDK clients — it is the point below which
 the slower cold start costs more in billed milliseconds than the memory does.
 The two functions that parse or build a whole transcript get a full vCPU.
+
+That last sentence is the intent rather than what runs today. A new AWS
+account is capped at 512 MB per function until the quota is raised, so the
+environment passes `max_memory_size_mb = 512` and every figure above is
+clamped to it. The per-function sizing stays in the module because it is the
+decision; the cap is the account speaking, and it is one line to delete when
+the quota request is granted.
 
 Timeouts bound failure rather than budget success; all of these answer in well
 under a second when nothing is wrong. Nothing on a route exceeds 29 seconds,
@@ -57,9 +72,14 @@ timeout would cut off mid-attempt.
 
 ## The webhook route has no authorizer
 
-`POST /webhooks/transcription-provider` is the only route created with
+`POST /webhooks/transcription-provider` is the only HTTP route created with
 `authorization_type = "NONE"`, and the reason is written next to it in
 `main.tf` as well as here.
+
+(`$disconnect` on the websocket API is also `NONE`, and for a different reason
+entirely: it is not a request a client makes. It is the service reporting that
+a connection it already authorised has ended, so there is nothing to
+authorise and no credential to present.)
 
 The caller is the transcription provider. It holds no Cognito token and cannot
 be given one, so a JWT authorizer on this route would reject every legitimate
@@ -95,30 +115,36 @@ that may read exactly those two. A plaintext environment variable is legible
 to anyone holding `lambda:GetFunctionConfiguration`, and these are legible to
 no effect.
 
-## A disagreement between this configuration and the application
+## The bucket this configuration and the application once disagreed about
 
-`TRANSCRIPTS_BUCKET_NAME` is set here and is not read by the application.
+`TRANSCRIPTS_BUCKET_NAME` is set here and is read by the application. That is
+worth a heading because for a while it was not.
 
-`buildContainer` constructs a single `S3FileStorage` over
-`config.audioBucketName` and uses it for audio and for transcripts alike, so
-today a finished transcript is written to `transcripts/…` **inside the audio
+`buildContainer` used to construct a single `S3FileStorage` over
+`config.audioBucketName` and use it for audio and for transcripts alike, so a
+finished transcript was written to `transcripts/…` **inside the audio
 bucket**, not into the transcripts bucket the `storage` module creates. The
-execution roles grant `s3:PutObject` on the transcripts bucket, which is where
-the two disagree: as things stand, `handle-provider-callback` and
-`save-realtime-transcription` would be denied at the moment they write.
+execution roles grant `s3:PutObject` on the transcripts bucket, so
+`handle-provider-callback` and `save-realtime-transcription` were denied at
+the moment they wrote.
 
-That is a defect in `apps/api`, not here, and it is one line — a second bucket
-name in the composition root. It is not fixed in this change because this
-round owns `infra/` only. The variable is set now so the day it is corrected
-the value is already in place, and an environment variable the schema does not
-recognise is ignored.
+Both sides are correct now. `environment.ts` requires the variable and
+`composition-root.ts` builds a second `S3FileStorage` from it. Because the
+schema requires it, a function deployed without it refuses to initialise
+rather than falling back to the wrong bucket.
+
+The defect survived the whole test suite, which is the part to remember: the
+suite doubles the storage adapter, so it saw a write that always succeeded. A
+grant that does not match what the code reads is invisible until it runs
+against IAM.
 
 ## What is here and what is next door
 
-- `api` owns the API, the authorizer and the stage.
+- `api` owns the HTTP API, its Cognito authorizer and its stage.
+- `websocket` owns the websocket API and its stage.
 - `functions` owns the roles, the log groups and the dead-letter queue.
-- This module owns the functions, their integrations, their routes and the
-  bucket notification.
+- This module owns the functions, their integrations, their routes on both
+  APIs, the websocket `$connect` authorizer and the bucket notification.
 
 The split exists because `start-transcription-job` needs the API's endpoint to
 build `PROVIDER_CALLBACK_BASE_URL` while the routes need the functions' ARNs.

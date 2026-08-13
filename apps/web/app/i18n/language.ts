@@ -1,28 +1,21 @@
+import type { InterfaceLanguage } from './types/InterfaceLanguage';
+
 /**
- * The language the **interface** is written in.
+ * The **interface** language, never `TranscriptionLanguage` from
+ * `@vocali/contracts`, which is the language spoken in a recording. Neither
+ * may drive the other: a clinician can dictate in Catalan while reading this
+ * application in English.
  *
- * Not to be confused with `TranscriptionLanguage` from `@vocali/contracts`,
- * which is the language spoken in a recording. They are different facts about
- * different things and neither may drive the other: a clinician can dictate a
- * consultation in Catalan while reading this application in English, and a
- * product that ties the two together forces them to choose which of the two
- * truths to break.
- *
- * The names are deliberately unabbreviatable. `Language` on its own would be
- * ambiguous in every file that imports both, and a variable called `language`
- * in a component that also holds an audio language is exactly the confusion
- * this comment exists to prevent — so the type is `InterfaceLanguage`, the
- * cookie is `vocali_interface_language`, and nothing here is called `locale`
+ * The names are deliberately unabbreviatable, because `Language` on its own is
+ * ambiguous in every file that imports both. Nothing here is called `locale`
  * except the tag handed to `Intl`.
  */
 
 /**
- * Spanish first, and Spanish stays the default. This is a Spanish medical
- * product; English is the accommodation, not the baseline.
+ * Spanish first and Spanish stays the default: this is a Spanish medical
+ * product, and English is the accommodation.
  */
 export const INTERFACE_LANGUAGES = ['es', 'en'] as const;
-
-export type InterfaceLanguage = (typeof INTERFACE_LANGUAGES)[number];
 
 export const DEFAULT_INTERFACE_LANGUAGE: InterfaceLanguage = 'es';
 
@@ -37,13 +30,9 @@ export const INTERFACE_LANGUAGE_COOKIE = 'vocali_interface_language';
 export const INTERFACE_LANGUAGE_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
 /**
- * The BCP 47 tag `Intl` is given, and the value of the `lang` attribute.
- *
  * `es-ES` and `en-GB` rather than the bare subtags, because these decide how a
- * date and a decimal are written: a European clinic writes 12/08/2026 and
- * 1,5 MB, and `en-US` would silently turn both into something else on the same
- * screens. `lang` also decides which voice a screen reader uses, which is the
- * difference between "transcripción" being read as a word and as noise.
+ * date and a decimal are written and `en-US` would silently change both. As
+ * `lang` it also decides which voice a screen reader uses.
  */
 const LOCALE_TAGS: Record<InterfaceLanguage, string> = {
   es: 'es-ES',

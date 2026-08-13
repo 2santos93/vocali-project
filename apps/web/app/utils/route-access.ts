@@ -1,20 +1,14 @@
+import type { RouteRedirect } from './types/RouteRedirect';
+
 /**
- * Which route a visitor may see, decided as a value rather than as a side
- * effect.
+ * Decided as a value rather than a side effect, because `navigateTo` and
+ * `defineNuxtRouteMiddleware` need a Nuxt runtime Jest does not boot. As a
+ * pure function, a test fails the moment a signed-out visitor stops being
+ * sent to the sign-in page.
  *
- * The global middleware is four lines of Nuxt around this function, and the
- * split is what makes the rule testable: `navigateTo` and
- * `defineNuxtRouteMiddleware` need a Nuxt runtime that Jest does not boot, so
- * a decision entangled with them could only be checked by driving a browser.
- * Here it is a pure function of two inputs, and a test fails the moment a
- * signed-out visitor stops being sent to the sign-in page.
- *
- * None of this is the security boundary and none of it pretends to be. The API
- * refuses an unauthenticated request whatever the browser renders, and the BFF
- * proxy answers 401 without a valid session cookie. What this decides is what
- * a person is shown — a sign-in form rather than an application shell that
- * cannot load anything, and the screen they asked for rather than a sign-in
- * form they have already completed.
+ * **Not the security boundary.** The API refuses an unauthenticated request
+ * whatever the browser renders, and the BFF proxy answers 401 without a valid
+ * session cookie. This only decides what a person is shown.
  */
 
 /** Reachable with no session. Everything else is not. */
@@ -23,11 +17,6 @@ export const ANONYMOUS_ROUTES = ['/login', '/register', '/confirm'] as const;
 export const HOME_ROUTE = '/historial';
 
 export const SIGN_IN_ROUTE = '/login';
-
-export interface RouteRedirect {
-  readonly path: string;
-  readonly query?: Readonly<Record<string, string>>;
-}
 
 /**
  * Where the visitor should go instead, or null to let them through.
@@ -41,11 +30,7 @@ export function decideRouteAccess(
   fullPath: string,
   signedIn: boolean,
 ): RouteRedirect | null {
-  /*
-   * `/` belongs to nobody. There is no index page, because every screen this
-   * application has is one of the six named ones, and an index whose only job
-   * is to redirect is a file that exists to hold a redirect.
-   */
+  // `/` belongs to nobody: there is no index page, only the six named screens.
   if (path === '/') {
     return { path: signedIn ? HOME_ROUTE : SIGN_IN_ROUTE };
   }
@@ -61,27 +46,18 @@ export function decideRouteAccess(
 
   if (anonymous) return null;
 
-  /*
-   * The destination travels with the redirect so the visitor lands where they
-   * were going rather than on the home screen. It is read back in `login.vue`,
-   * which accepts only a local path: a sign-in page that forwards to any
-   * address it is handed is a phishing primitive, because the victim sees a
-   * genuine form on the genuine domain and is delivered elsewhere afterwards.
-   */
+  // Read back in `login.vue`, which accepts only a local path.
   return { path: SIGN_IN_ROUTE, query: { redirect: fullPath } };
 }
 
 /**
- * Where to send someone after they sign in, if it is somewhere in this
- * application.
+ * The value arrives in the URL, so it is chosen by whoever wrote the link. A
+ * sign-in page that forwards to any address it is handed is a phishing
+ * primitive: the victim sees a genuine form on the genuine domain and is
+ * delivered elsewhere afterwards.
  *
- * The other half of the redirect above, and here rather than in `login.vue`
- * for the same reason `decideRouteAccess` is: a page is the one layer Jest
- * never mounts, so this rule could only be checked by driving a browser, and
- * it is not a rule that may go unchecked. The value arrives in the URL, so it
- * is chosen by whoever wrote the link — a sign-in page that forwards to any
- * address it is handed is a phishing primitive, because the victim sees a
- * genuine form on the genuine domain and is delivered elsewhere afterwards.
+ * Here rather than in `login.vue` because a page is the one layer Jest never
+ * mounts, and this is not a rule that may go unchecked.
  *
  * Only a local path is accepted. `//host` is rejected explicitly because it is
  * a path by the loosest reading and an absolute URL to the browser, and a

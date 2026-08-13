@@ -15,19 +15,32 @@ small.
 
 ## The permission matrix
 
-| Function                         | DynamoDB            | S3                      | Parameter Store |
-| -------------------------------- | ------------------- | ----------------------- | --------------- |
-| `create-upload-intent`           | `PutItem`           | `PutObject` audio       | —               |
-| `start-transcription-job`        | `GetItem` `PutItem` | `GetObject` audio       | API key         |
-| `handle-provider-callback`       | `GetItem` `PutItem` | `PutObject` transcripts | Webhook secret  |
-| `list-transcriptions`            | `Query`             | —                       | —               |
-| `get-transcription`              | `GetItem`           | —                       | —               |
-| `get-transcription-download-url` | `GetItem`           | `GetObject` transcripts | —               |
-| `create-realtime-session`        | —                   | —                       | API key         |
-| `save-realtime-transcription`    | `PutItem`           | `PutObject` transcripts | —               |
+| Function                         | DynamoDB                                            | S3                      | Parameter Store            |
+| -------------------------------- | --------------------------------------------------- | ----------------------- | -------------------------- |
+| `create-upload-intent`           | `PutItem`                                           | `PutObject` audio       | —                          |
+| `start-transcription-job`        | `GetItem` `PutItem`                                 | `GetObject` audio       | API key and webhook secret |
+| `handle-provider-callback`       | `GetItem` `PutItem` `Query` `DeleteItem` on `CONN#` | `PutObject` transcripts | Webhook secret             |
+| `list-transcriptions`            | `Query`                                             | —                       | —                          |
+| `get-transcription`              | `GetItem`                                           | —                       | —                          |
+| `get-transcription-download-url` | `GetItem`                                           | `GetObject` transcripts | —                          |
+| `create-realtime-session`        | —                                                   | —                       | API key                    |
+| `save-realtime-transcription`    | `PutItem`                                           | `PutObject` transcripts | —                          |
+| `create-connection-ticket`       | `PutItem` on `TICKET#`                              | —                       | —                          |
+| `authorize-connection`           | `DeleteItem` on `TICKET#`                           | —                       | —                          |
+| `handle-connection-opened`       | `PutItem` on `CONN#`                                | —                       | —                          |
+| `handle-connection-closed`       | `DeleteItem` on `CONN#`                             | —                       | —                          |
 
 Every one of those also gets `logs:CreateLogStream` and `logs:PutLogEvents` on
-its own log group, and nothing else.
+its own log group, and nothing else. `handle-provider-callback` additionally
+holds `execute-api:ManageConnections`, on one stage of one websocket API,
+which is the whole of this platform's outbound push capability.
+
+`start-transcription-job` reads both secrets, and that is not redundancy. The
+job it submits carries the header the provider presents when it calls back, so
+a role holding only the API key made every file upload fail at the moment of
+submission and stop at `PENDING_UPLOAD`, with nothing in the interface to say
+why. No test could have found it: the suite doubles the secrets provider, so
+it sees a read that always succeeds.
 
 Four things are worth reading off that table:
 
@@ -36,9 +49,15 @@ Four things are worth reading off that table:
   reaches exactly one table with exactly one read action.
 - **No `Scan`, ever.** `list-transcriptions` is granted `Query` only. There is
   no `Scan` in the codebase and no role that could perform one.
-- **Nothing deletes.** `DeleteItem` and `s3:DeleteObject` appear nowhere.
-  Audio is removed by a bucket lifecycle rule, which is S3's own doing and
-  needs no permission of ours.
+- **Nothing deletes a transcription.** `s3:DeleteObject` appears nowhere at
+  all; audio is removed by a bucket lifecycle rule, which is S3's own doing
+  and needs no permission of ours. `dynamodb:DeleteItem` does now exist —
+  websocket connections and connection tickets have to be spent and cleaned up
+  — but every grant of it is conditioned on `dynamodb:LeadingKeys` matching
+  `TICKET#*` or `CONN#*`, so no role in the stack can reach a clinical record
+  with it. That condition is why connections were given a partition of their
+  own: IAM can condition on a partition key and not on a sort key. See
+  `docs/adr/0011`.
 - **The signing functions hold the permission the browser then uses.** A
   presigned URL carries the signer's authority, so `create-upload-intent`
   needs `s3:PutObject` even though it never writes an object itself.
@@ -66,7 +85,7 @@ A shared role is the union of every permission any function needs. Under one,
 `list-transcriptions` — the endpoint most exposed to ordinary traffic — would
 also be able to write transcripts and read the provider's long-lived API key.
 The cost of one role each is a few more resources in a graph that Terraform
-manages anyway.
+manages anyway: twelve now, where the first version of this module had eight.
 
 ## Why inline policies
 
@@ -90,9 +109,9 @@ once:
 
 ```bash
 aws ssm put-parameter --type SecureString \
-  --name /vocali/dev/transcription-provider/api-key --value '...'
+  --name /vocali/prod/transcription-provider/api-key --value '...'
 aws ssm put-parameter --type SecureString \
-  --name /vocali/dev/transcription-provider/webhook-secret --value '...'
+  --name /vocali/prod/transcription-provider/webhook-secret --value '...'
 ```
 
 Reading a `SecureString` is authorised twice, once at Parameter Store and once

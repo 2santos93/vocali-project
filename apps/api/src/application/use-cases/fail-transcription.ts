@@ -1,24 +1,16 @@
 import { TranscriptionNotFoundError } from '../../domain/errors/domain-error.js';
 import type { Clock } from '../../domain/ports/clock.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import { err, ok, type Result } from '../../domain/shared/result.js';
+import { err, ok } from '../../domain/shared/result.js';
+import type { Result } from '../../domain/types/result.js';
 import { canTransition } from '../../domain/value-objects/transcription-status.js';
-
-interface FailTranscriptionInput {
-  readonly userId: string;
-  readonly transcriptionId: string;
-  readonly externalJobId: string;
-  readonly reason: string;
-}
-
-type FailTranscriptionError = TranscriptionNotFoundError;
+import type { FailTranscriptionError } from '../types/fail-transcription-error.js';
+import type { FailTranscriptionInput } from '../types/fail-transcription-input.js';
 
 /**
- * Applies a provider failure webhook.
- *
- * Looked up by primary key for the same reason as `CompleteTranscription`:
- * the callback URL carries `(userId, transcriptionId)`, so no secondary
- * index is involved and the read is strongly consistent.
+ * Looked up by primary key for the same reason as `CompleteTranscription`: the
+ * callback URL carries `(userId, transcriptionId)`, so no eventually
+ * consistent secondary index is involved.
  */
 export class FailTranscription {
   constructor(
@@ -38,35 +30,26 @@ export class FailTranscription {
       return err(new TranscriptionNotFoundError(input.transcriptionId));
     }
 
-    // COMPLETED is terminal and FAILED has no self-loop, so this covers a
-    // late failure signal for work that already succeeded and a redelivered
-    // failure webhook for work already marked failed — both are
-    // acknowledged without mutating anything, the same idempotency rule
-    // already applied to duplicate S3 events and completion webhooks.
+    // COMPLETED is terminal and FAILED has no self-loop, so a late failure for
+    // work that already succeeded and a redelivered failure webhook are both
+    // acknowledged without mutating anything.
     if (!canTransition(primitives.status, 'FAILED')) {
       return ok(undefined);
     }
 
     const transition = transcription.markAsFailed(input.reason, this.clock.now());
     if (!transition.success) {
-      // Unreachable: `canTransition` was checked immediately above and nothing
-      // mutates this transcription in between. Since no reachable path
-      // produces it, it is not part of this use case's error union — a failure
-      // here is an invariant violation, not an outcome a caller must handle,
-      // so it throws rather than returning err. Same reasoning, and the same
-      // shape, as `StartFileTranscription`.
+      // Unreachable: `canTransition` was checked immediately above. Kept out of
+      // the error union and thrown, because an invariant violation is not an
+      // outcome a caller can handle.
       throw new Error(
         `Invariant violated: transcription ${primitives.id} could not transition from ${primitives.status} to FAILED (${transition.error.message})`,
       );
     }
 
-    // A lost race is not a failure on this path. It means another writer
-    // advanced the record between the read above and this write, so whatever
-    // this failure webhook would have applied is already applied or
-    // superseded — which is precisely the case the conditional write exists to
-    // stop being resolved by overwriting. The sender only needs a success to
-    // stop retrying, so the outcome is the same either way and is deliberately
-    // not branched on.
+    // A lost race is deliberately not branched on: another writer advanced the
+    // record between the read and this write, so what this webhook would have
+    // applied is already applied or superseded.
     await this.repository.save(transcription);
 
     return ok(undefined);

@@ -1,49 +1,32 @@
 import { computed } from 'vue';
-import type { ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { localeTag } from './language';
-import type { InterfaceLanguage } from './language';
 import { translateWith } from './translate';
-import type { MessageKey, MessageSchema, MessageValues, TranslatableMessage } from './translate';
+import type { InterfaceLanguage } from './types/InterfaceLanguage';
+import type { MessageKey } from './types/MessageKey';
+import type { MessageSchema } from './types/MessageSchema';
+import type { MessageValues } from './types/MessageValues';
+import type { TranslatableMessage } from './types/TranslatableMessage';
+import type { Translations } from './types/Translations';
 
 /**
- * How a component reaches the interface language.
+ * Plain Vue injection all the way down, which is the rule the design system is
+ * built on: components mount under Jest because none of them can reach a Nuxt
+ * runtime. `@nuxtjs/i18n` would have put one inside every component that
+ * renders a word.
  *
- * `vue-i18n`'s own composable underneath, and plain Vue injection all the way
- * down — which is the rule the design system is built on: atoms, molecules and
- * organisms mount under Jest in milliseconds precisely because none of them can
- * reach a Nuxt runtime. `@nuxtjs/i18n` would have put one inside every
- * component that renders a word.
- *
- * A thin facade rather than `useI18n` at each call site, for four reasons that
- * are each a line of code here and fourteen copies of it there: the message
- * schema is named once, so `t` is typed everywhere without a generic argument;
- * a message decided elsewhere (`{ key, values }`) can be rendered as it stands;
- * the placeholder check applies to every call rather than to the ones somebody
- * remembered; and `locale` is the BCP 47 tag `Intl` needs (`es-ES`), not the
- * two letters `vue-i18n` holds.
+ * A facade rather than `useI18n` at each call site, for four things that are a
+ * line here and fourteen copies there: the schema is named once so `t` is
+ * typed without a generic argument; a `{ key, values }` decided elsewhere
+ * renders as it stands; the placeholder check applies to every call rather
+ * than the ones somebody remembered; and `locale` is the BCP 47 tag `Intl`
+ * needs, not the two letters `vue-i18n` holds.
  */
 
-export interface Translate {
-  (key: MessageKey, values?: MessageValues): string;
-  (message: TranslatableMessage): string;
-}
-
-export interface Translations {
-  readonly language: ComputedRef<InterfaceLanguage>;
-  /** The BCP 47 tag for `Intl`, so numbers and dates follow the interface. */
-  readonly locale: ComputedRef<string>;
-  readonly t: Translate;
-}
-
 /**
- * The interface language, for a component that renders words.
- *
- * Throws when no instance has been installed. `vue-i18n` throws its own error
- * for this, which names the library rather than the mistake; this one names the
- * two ways to fix it. The tempting third option — falling back to a Spanish
- * catalogue of our own — would mean a plugin that failed to install shows a
- * Spanish interface to somebody who chose English, on every screen, with
+ * Throws when no instance has been installed, naming the two ways to fix it.
+ * The tempting alternative — falling back to a Spanish catalogue of our own —
+ * would show Spanish to somebody who chose English, on every screen, with
  * nothing anywhere reporting it.
  */
 type InterfaceComposer = ReturnType<typeof useI18n<{ message: MessageSchema }, InterfaceLanguage>>;
@@ -66,8 +49,7 @@ export function useTranslations(): Translations {
 
   /*
    * Reads the locale on every call, so it is a reactive dependency of whatever
-   * rendered it: switching language redraws the screen already on the display
-   * rather than the next one somebody navigates to.
+   * rendered it: switching language redraws the screen already on display.
    */
   function t(input: MessageKey | TranslatableMessage, values?: MessageValues): string {
     const render = (key: MessageKey, named: MessageValues): string => composer.t(key, named);

@@ -1,24 +1,19 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import type { CompleteTranscription } from '../../application/use-cases/complete-transcription.js';
-import type { FailTranscription } from '../../application/use-cases/fail-transcription.js';
-import type { PublishTranscriptionUpdate } from '../../application/use-cases/publish-transcription-update.js';
-import type { Logger } from '../../domain/ports/logger.js';
-import type { SecretsProvider } from '../../domain/ports/secrets-provider.js';
-import type {
-  ProviderJobOutcome,
-  TranscriptionProvider,
-} from '../../domain/ports/transcription-provider.js';
-import {
-  readRawBody,
-  type ApiGatewayRequestEvent,
-  type ApiGatewayRequestHandler,
-  type HttpRequest,
-} from '../http/api-gateway-request.js';
+import { readRawBody } from '../http/api-gateway-request.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
-import { errorResponse, jsonResponse, type HttpResponse } from '../http/http-response.js';
+import { errorResponse, jsonResponse } from '../http/http-response.js';
 import { BAD_REQUEST, OK, UNAUTHORIZED } from '../http/http-status.js';
 import { withValidatedQuery } from '../http/validation.js';
+import type { ApiGatewayRequestEvent } from '../types/api-gateway-request-event.js';
+import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
+import type { CallbackQuery } from '../types/callback-query.js';
+import type { CompletedOutcome } from '../types/completed-outcome.js';
+import type { FailedOutcome } from '../types/failed-outcome.js';
+import type { HandleProviderCallbackDependencies } from '../types/handle-provider-callback-dependencies.js';
+import type { HttpRequest } from '../types/http-request.js';
+import type { HttpResponse } from '../types/http-response.js';
+import type { UnrecognisedOutcome } from '../types/unrecognised-outcome.js';
 
 const UNAUTHENTICATED_CODE = 'UNAUTHENTICATED';
 const UNAUTHENTICATED_MESSAGE = 'This request requires a valid callback credential';
@@ -31,58 +26,35 @@ const PROVIDER_FAILURE_REASON = 'The transcription provider could not process th
 const MAX_IDENTIFIER_LENGTH = 128;
 
 /**
- * `transcriptionId` and `userId` are ours, appended to the callback URL when
- * the job was submitted (ruling R12), so the record resolves by primary key
- * rather than through an index.
- *
- * Only ours. Whatever else the provider appended is passed on untouched for
- * the provider's own adapter to read, because which parameter carries a job id
- * and which carries a status is a fact about one vendor, and this route is the
- * last place that should have to be edited when the vendor changes.
+ * Only the two parameters that are ours, appended to the callback URL at
+ * submission so the record resolves by primary key. Whatever else the provider
+ * appended is passed on untouched for its own adapter to read, because which
+ * parameter carries a job id is a fact about one vendor.
  */
-const ProviderCallbackQuerySchema = z.object({
+export const ProviderCallbackQuerySchema = z.object({
   transcriptionId: z.string().min(1).max(MAX_IDENTIFIER_LENGTH),
   userId: z.string().min(1).max(MAX_IDENTIFIER_LENGTH),
 });
 
-interface Dependencies {
-  readonly completeTranscription: CompleteTranscription;
-  readonly failTranscription: FailTranscription;
-  readonly publishTranscriptionUpdate: PublishTranscriptionUpdate;
-  readonly transcriptionProvider: TranscriptionProvider;
-  readonly secrets: SecretsProvider;
-  /** Parameter Store path of the shared secret the provider echoes back. */
-  readonly webhookSecretName: string;
-  readonly logger: Logger;
-}
-
 /**
- * `POST /webhooks/transcription-provider` — applies a provider job outcome.
+ * `POST /webhooks/transcription-provider`.
  *
- * This route has no JWT authorizer, because the caller is Speechmatics and it
- * holds no Cognito token. The shared secret it echoes in the `Authorization`
- * header is therefore the *only* thing standing between the open internet and
- * a write into a named user's history. Anyone who learns this URL and gets
- * past that check can fabricate a transcription in any account, so the check
- * runs first, before the query string is looked at, before the body is read,
- * and before any use case is touched.
- *
- * Both outcomes acknowledge with a 2xx when there is nothing left to do. The
- * provider redelivers until it gets one, and the use cases already treat a
- * record that has reached the target state as success without mutating it —
- * a second delivery of a completion must never overwrite a good transcript.
+ * This route has no JWT authorizer — the caller is the provider and holds no
+ * Cognito token — so the shared secret it echoes in the `Authorization` header
+ * is the *only* thing between the open internet and a write into a named
+ * user's history. The check therefore runs first: before the query string is
+ * looked at, before the body is read, before any use case is touched.
  */
 export function handleProviderCallbackHandler(
-  dependencies: Dependencies,
+  dependencies: HandleProviderCallbackDependencies,
 ): ApiGatewayRequestHandler {
   return withErrorMapping(dependencies.logger, async (request: HttpRequest) => {
     const expectedSecret = await dependencies.secrets.getSecret(dependencies.webhookSecretName);
 
     if (!secretsMatch(readPresentedSecret(request.event), expectedSecret)) {
-      // Nothing about the request is logged beyond the correlation id the
-      // request logger already carries: the body of a forged callback is
-      // attacker-controlled, and a rejected credential must not be written to
-      // a log where it would sit in plaintext next to the endpoint it was
+      // Nothing about the request is logged beyond the correlation id: the
+      // body of a forged callback is attacker-controlled, and a rejected
+      // credential must not sit in plaintext beside the endpoint it was
       // presented to.
       request.logger.warn('Rejected a provider callback with an invalid credential');
 
@@ -94,9 +66,8 @@ export function handleProviderCallbackHandler(
     }
 
     return withValidatedQuery(ProviderCallbackQuerySchema, async (validRequest, query) => {
-      // The body is handed over as it was sent. Reading it is the provider
-      // adapter's business, and a JSON parse here would already be an
-      // assumption about a payload format this layer has no reason to hold.
+      // Handed over as it was sent: a JSON parse here would be an assumption
+      // about a payload format this layer has no reason to hold.
       const outcome = await dependencies.transcriptionProvider.interpretCallback({
         query: validRequest.event.queryStringParameters ?? {},
         body: readRawBody(validRequest.event),
@@ -114,14 +85,8 @@ export function handleProviderCallbackHandler(
   });
 }
 
-type CallbackQuery = z.infer<typeof ProviderCallbackQuerySchema>;
-
-type CompletedOutcome = Extract<ProviderJobOutcome, { kind: 'completed' }>;
-type FailedOutcome = Extract<ProviderJobOutcome, { kind: 'failed' }>;
-type UnrecognisedOutcome = Extract<ProviderJobOutcome, { kind: 'unrecognised' }>;
-
 async function applyCompletion(
-  dependencies: Dependencies,
+  dependencies: HandleProviderCallbackDependencies,
   request: HttpRequest,
   query: CallbackQuery,
   outcome: CompletedOutcome,
@@ -145,14 +110,14 @@ async function applyCompletion(
 }
 
 async function applyFailure(
-  dependencies: Dependencies,
+  dependencies: HandleProviderCallbackDependencies,
   request: HttpRequest,
   query: CallbackQuery,
   outcome: FailedOutcome,
 ): Promise<HttpResponse> {
-  // The provider's own status word is operational detail. `reason` is stored
-  // on the record and shown in the history, so it says something a clinician
-  // can act on rather than repeating a third party's vocabulary.
+  // The provider's status word goes to the log; `reason` is stored on the
+  // record and shown in the history, so it says something a clinician can act
+  // on rather than repeating a third party's vocabulary.
   request.logger.warn('Provider reported a job it did not complete', {
     transcriptionId: query.transcriptionId,
     providerStatus: outcome.providerStatus,
@@ -169,33 +134,26 @@ async function applyFailure(
     return toErrorResponse(result.error, request.requestId);
   }
 
-  // A failure is pushed too. The browser is waiting on this record either way,
-  // and a client told only about successes waits out its whole fallback budget
-  // before discovering a transcription that failed in ten seconds.
+  // A failure is pushed too: a client told only about successes waits out its
+  // whole fallback budget before discovering a transcription that failed in
+  // ten seconds.
   await announce(dependencies, request, query);
 
   return acknowledged(request.requestId);
 }
 
 /**
- * Pushes the settled record to whatever sockets its owner has open.
- *
  * **This can never fail the callback**, and the `catch` is not defensive
- * padding. The provider redelivers until it gets a 2xx, so an exception
- * escaping here would have a completed transcription reported as undelivered
- * and retried — and, if the same exception recurred, eventually abandoned. A
- * browser that closed its laptop lid must not be able to cause that.
+ * padding. The record is already written; everything here is a notification.
+ * An exception escaping would have the provider retry a completed
+ * transcription and eventually abandon it, and a browser that closed its
+ * laptop lid must not be able to cause that.
  *
- * The record is already written by the time this runs. Everything below this
- * line is a notification, and the history is the source of truth a client
- * falls back to.
- *
- * `PublishTranscriptionUpdate` swallows a departed connection and a failed
- * publish on its own; this is the second guard, and both are right, because
- * the cost of being wrong is a lost transcript.
+ * `PublishTranscriptionUpdate` holds a guard of its own. Both are right,
+ * because the cost of being wrong is a lost transcript.
  */
 async function announce(
-  dependencies: Dependencies,
+  dependencies: HandleProviderCallbackDependencies,
   request: HttpRequest,
   query: CallbackQuery,
 ): Promise<void> {
@@ -212,13 +170,9 @@ async function announce(
 }
 
 /**
- * A callback the provider's own adapter could not make sense of. Answered 400
- * and never applied: the two writes below this point both need a job id to
- * prove the callback belongs to the record it names, and without one there is
- * nothing to check a forged or garbled delivery against.
- *
- * The reason is written by the adapter and is a fixed sentence, so nothing the
- * sender chose is reflected back to it.
+ * Answered 400 and never applied: both writes need a job id to prove the
+ * callback belongs to the record it names. The reason is a fixed sentence the
+ * adapter wrote, so nothing the sender chose is reflected back to it.
  */
 function rejectUnrecognised(
   request: HttpRequest,
@@ -240,14 +194,11 @@ function acknowledged(requestId: string): HttpResponse {
 }
 
 /**
- * The credential the caller presented, or an empty string when it presented
- * none — never a short circuit. An early return for a missing header would
- * answer measurably faster than a wrong secret, and that difference is itself
- * a signal about how the check works.
+ * An empty string when nothing was presented, never a short circuit: an early
+ * return for a missing header answers measurably faster than a wrong secret.
  *
- * The header is matched case-insensitively: an HTTP API v2 event lowercases
- * header names, a REST API event does not, and a check that silently only
- * works on one of them would fail open on the other.
+ * Matched case-insensitively — an HTTP API v2 event lowercases header names, a
+ * REST API event does not, and a check that works on only one fails open.
  */
 function readPresentedSecret(event: ApiGatewayRequestEvent): string {
   const header =
@@ -258,19 +209,13 @@ function readPresentedSecret(event: ApiGatewayRequestEvent): string {
 }
 
 /**
- * Compares the two secrets in constant time.
+ * Constant time. A plain `===` stops at the first differing byte, which is
+ * enough for a remote attacker to recover the secret character by character.
  *
- * `timingSafeEqual` throws when the buffers differ in length, and the obvious
- * fix — check the lengths first and return early — reintroduces exactly the
- * leak the function exists to prevent, letting an attacker recover the
- * secret's length one guess at a time. Hashing both sides first makes every
- * comparison examine 32 bytes whatever was presented, so no path through this
- * function depends on the length of the input, and SHA-256's collision
- * resistance means equal digests mean equal secrets.
- *
- * A plain `===` here would compare byte by byte and stop at the first
- * difference, which is enough for a remote attacker to recover the secret
- * character by character given enough samples.
+ * Both sides are hashed first because `timingSafeEqual` throws on buffers of
+ * different length, and the obvious fix — compare lengths and return early —
+ * leaks the secret's length one guess at a time. Digests make every comparison
+ * examine 32 bytes whatever was presented.
  */
 function secretsMatch(presented: string, expected: string): boolean {
   const presentedDigest = createHash('sha256').update(presented, 'utf8').digest();

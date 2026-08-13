@@ -2,9 +2,8 @@
 import { computed } from 'vue';
 
 interface Props {
-  /** A percentage. Values outside 0–100, and NaN, are clamped rather than rendered. */
+  /** A percentage. */
   value: number;
-  /** Read out by assistive technology, so it must say what is progressing. */
   label: string;
   /** Hides the numeric readout without hiding it from a screen reader. */
   hideValueText?: boolean;
@@ -13,11 +12,9 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { hideValueText: false });
 
 /*
- * The value arrives from XMLHttpRequest's progress event as
- * `loaded / total * 100`. `total` is 0 until the request has a
- * Content-Length, so the first event of every upload is NaN, and rounding
- * error can push the last one just past 100. Both would render as a bar
- * stretching outside its track, and NaN would reach aria-valuenow.
+ * The value arrives as `loaded / total * 100` from an XMLHttpRequest progress
+ * event, where `total` is 0 until the request has a Content-Length — so the
+ * first event of every upload is NaN and rounding can push the last past 100.
  */
 const percentage = computed<number>(() => {
   if (!Number.isFinite(props.value)) {

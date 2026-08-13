@@ -4,15 +4,12 @@ import BaseButton from '../atoms/BaseButton.vue';
 
 interface Props {
   /**
-   * `empty` means there is genuinely nothing yet and the user should be
-   * invited to start; `error` means the list failed to load and what is on
-   * screen is not the truth. Collapsing the two tells someone whose request
-   * failed that they have no transcriptions, which is a lie.
+   * Kept apart because collapsing them tells someone whose request failed that
+   * they have no transcriptions, which is a lie.
    */
   variant?: 'empty' | 'error';
   title: string;
   description?: string | null;
-  /** Omitted when there is nothing useful to offer. */
   actionLabel?: string | null;
 }
 

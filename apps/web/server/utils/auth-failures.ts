@@ -1,35 +1,23 @@
 /**
- * Cognito failures translated into something a user can act on.
- *
  * Two rules govern every line below.
  *
- * **No provider code reaches the browser.** `UsernameExistsException` is
- * Cognito's vocabulary, not the user's, and shipping it to the page leaks the
- * identity provider along with it. What crosses the boundary is a stable
- * application code — for the interface to branch on — and a Spanish sentence
- * that says what to do next. "Contraseña incorrecta" without a next step is
- * only marginally better than the raw code.
+ * **No provider code reaches the browser.** What crosses the boundary is a
+ * stable application code for the interface to branch on, and a Spanish
+ * sentence that says what to do next.
  *
- * **An error must not answer a question the caller has not earned.** An
- * anonymous visitor who types an address into the registration form must not
- * learn from the response whether that address already has an account: the
- * membership list of a medical transcription service is itself sensitive, and
- * a sign-up form that says "ya está registrado" is a user enumeration
- * endpoint with a friendly face. The user pool is configured with
+ * **An error must not answer a question the caller has not earned.** A
+ * visitor typing an address into the registration form must not learn whether
+ * it already has an account: a sign-up form that says "ya está registrado" is
+ * a user enumeration endpoint with a friendly face. The pool sets
  * `prevent_user_existence_errors`, which covers sign-in, but Cognito's
- * `SignUp` reveals existence regardless — so it is neutralised here.
+ * `SignUp` reveals existence regardless, so it is neutralised here.
  *
- * Where the two rules leave a residue, it is named in a comment rather than
- * papered over.
+ * Where the rules leave a residue, it is named rather than papered over.
  */
 
 /**
- * Every failure this server reports, as a union rather than as loose strings.
- *
- * The interface renders one of these codes in the reader's own language, so it
- * carries a `Record<AuthFailureCode, MessageKey>`: adding a case here without
- * words for it stops the front end compiling, which is the only way to be sure
- * a new failure never reaches a clinician as a blank alert.
+ * The interface carries a `Record<AuthFailureCode, MessageKey>`, so adding a
+ * case here without words for it stops the front end compiling.
  */
 export const AUTH_FAILURE_CODES = [
   'RATE_LIMITED',
@@ -54,12 +42,8 @@ export interface AuthFailure {
   /** Stable, ours, and safe to branch on in the interface. */
   readonly code: AuthFailureCode;
   /**
-   * Spanish, and always says what to do next.
-   *
-   * This is the HTTP contract: what a log records, and what anything that is
-   * not this browser reads. The browser renders the `code` through its own
-   * catalogue instead, because the language a person reads in is a property of
-   * that person and not of the API.
+   * The HTTP contract: what a log records and what anything that is not this
+   * browser reads. The browser renders the `code` through its own catalogue.
    */
   readonly message: string;
 }
@@ -137,16 +121,11 @@ export const INVALID_INPUT: AuthFailure = {
 export { SESSION_EXPIRED };
 
 /**
- * Registration.
- *
- * `null` means "answer as though it had succeeded". `UsernameExistsException`
- * is the one Cognito outcome this application refuses to report: the response
- * to registering an address that already has an account is byte for byte the
- * response to registering a new one, and both send the visitor to the
- * confirmation screen. Somebody who already has a confirmed account and
- * registers again gets a code they cannot use and a message telling them to
- * sign in, which costs a confirmed user one wasted screen and costs an
- * attacker the entire enumeration.
+ * `null` means "answer as though it had succeeded". The response to
+ * registering an address that already has an account is byte for byte the
+ * response to registering a new one, so `UsernameExistsException` is never
+ * reported: it costs a confirmed user one wasted screen and an attacker the
+ * entire enumeration.
  */
 export function describeRegistrationFailure(error: unknown): AuthFailure | null {
   switch (readErrorName(error)) {
@@ -167,22 +146,14 @@ export function describeRegistrationFailure(error: unknown): AuthFailure | null 
 }
 
 /**
- * Confirming an address.
- *
  * Everything except an expired code collapses into one message, so a wrong
  * code, an unknown address and an already-confirmed account are
- * indistinguishable. Expiry is kept separate because the brief requires the
- * expired path to be walkable and because "el código ha caducado, pide uno
- * nuevo" is the only wording that makes the resend control obviously the
- * right thing to press.
+ * indistinguishable.
  *
- * That distinction is a stated residue: Cognito returns `ExpiredCodeException`
- * only for an address that exists and is still unconfirmed, so a caller who
- * sees it learns that much. The exposure is limited to accounts that never
- * finished signing up, and it is bounded by the same rate limiting as every
- * other call. Both alternatives were worse — folding expiry into the generic
- * message leaves a user re-entering a code that can never work, and Cognito
- * offers no way to make the two cases identical while still allowing a resend.
+ * Expiry is a stated residue: Cognito returns `ExpiredCodeException` only for
+ * an address that exists and is still unconfirmed, so a caller who sees it
+ * learns that much. Accepted because folding it into the generic message
+ * leaves a user re-entering a code that can never work.
  */
 export function describeConfirmationFailure(error: unknown): AuthFailure {
   switch (readErrorName(error)) {
@@ -203,14 +174,10 @@ export function describeConfirmationFailure(error: unknown): AuthFailure {
 }
 
 /**
- * Resending a code.
- *
- * `null` again means "answer as though it had succeeded", and here it covers
- * every outcome that depends on whether the address exists. The route's reply
- * is the same sentence whatever happened, which is what stops the resend
- * control from becoming the enumeration endpoint the sign-up form is not.
- * Only rate limiting is reported, because a user hammering the button needs
- * to be told to stop and it says nothing about the address.
+ * `null` covers every outcome that depends on whether the address exists,
+ * which is what stops the resend control becoming the enumeration endpoint the
+ * sign-up form is not. Rate limiting is reported because it says nothing about
+ * the address.
  */
 export function describeResendFailure(error: unknown): AuthFailure | null {
   switch (readErrorName(error)) {
@@ -225,20 +192,15 @@ export function describeResendFailure(error: unknown): AuthFailure | null {
 }
 
 /**
- * Signing in.
- *
  * A wrong password and an address with no account produce the same 401 with
- * the same sentence. The user pool sets `prevent_user_existence_errors`, so
- * Cognito already answers `NotAuthorizedException` for an unknown address, but
- * mapping `UserNotFoundException` to the identical failure means the property
- * does not depend on that setting staying switched on.
+ * the same sentence. Mapping `UserNotFoundException` to the identical failure
+ * means the property does not depend on `prevent_user_existence_errors`
+ * staying switched on.
  *
- * `UserNotConfirmedException` is the exception, and it is deliberate. A user
- * who registered, closed the tab and came back has no route forward from
- * "credenciales incorrectas"; they need to be sent to the confirmation screen.
- * Cognito raises it before checking the password, so it does reveal that an
- * unconfirmed account exists at that address — the same residue the
- * confirmation flow carries, accepted for the same reason, and no wider.
+ * `UserNotConfirmedException` is the deliberate exception: a user who
+ * registered and came back has no route forward from "credenciales
+ * incorrectas". It reveals that an unconfirmed account exists — the same
+ * residue the confirmation flow carries, and no wider.
  */
 export function describeSignInFailure(error: unknown): AuthFailure {
   switch (readErrorName(error)) {
@@ -263,19 +225,13 @@ export function describeSignInFailure(error: unknown): AuthFailure {
 }
 
 /**
- * Signing out everywhere.
+ * `null` means the sign-out is complete: `NotAuthorizedException` on a
+ * `GlobalSignOut` means the access token is already invalid, so there is no
+ * live session left to end.
  *
- * `null` means the sign-out is complete. Cognito answering
- * `NotAuthorizedException` to a `GlobalSignOut` means the access token it was
- * given is already invalid, so there is no live session left to end and
- * clearing the cookies finishes the job. Reporting that as a failure would
- * teach users that signing out is unreliable.
- *
- * Anything else is reported, and reported honestly. If Cognito could not be
- * reached, the refresh token stays valid for the rest of its eight hours in
- * whatever copy of it exists elsewhere, and the browser cookies having gone is
- * not the same thing as having signed out. Saying so is the difference between
- * this and the sign-out acceptance criterion A3 exists to catch.
+ * Anything else is reported honestly. If Cognito could not be reached the
+ * refresh token stays valid elsewhere for the rest of its eight hours, and
+ * cleared browser cookies are not the same thing as having signed out.
  */
 export function describeSignOutFailure(error: unknown): AuthFailure | null {
   switch (readErrorName(error)) {
@@ -293,13 +249,9 @@ export function describeSignOutFailure(error: unknown): AuthFailure | null {
 }
 
 /**
- * Refreshing.
- *
- * Every failure is the same as far as the browser is concerned: the session is
- * over and the cookies are cleared. A revoked refresh token — which is exactly
- * what signing out everywhere produces — arrives here as
- * `NotAuthorizedException`, and it is not an error condition to report but the
- * expected end of a session.
+ * Every failure is the same to the browser: the session is over and the
+ * cookies are cleared. A revoked refresh token, which is what signing out
+ * everywhere produces, is the expected end of a session rather than an error.
  */
 export function describeRefreshFailure(): AuthFailure {
   return SESSION_EXPIRED;

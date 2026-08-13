@@ -9,11 +9,10 @@ import {
   ConcurrentModificationError,
   InvalidCursorError,
 } from '../../domain/errors/domain-error.js';
-import type {
-  TranscriptionPage,
-  TranscriptionRepository,
-} from '../../domain/ports/transcription-repository.js';
-import { err, ok, type Result } from '../../domain/shared/result.js';
+import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
+import type { TranscriptionPage } from '../../domain/types/transcription-page.js';
+import { err, ok } from '../../domain/shared/result.js';
+import type { Result } from '../../domain/types/result.js';
 import { decodeCursor, encodeCursor } from './pagination-cursor.js';
 import {
   buildClientSessionSortKey,
@@ -27,10 +26,9 @@ import {
 } from './transcription.mapper.js';
 
 /**
- * A single table keyed `PK = USER#<userId>`, `SK = TRANS#<id>`, with no
- * secondary index and no `Scan`. Ruling R13 removed the only query that
- * wanted one: the provider callback now carries the record's identity, so
- * the webhook resolves by primary key.
+ * `PK = USER#<userId>`, `SK = TRANS#<id>`, with no secondary index and no
+ * `Scan` — the provider callback carries the record's identity, so the only
+ * query that ever wanted an index resolves by primary key instead.
  *
  * Ids are ULIDs, so sort-key order is chronological order and newest-first
  * history is a descending query rather than a sort in memory.
@@ -62,10 +60,9 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
         await this.client.send(
           new TransactWriteCommand({
             // One transaction, so the record and the claim on its client
-            // session id are both written or neither is. Claiming first and
-            // writing after would leave a key pointing at a record that does
-            // not exist if the second write failed, and every retry of that
-            // dictation would then resolve to nothing.
+            // session id are both written or neither is. Claiming first would
+            // leave a key pointing at a record that does not exist, and every
+            // retry of that dictation would resolve to nothing.
             TransactItems: [
               { Put: { TableName: this.tableName, Item: item, ...versionCondition } },
               {
@@ -76,8 +73,6 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
                     clientSessionId,
                     transcriptionId: primitives.id,
                   }),
-                  // Whoever writes the claim first wins; everyone else is told
-                  // they lost and reads back what the winner stored.
                   ConditionExpression: 'attribute_not_exists(SK)',
                 },
               },
@@ -86,21 +81,19 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
         );
       }
     } catch (cause: unknown) {
-      // `instanceof` here, unlike anywhere a domain error is recognised: the
-      // ban on it exists because esbuild renames our own classes and a
-      // minified `code` string survives where a constructor identity does
-      // not. These classes are the SDK's, imported by exactly one copy of the
-      // client, and the failures they report have no `code` of their own.
+      // `instanceof` here, unlike anywhere a domain error is recognised: that
+      // ban exists because esbuild renames our own classes. These are the
+      // SDK's, imported by exactly one copy of the client, and report no
+      // `code` of their own.
       //
       // A transaction reports a failed condition as a cancellation rather than
-      // as `ConditionalCheckFailedException`, so both are recognised — which
-      // of the two items lost does not change the answer: the caller re-reads.
+      // as `ConditionalCheckFailedException`, so both are recognised.
       if (cause instanceof ConditionalCheckFailedException || isConditionalCancellation(cause)) {
         return err(new ConcurrentModificationError(primitives.id));
       }
       // Everything else — a throttle, a timeout, a missing table — is
-      // infrastructure failing rather than a race, and must not be reported
-      // to the caller as a lost write it can safely ignore.
+      // infrastructure failing rather than a race, and must not be reported as
+      // a lost write the caller can safely ignore.
       throw cause;
     }
 
@@ -112,8 +105,8 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
       new GetCommand({
         TableName: this.tableName,
         // Isolation is structural: the partition key is built from the
-        // requesting user, so another user's id addresses an item that does
-        // not exist rather than one that has to be filtered out afterwards.
+        // requesting user, so another user's id addresses an item that does not
+        // exist rather than one that has to be filtered out afterwards.
         Key: {
           PK: buildPartitionKey(userId),
           SK: buildTranscriptionSortKey(transcriptionId),
@@ -164,9 +157,9 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
     const response = await this.client.send(
       new QueryCommand({
         TableName: this.tableName,
-        // `begins_with` on the sort key rather than the partition alone, so
-        // the history never picks up a non-transcription item that a later
-        // access pattern stores under the same user.
+        // `begins_with` on the sort key rather than the partition alone, so the
+        // history never picks up a non-transcription item that a later access
+        // pattern stores under the same user.
         KeyConditionExpression: '#pk = :pk AND begins_with(#sk, :transcriptionPrefix)',
         ExpressionAttributeNames: { '#pk': 'PK', '#sk': 'SK' },
         ExpressionAttributeValues: {
@@ -174,13 +167,11 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
           ':transcriptionPrefix': TRANSCRIPTION_SORT_KEY_PREFIX,
         },
         ScanIndexForward: false,
-        // One more than the page is requested so the existence of a following
-        // record is known rather than inferred. DynamoDB returns a
-        // `LastEvaluatedKey` whenever it stops because it reached `Limit`,
-        // including when nothing follows, so a `Limit` of exactly the page
-        // size would hand the client a cursor leading to an empty page — and
-        // the contract is that `nextCursor` is null only when the history
-        // genuinely ends.
+        // One more than the page, so a following record is known rather than
+        // inferred. DynamoDB returns a `LastEvaluatedKey` whenever it stops at
+        // `Limit`, including when nothing follows, so a `Limit` of exactly the
+        // page size hands the client a cursor leading to an empty page — and
+        // `nextCursor` is null only when the history genuinely ends.
         Limit: input.limit + 1,
         ...(startKey.value === undefined ? {} : { ExclusiveStartKey: startKey.value }),
       }),
@@ -190,10 +181,9 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
     const items = rows.slice(0, input.limit).map(toTranscriptionPrimitives);
     const lastItem = items[items.length - 1];
 
-    // The `LastEvaluatedKey` term covers the other reason a query stops
-    // early: a page that reached the 1 MB response limit before the item
-    // limit. Returning a cursor there costs one extra request; omitting it
-    // would truncate the user's history.
+    // The `LastEvaluatedKey` term covers the other reason a query stops early:
+    // a page that hit the 1 MB response limit first. Returning a cursor there
+    // costs one extra request; omitting it truncates the user's history.
     const hasMore = rows.length > input.limit || response.LastEvaluatedKey !== undefined;
     const nextCursor =
       hasMore && lastItem !== undefined
@@ -227,14 +217,10 @@ export class DynamoTranscriptionRepository implements TranscriptionRepository {
 }
 
 /**
- * Optimistic locking, expressed as a write condition.
- *
- * `attribute_not_exists(SK)` is what permits the very first insert: a new
- * entity carries version 0 and no item exists to compare against. Once the
- * record is there, only a writer holding the current revision can replace it,
- * so a save derived from a stale read is rejected by the table rather than
- * silently winning. Nothing ever stores version 0, so the two branches cannot
- * both be true for the same item.
+ * `attribute_not_exists(SK)` is what permits the first insert: a new entity
+ * carries version 0 and no item exists to compare against. After that only a
+ * writer holding the current revision can replace it, so a save derived from a
+ * stale read is rejected by the table rather than silently winning.
  *
  * `version` is a DynamoDB reserved word, hence the `#version` alias.
  */
@@ -251,10 +237,9 @@ function buildVersionCondition(expectedVersion: number): {
 }
 
 /**
- * A transaction cancelled because one of its conditions failed, as opposed to
- * one cancelled by a throttle, a conflicting transaction or an item-size
- * limit. Only the first is a lost race the caller can resolve by re-reading;
- * the rest are infrastructure and must keep propagating.
+ * Distinguishes a cancellation caused by a failed condition from one caused by
+ * a throttle, a conflicting transaction or an item-size limit. Only the first
+ * is a lost race the caller resolves by re-reading.
  */
 function isConditionalCancellation(cause: unknown): boolean {
   return (

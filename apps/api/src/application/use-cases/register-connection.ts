@@ -1,24 +1,13 @@
 import type { Clock } from '../../domain/ports/clock.js';
 import type { ConnectionRegistry } from '../../domain/ports/connection-registry.js';
 import { CONNECTION_TTL_SECONDS } from '../constants.js';
-
-interface RegisterConnectionInput {
-  readonly userId: string;
-  readonly connectionId: string;
-}
+import type { RegisterConnectionInput } from '../types/register-connection-input.js';
 
 /**
- * Records a connection so a completion has somewhere to be delivered.
- *
- * Run on `$connect`, after the authorizer has already validated and spent the
- * ticket, so `userId` here is resolved rather than claimed — nothing in the
- * connect request itself is trusted for identity.
- *
- * Deliberately separate from the authorizer, which also sees the connection
- * id. An authorizer that wrote the entry would write it before API Gateway had
- * decided the connection was established, so a connect the service then
- * refused would leave a record of a connection that never existed, and nothing
- * would ever send a `$disconnect` to clear it.
+ * Deliberately separate from the authorizer, which also sees the connection id.
+ * An authorizer that wrote the entry would write it before API Gateway had
+ * established the connection, so a refused connect would leave a record nothing
+ * ever sends a `$disconnect` for.
  */
 export class RegisterConnection {
   constructor(

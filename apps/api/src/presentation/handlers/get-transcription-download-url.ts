@@ -1,36 +1,27 @@
-import type { GetTranscriptionDownloadUrl } from '../../application/use-cases/get-transcription-download-url.js';
-import type { Logger } from '../../domain/ports/logger.js';
-import type {
-  ApiGatewayRequestHandler,
-  AuthenticatedHttpRequest,
-} from '../http/api-gateway-request.js';
 import { withAuthenticatedUser } from '../http/authentication.js';
 import { toErrorResponse, withErrorMapping } from '../http/error-mapping.js';
-import { jsonResponse, type HttpResponse } from '../http/http-response.js';
+import { jsonResponse } from '../http/http-response.js';
 import { OK } from '../http/http-status.js';
 import {
   DownloadUrlQuerySchema,
   TranscriptionPathParametersSchema,
 } from '../http/request-schemas.js';
 import { withValidatedPathParameters, withValidatedQuery } from '../http/validation.js';
-
-interface Dependencies {
-  readonly useCase: GetTranscriptionDownloadUrl;
-  readonly logger: Logger;
-}
+import type { ApiGatewayRequestHandler } from '../types/api-gateway-request-handler.js';
+import type { AuthenticatedHttpRequest } from '../types/authenticated-http-request.js';
+import type { GetTranscriptionDownloadUrlDependencies } from '../types/get-transcription-download-url-dependencies.js';
+import type { HttpResponse } from '../types/http-response.js';
 
 /**
- * `GET /transcriptions/{transcriptionId}/download?format=txt|json` — a
- * short-lived signed link to the transcript.
+ * `GET /transcriptions/{transcriptionId}/download?format=txt|json`.
  *
- * The only endpoint that validates two sources, so the query middleware is
- * applied inside the path one and closes over the id it produced. A record
- * that is not `COMPLETED` yet is answered 409 rather than 404: the client
- * asked for something that exists and is not ready, and "not found" would
- * send it looking for a bug instead of waiting.
+ * The only endpoint validating two sources, so the query middleware is applied
+ * inside the path one and closes over the id it produced. A record that is not
+ * `COMPLETED` yet is answered 409 rather than 404: it exists and is not ready,
+ * and "not found" would send the client looking for a bug instead of waiting.
  */
 export function getTranscriptionDownloadUrlHandler(
-  dependencies: Dependencies,
+  dependencies: GetTranscriptionDownloadUrlDependencies,
 ): ApiGatewayRequestHandler {
   const respondForTranscription = (
     transcriptionId: string,

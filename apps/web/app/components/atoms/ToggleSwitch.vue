@@ -1,20 +1,11 @@
 <script setup lang="ts">
 /**
- * A two-state setting, as a row you can press anywhere.
+ * `role="switch"` on a real `<button>`, not a styled checkbox: the button is
+ * keyboard-operable for free, and `aria-checked` makes a screen reader say
+ * "on" and "off" rather than "checked", which is a box on an unsubmitted form.
  *
- * `role="switch"` on a real `<button>`, not a checkbox dressed up in CSS. A
- * button is focusable, is operated by Enter and Space without a line of key
- * handling, and `aria-checked` is what makes a screen reader say "on" and
- * "off" rather than "checked" — which is the difference between a setting that
- * is currently applied and a box somebody has ticked on a form they have not
- * submitted yet.
- *
- * The whole row is the control, label included. A switch whose hit target is
- * the twenty-pixel track beside the words is a switch that gets missed on a
+ * The whole row is the hit target — a twenty-pixel track gets missed on a
  * touchscreen, and there is nothing else in the row for a stray press to hit.
- *
- * Presentational, like everything else here: the state arrives as a prop and
- * the requested one leaves as an event.
  */
 interface Props {
   modelValue: boolean;
@@ -40,8 +31,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
       {{ label }}
     </span>
 
-    <!-- The track and the thumb say nothing a screen reader has not already
-         been told by `aria-checked`, so they are hidden from it entirely. -->
+    <!-- The track and thumb repeat what `aria-checked` already says. -->
     <span
       aria-hidden="true"
       :class="[

@@ -1,18 +1,9 @@
 import type { ConnectionRegistry } from '../../domain/ports/connection-registry.js';
-
-interface DeregisterConnectionInput {
-  readonly userId: string;
-  readonly connectionId: string;
-}
+import type { DeregisterConnectionInput } from '../types/deregister-connection-input.js';
 
 /**
- * Forgets a connection the client closed.
- *
- * `$disconnect` is best-effort by API Gateway's own definition — it is not
- * delivered when the connection dies with the network rather than with a close
- * frame — which is why the entry also carries an expiry. This path is the
- * cheap case: a user closing a tab is a delete now rather than a publish that
- * answers 410 hours later.
+ * `$disconnect` is not delivered when a connection dies with the network
+ * rather than with a close frame, which is why the entry also carries an expiry.
  */
 export class DeregisterConnection {
   constructor(private readonly connections: ConnectionRegistry) {}

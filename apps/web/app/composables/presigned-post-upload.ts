@@ -1,37 +1,21 @@
-import type { TranslatableMessage } from '../i18n/translate';
+import type { TranslatableMessage } from '../i18n/types/TranslatableMessage';
 import { HTTP_FORBIDDEN, HTTP_MULTIPLE_CHOICES, HTTP_OK } from '../utils/http-status';
+import type { PresignedPostUpload } from './types/PresignedPostUpload';
+import type { StorageUploadFailureCode } from './types/StorageUploadFailureCode';
 
 /**
- * Sending the file itself to S3, with a bar that means something.
- *
  * The only part of the upload flow that leaves the application: everything
- * else goes through the BFF proxy, and this posts a multipart body straight at
- * a bucket using fields the API signed. It is separate from `useFileUpload`
- * because it belongs to S3's presigned POST contract rather than to this
- * product — the part order, the field name, the status ranges and the progress
- * events are all things Amazon decided.
+ * else goes through the BFF proxy, and this posts straight at a bucket. Kept
+ * apart from `useFileUpload` because the part order, the field name and the
+ * status ranges below belong to S3's presigned POST contract, not to us.
  */
 
-/** The percentage denominator, named so the arithmetic below reads as intent. */
 const PERCENT = 100;
-
-export interface PresignedPostUpload {
-  readonly url: string;
-  readonly fields: Readonly<Record<string, string>>;
-  readonly file: File;
-  readonly onProgress?: (percentage: number) => void;
-}
-
-export type StorageUploadFailureCode = 'REFUSED' | 'NETWORK_FAILED' | 'ABORTED';
 
 export class StorageUploadError extends Error {
   public readonly code: StorageUploadFailureCode;
 
-  /**
-   * What the reader is told. `Error.message` is a string by construction and a
-   * developer reads it in a stack trace, so it carries the key; the sentence
-   * is produced from `detail` at the moment it is rendered.
-   */
+  /** The sentence is produced from this at the moment it is rendered. */
   public readonly detail: TranslatableMessage;
 
   constructor(code: StorageUploadFailureCode, detail: TranslatableMessage) {
@@ -43,19 +27,13 @@ export class StorageUploadError extends Error {
 }
 
 /**
- * Assembles the multipart body of a presigned POST.
+ * **The policy fields must precede the file, which is why this exists rather
+ * than three lines at the call site.** S3 parses the multipart body in order
+ * and stops collecting form fields at the file part, so a body that puts the
+ * file first arrives with no policy, no signature and no key — and fails,
+ * after however long the file took to send, for a reason S3 does not state.
  *
- * **The policy fields must precede the file, and that is the entire reason
- * this function exists rather than three lines at the call site.** S3 parses
- * the multipart body in order and stops collecting form fields the moment it
- * reaches the file part; anything after it is ignored. A body that puts the
- * file first therefore arrives with no policy, no signature and no key, and
- * S3 answers with a policy error that names none of that. The upload simply
- * fails, at the end of however long the file took to send, for a reason the
- * response does not state.
- *
- * `file` is the part name the presigned POST contract requires; it is not a
- * choice.
+ * `file` is the part name the contract requires; it is not a choice.
  */
 export function buildPresignedPostForm(
   fields: Readonly<Record<string, string>>,
@@ -80,14 +58,9 @@ function describeStorageRefusal(status: number): TranslatableMessage {
 }
 
 /**
- * POSTs the file straight to S3, reporting how much of it has been sent.
- *
  * `XMLHttpRequest` rather than `fetch` for one reason: `fetch` cannot report
- * upload progress at all. It exposes a stream for the response and nothing for
- * the request, so a `fetch`-based upload can only show a bar that moves on a
- * timer — which tells the user something the code does not know. On a 20 MB
- * file over a clinic's connection that difference is a minute of either
- * genuine feedback or a fiction.
+ * upload progress at all — it exposes a stream for the response and nothing
+ * for the request, so a `fetch` upload can only show a bar moving on a timer.
  */
 export function uploadToPresignedPost(
   upload: PresignedPostUpload,
@@ -108,8 +81,8 @@ export function uploadToPresignedPost(
 
     request.addEventListener('load', () => {
       if (request.status >= HTTP_OK && request.status < HTTP_MULTIPLE_CHOICES) {
-        // The last progress event can arrive a little short of the total, and
-        // a bar frozen at 98% next to a finished upload reads as a hang.
+        // The last progress event can fall short of the total, and a bar frozen
+        // at 98% next to a finished upload reads as a hang.
         upload.onProgress?.(PERCENT);
         resolve();
         return;

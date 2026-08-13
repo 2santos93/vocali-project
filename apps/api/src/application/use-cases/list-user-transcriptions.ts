@@ -2,14 +2,10 @@ import type { ListTranscriptionsResponse } from '@vocali/contracts';
 import { TRANSCRIPTION_PAGE_SIZE } from '@vocali/contracts';
 import type { InvalidCursorError } from '../../domain/errors/domain-error.js';
 import type { TranscriptionRepository } from '../../domain/ports/transcription-repository.js';
-import type { Result } from '../../domain/shared/result.js';
+import type { Result } from '../../domain/types/result.js';
 import { ok } from '../../domain/shared/result.js';
+import type { ListUserTranscriptionsInput } from '../types/list-user-transcriptions-input.js';
 import { toPublicTranscription } from './public-transcription.js';
-
-interface ListUserTranscriptionsInput {
-  readonly userId: string;
-  readonly cursor: string | null;
-}
 
 export class ListUserTranscriptions {
   constructor(private readonly repository: TranscriptionRepository) {}
