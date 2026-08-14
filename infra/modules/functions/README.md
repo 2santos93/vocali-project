@@ -57,8 +57,7 @@ Four things are worth reading off that table:
   matching
   `TICKET#*` or `CONN#*`, so no role in the stack can reach a clinical record
   with it. That condition is why connections were given a partition of their
-  own: IAM can condition on a partition key and not on a sort key. See
-  `docs/adr/0011`.
+  own: IAM can condition on a partition key and not on a sort key.
 - **The signing functions hold the permission the browser then uses.** A
   presigned URL carries the signer's authority, so `create-upload-intent`
   needs `s3:PutObject` even though it never writes an object itself.

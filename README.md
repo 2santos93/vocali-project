@@ -91,7 +91,6 @@ apps/api            Backend: dominio, casos de uso, adaptadores y handlers
 apps/web            Frontend Nuxt y su capa de servidor
 packages/contracts  Esquemas Zod que comparten los dos lados
 infra               Terraform: bootstrap, módulos y un directorio por entorno
-docs/adr            Decisiones de arquitectura
 ```
 
 El backend está en capas y el orden de dependencia lo comprueba ESLint: importar un SDK de AWS desde el dominio rompe `pnpm lint`. En el frontend pasa algo parecido, los componentes no pueden usar composables de Nuxt, y por eso Jest los monta en milisegundos sin arrancar el framework.
@@ -102,4 +101,4 @@ El entorno `prod` está aplicado en AWS. Un workflow despliega el código cuando
 
 Falta la puerta de entrada pública. AWS no permite CloudFront ni URLs de función públicas en cuentas sin verificar, así que el renderer todavía no tiene dirección propia. Todo lo que hay detrás está desplegado y respondiendo, y se ve levantando el frontend en local como se explica arriba.
 
-Las decisiones que merecen discusión están en [`docs/adr`](docs/adr), en inglés.
+Cada módulo de `infra` lleva su propio README con lo que decide y por qué.

@@ -66,8 +66,12 @@ function URL opened to `NONE` answers 403 to every caller, the same gate
 blocks the intended edge and the substitute for it. A support case is open.
 `expose_ssr_publicly` is set while it is outstanding, because it is the only
 value that lets the environment apply at all; setting it back to `false` and
-applying is what restores the distribution once the case is answered. See
-`docs/adr/0009`, which records what that costs.
+applying is what restores the distribution once the case is answered.
+
+What it costs while it is set: there is no distribution, so the response
+headers policy applies to nothing. HSTS, `nosniff`, `frame-options: DENY` and
+the referrer policy are configured and none of them is served. They return with
+the distribution.
 
 So the API, the data plane and the identity plane are reachable, and the front
 end is run locally against them in the meantime.

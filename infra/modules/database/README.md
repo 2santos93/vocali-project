@@ -18,8 +18,7 @@ policy, not the query**. Filing them under `USER#<sub>` answers every query
 identically, and it would mean the grant that deletes a departed connection
 was `DeleteItem` on every item in the table, clinical records included. IAM
 can condition on a partition key and not on a sort key, so a separate
-partition is what makes `LeadingKeys: CONN#*` expressible. `docs/adr/0011`
-records that in full.
+partition is what makes `LeadingKeys: CONN#*` expressible.
 
 Two consequences that the application relies on and that are worth stating
 where the table is defined:
