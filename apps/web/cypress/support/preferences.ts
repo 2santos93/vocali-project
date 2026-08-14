@@ -1,11 +1,14 @@
 import type { InterfaceLanguage } from '../../app/i18n/types';
 import { DARK_PAGE_BACKGROUND } from './appearance';
+import { waitForHydration } from './hydration';
 
 /**
  * On the sign-in screens there is no account menu and the switch sits in the
  * page; on every other screen the menu has to be opened first.
  */
 function openThemeControl(signedIn: boolean): void {
+  waitForHydration();
+
   if (signedIn) {
     cy.get('[data-testid=user-menu]').click();
   }
@@ -61,6 +64,8 @@ export function expectThemeSwitch(
 }
 
 export function chooseInterfaceLanguage(language: InterfaceLanguage): void {
+  waitForHydration();
+
   cy.get('[data-testid=language-toggle]').click();
   cy.get('[data-testid=language-toggle]').should('have.attr', 'aria-expanded', 'true');
 

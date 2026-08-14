@@ -1,4 +1,5 @@
 import { typeIntoField } from './forms';
+import { waitForHydration } from './hydration';
 
 export const SIGNED_IN_EMAIL = 'ana.torres@clinicavocali.es';
 
@@ -26,6 +27,8 @@ export function signInOnTheWayTo(
   cy.visit(path, visitOptions);
 
   cy.location('pathname').should('equal', '/login');
+
+  waitForHydration();
 
   typeIntoField('Correo electrónico', SIGNED_IN_EMAIL);
   typeIntoField('Contraseña', SIGN_IN_PASSWORD);
