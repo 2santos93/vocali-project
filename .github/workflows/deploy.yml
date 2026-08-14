@@ -1,0 +1,131 @@
+name: Deploy
+
+# Runs only after CI has finished on main, so a deployment cannot overtake a
+# failing gate. `workflow_run` fires for the workflow file on the default
+# branch, which is where this one lives.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+# Never cancelled in flight. Interrupting a run that has replaced four of
+# thirteen functions leaves the platform running two versions of itself.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Mints the OIDC token the AWS role is willing to trust. Without it the
+  # credentials step has nothing to present.
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to production
+    # Three conditions, and the second and third are the security ones. The
+    # `branches` filter above matches the *head* branch of the run that
+    # triggered this, so a pull request opened from a fork whose branch is
+    # called `main` satisfies it. Requiring a push, from this repository,
+    # is what stops a stranger's commit reaching the deploy step.
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    # The role's trust policy names `environment:production`, and GitHub only
+    # mints that claim for a job that declares this. The approval gate is
+    # therefore enforced by AWS as well as by GitHub.
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The commit CI actually passed, not whatever main points at now.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Both builds run before any credential is requested, so a compilation
+      # failure never happens with an AWS session open.
+      - name: Bundle the API functions
+        run: infra/build/bundle-functions.sh
+
+      - name: Build the front end
+        run: pnpm --filter @vocali/web build
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: github-deploy-${{ github.run_id }}
+
+      # Terraform zips one `index.mjs` per function, so `-j` is what keeps the
+      # file at the root of the archive where `index.handler` looks for it.
+      #
+      # Every value reaches the shell as an environment variable rather than as
+      # an interpolation, so nothing is ever substituted into the script text.
+      - name: Deploy the API functions
+        env:
+          FUNCTION_NAME_PREFIX: ${{ vars.FUNCTION_NAME_PREFIX }}
+        run: |
+          for bundle in infra/build/dist/*/; do
+            name=$(basename "${bundle}")
+            function="${FUNCTION_NAME_PREFIX}${name}"
+
+            zip -j -q "infra/build/dist/${name}.zip" "${bundle}index.mjs"
+
+            echo "::group::${function}"
+            aws lambda update-function-code \
+              --function-name "${function}" \
+              --zip-file "fileb://infra/build/dist/${name}.zip" \
+              --output text --query 'LastModified'
+
+            # Lambda rejects a second update while the first is still settling,
+            # so each one is waited out before the next begins.
+            aws lambda wait function-updated --function-name "${function}"
+            echo "::endgroup::"
+          done
+
+      - name: Publish the static assets
+        env:
+          WEB_ASSETS_BUCKET: ${{ vars.WEB_ASSETS_BUCKET }}
+        run: |
+          aws s3 sync apps/web/.output/public "s3://${WEB_ASSETS_BUCKET}" \
+            --delete --no-progress
+
+      - name: Deploy the renderer
+        env:
+          WEB_SSR_FUNCTION: ${{ vars.WEB_SSR_FUNCTION }}
+        run: |
+          (cd apps/web/.output/server && zip -r -q ../server.zip .)
+
+          aws lambda update-function-code \
+            --function-name "${WEB_SSR_FUNCTION}" \
+            --zip-file fileb://apps/web/.output/server.zip \
+            --output text --query 'LastModified'
+
+          aws lambda wait function-updated --function-name "${WEB_SSR_FUNCTION}"
+
+      # Skipped while the account is unverified and no distribution exists. The
+      # role has no CloudFront permission in that state either, so an
+      # unconditional step would fail rather than no-op.
+      - name: Invalidate the CDN cache
+        if: vars.WEB_DISTRIBUTION_ID != ''
+        env:
+          WEB_DISTRIBUTION_ID: ${{ vars.WEB_DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${WEB_DISTRIBUTION_ID}" \
+            --paths '/*' \
+            --output text --query 'Invalidation.Id'

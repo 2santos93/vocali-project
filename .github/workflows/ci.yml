@@ -44,6 +44,20 @@ jobs:
       - name: Check Terraform formatting
         run: pnpm format:check:tf
 
+      # `-backend=false` initialises the providers and the modules without
+      # reaching for the state, so this needs no AWS credential and cannot read
+      # the Cognito client secret the state file holds. Each root module is
+      # validated on its own; the child modules are checked through whichever
+      # root calls them.
+      - name: Validate Terraform
+        run: |
+          for root in infra/bootstrap infra/environments/*/; do
+            echo "::group::${root}"
+            terraform -chdir="${root}" init -backend=false -input=false -no-color
+            terraform -chdir="${root}" validate -no-color
+            echo "::endgroup::"
+          done
+
       - name: Lint
         run: pnpm lint
 
