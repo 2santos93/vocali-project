@@ -1,10 +1,10 @@
 variable "github_repository" {
-  description = "The repository allowed to assume the deployment role, as owner/name. No default: a wrong value is a role that somebody else's workflow can assume, and a placeholder here would be applied without anyone reading it."
+  description = "The repository allowed to assume the deployment role, written as it appears in the `sub` claim GitHub issues. No default: a wrong value is a role that somebody else's workflow can assume, and a placeholder here would be applied without anyone reading it. This account issues immutable claims, so the value carries the numeric ids: owner@1234/name@5678. Read them from the token rather than guessing; the deploy workflow prints them when it cannot assume the role."
   type        = string
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$", var.github_repository))
-    error_message = "github_repository must be owner/name."
+    condition     = can(regex("^[A-Za-z0-9._-]+(@[0-9]+)?/[A-Za-z0-9._-]+(@[0-9]+)?$", var.github_repository))
+    error_message = "github_repository must be owner/name, optionally with the immutable ids as owner@1234/name@5678."
   }
 }
 

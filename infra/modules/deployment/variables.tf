@@ -9,12 +9,12 @@ variable "name_prefix" {
 }
 
 variable "github_repository" {
-  description = "The repository allowed to assume this role, as owner/name. There is no default: a wrong value here is a role somebody else's workflow can assume."
+  description = "The repository allowed to assume this role, as it appears in the `sub` claim. There is no default: a wrong value here is a role somebody else's workflow can assume. Accounts that issue immutable subject claims append a numeric id to each half, as owner@1234/name@5678, and that form is preferred: a name can be released and registered by a stranger, an id cannot."
   type        = string
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$", var.github_repository))
-    error_message = "github_repository must be owner/name, such as vocali/transcription-platform."
+    condition     = can(regex("^[A-Za-z0-9._-]+(@[0-9]+)?/[A-Za-z0-9._-]+(@[0-9]+)?$", var.github_repository))
+    error_message = "github_repository must be owner/name, optionally with the immutable ids as owner@1234/name@5678."
   }
 }
 
