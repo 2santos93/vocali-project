@@ -212,7 +212,17 @@ data "archive_file" "ssr" {
   lifecycle {
     precondition {
       condition     = fileexists("${var.nuxt_output_dir}/server/index.mjs")
-      error_message = "No Nuxt server bundle at ${var.nuxt_output_dir}/server. Run NITRO_PRESET=aws_lambda pnpm --filter @vocali/web build before planning."
+      error_message = "No Nuxt server bundle at ${var.nuxt_output_dir}/server. Run pnpm --filter @vocali/web build:lambda before planning."
+    }
+
+    # `nuxt build` defaults to the node-server preset, whose entry point starts
+    # an HTTP server and exports no handler. Lambda answers that by timing out
+    # at init with `Runtime.HandlerNotFound`, which is a slow and unspecific way
+    # to learn it in production. Checking the export makes the wrong build a
+    # failed plan instead.
+    precondition {
+      condition     = can(regex("as handler", file("${var.nuxt_output_dir}/server/index.mjs")))
+      error_message = "The Nuxt server bundle exports no handler, so it was built for a server rather than for Lambda. Run pnpm --filter @vocali/web build:lambda."
     }
   }
 }

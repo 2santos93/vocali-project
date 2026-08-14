@@ -18,8 +18,9 @@ locals {
 
   bff_client_secret_parameter_name = "/${local.project_name}/${local.environment}/bff/cognito-client-secret"
 
-  # Written by infra/build/bundle-functions.sh and by `nuxt build`. Relative to
-  # this directory, so the same paths work from a laptop and from a runner.
+  # Written by infra/build/bundle-functions.sh and by `pnpm --filter
+  # @vocali/web build:lambda`. Relative to this directory, so the same paths
+  # work from a laptop and from a runner.
   function_bundle_dir = "${path.module}/../../build/dist"
   nuxt_output_dir     = "${path.module}/../../../apps/web/.output"
 

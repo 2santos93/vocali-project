@@ -61,8 +61,11 @@ jobs:
       - name: Bundle the API functions
         run: infra/build/bundle-functions.sh
 
+      # `build`, not `build:lambda`, produces a bundle that starts an HTTP
+      # server and exports no handler. Lambda answers that by timing out at
+      # init, so the preset is not a preference here.
       - name: Build the front end
-        run: pnpm --filter @vocali/web build
+        run: pnpm --filter @vocali/web build:lambda
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
