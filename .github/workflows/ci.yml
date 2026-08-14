@@ -92,10 +92,23 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      # The Cypress binary is fetched by the package's own install script,
-      # which `onlyBuiltDependencies` in pnpm-workspace.yaml allows to run.
+      # The binary lives in ~/.cache/Cypress, outside both node_modules and the
+      # pnpm store, so neither cache restores it. Its own install script only
+      # runs when pnpm actually links the package, which a store cache hit
+      # skips: the first run downloaded it and every run after found it gone.
+      - name: Cache the Cypress binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Downloads the binary when the cache missed, and says so and stops when
+      # it is already there.
+      - name: Install the Cypress binary
+        run: pnpm --filter @vocali/web exec cypress install
 
       - name: Build the application
         run: pnpm --filter @vocali/web build
